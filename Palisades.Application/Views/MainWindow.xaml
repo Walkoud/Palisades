@@ -1,0 +1,1413 @@
+<Window x:Class="Palisades.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Palisades.ViewModels"
+        xmlns:conv="clr-namespace:Palisades.Converters"
+        xmlns:svc="clr-namespace:Palisades.Services"
+        mc:Ignorable="d"
+        Title="Palisades"
+        Height="700" Width="960"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="CanResize"
+        MinWidth="800" MinHeight="500"
+        d:DataContext="{d:DesignInstance vm:MainViewModel}">
+    <Window.Resources>
+        <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+        <conv:InvertBoolConverter x:Key="InvertBoolConverter" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <conv:EqualsConverter x:Key="EqualsConverter" />
+        <conv:IsInListConverter x:Key="IsInListConverter" />
+        <conv:FilePathToImageConverter x:Key="FilePathToImage" />
+    </Window.Resources>
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" ResizeBorderThickness="5" CornerRadius="12" GlassFrameThickness="0" />
+    </WindowChrome.WindowChrome>
+
+    <Border CornerRadius="12" Background="#1A1A1A" BorderBrush="#333" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="32" />
+            </Grid.RowDefinitions>
+
+            <!-- ===== TITLE BAR ===== -->
+            <Grid Grid.Row="0" Background="#222" MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Palisades" FontSize="16" FontWeight="Bold"
+                           Foreground="#EEE" Margin="16,0,0,0" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="—" Width="40" Height="30"
+                            Background="Transparent" BorderThickness="0"
+                            Foreground="#AAA" FontSize="16"
+                            Click="Minimize_Click" Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#333333" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="✕" Width="40" Height="30"
+                            Background="Transparent" BorderThickness="0"
+                            Foreground="#CCC" FontSize="15"
+                            Click="Close_Click" Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#CC3333" />
+                                        <Setter Property="Foreground" Value="#FFF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- ===== TOOLBAR ===== -->
+            <Border Grid.Row="1" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,0,0,1" Height="36">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Toolbar_Home]}" Command="{Binding NavigateHomeCommand}"
+                            Background="Transparent" BorderThickness="0" Foreground="#AAA" FontSize="12"
+                            Padding="12,0" Cursor="Hand"
+                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Tooltip_Home]}">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#33FFFFFF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Separator Grid.Column="1" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,6" Background="#444" />
+                    <Button Grid.Column="2" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Toolbar_New]}" Command="{Binding CreateContainerCommand}"
+                            Background="Transparent" BorderThickness="0" Foreground="#AAA" FontSize="12"
+                            Padding="12,0" Cursor="Hand"
+                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Tooltip_New]}">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#33FFFFFF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Separator Grid.Column="3" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,6" Background="#444" />
+                    <Button Grid.Column="4" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Toolbar_Show]}" Command="{Binding ShowAllContainersCommand}"
+                            Background="Transparent" BorderThickness="0" Foreground="#AAA" FontSize="12"
+                            Padding="12,0" Cursor="Hand" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Tooltip_Show]}">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#33FFFFFF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Grid.Column="5" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Toolbar_Hide]}" Command="{Binding HideAllContainersCommand}"
+                            Background="Transparent" BorderThickness="0" Foreground="#AAA" FontSize="12"
+                            Padding="12,0" Cursor="Hand" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Tooltip_Hide]}">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#33FFFFFF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Separator Grid.Column="6" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,6" Background="#444" />
+                    <Button Grid.Column="7" x:Name="ActionsButton" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Toolbar_Actions]}"
+                            Background="Transparent" BorderThickness="0" Foreground="#AAA" FontSize="12"
+                            Padding="12,0" Cursor="Hand" Click="ActionsButton_Click"
+                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Tooltip_Actions]}">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#33FFFFFF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Popup x:Name="ActionsPopup" PlacementTarget="{Binding ElementName=ActionsButton}"
+                           Placement="Bottom" AllowsTransparency="True"
+                           StaysOpen="False" IsOpen="False"
+                           PopupAnimation="Fade">
+                        <Border Background="#1E1E1E" BorderBrush="#333" BorderThickness="1"
+                                CornerRadius="6" Padding="4">
+                            <StackPanel TextElement.Foreground="#EEE" TextElement.FontSize="12">
+                                <StackPanel.Resources>
+                                    <Style TargetType="MenuItem">
+                                        <Setter Property="Foreground" Value="#EEE" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="Padding" Value="8,4" />
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#33FFFFFF" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Resources>
+                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[ActionsMenu_SortAll]}" Command="{Binding DataContext.SortAllCommand, Source={x:Reference ActionsButton}}" />
+                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[ActionsMenu_SortNew]}" Command="{Binding DataContext.SortUnassignedCommand, Source={x:Reference ActionsButton}}" />
+                                <Separator Background="#444" />
+                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[ActionsMenu_SyncPortal]}" Command="{Binding DataContext.SyncAllFolderPortalsCommand, Source={x:Reference ActionsButton}}" />
+                                <MenuItem Header="{Binding DataContext.ToggleIconsText, Source={x:Reference ActionsButton}}" Command="{Binding DataContext.ToggleIconsCommand, Source={x:Reference ActionsButton}}" />
+                                <Separator Background="#444" />
+                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[ActionsMenu_Snapshotter]}" Command="{Binding DataContext.CreateSnapshotCommand, Source={x:Reference ActionsButton}}" />
+                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[ActionsMenu_StartWithWindows]}" IsCheckable="True"
+                                          IsChecked="{Binding DataContext.IsStartupEnabled, Source={x:Reference ActionsButton}, Mode=OneWay}"
+                                          Command="{Binding DataContext.ToggleStartupCommand, Source={x:Reference ActionsButton}}" />
+                                <Separator Background="#444" />
+                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[ActionsMenu_ApplyToAll]}" Command="{Binding DataContext.ApplyOptionsToAllCommand, Source={x:Reference ActionsButton}}" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                    <Separator Grid.Column="8" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,6" Background="#444" />
+                    <Button Grid.Column="9" Content="Arctic"
+                            Background="Transparent" BorderThickness="0" Foreground="#7DD3FC" FontSize="12"
+                            Padding="12,0" Cursor="Hand" Click="ArcticShelter_Click"
+                            ToolTip="Open Arctic Shelter theme settings">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#337DD3FC" />
+                                        <Setter Property="Foreground" Value="#FFF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ===== BODY ===== -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- ===== LEFT SIDEBAR ===== -->
+                <Border Grid.Column="0" Background="#1E1E1E" BorderBrush="#2A2A2A" BorderThickness="0,0,1,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Container List -->
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4">
+                            <ItemsControl ItemsSource="{Binding Containers}" Margin="8,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#252525" CornerRadius="8"
+                                                Margin="0,3" Padding="0" Cursor="Hand"
+                                                MouseDown="ContainerItem_MouseDown">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="4" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <!-- Color accent bar -->
+                                                <Border Grid.Column="0" CornerRadius="2,0,0,2"
+                                                        Background="{Binding HeaderColor}" />
+                                                <StackPanel Grid.Column="1" Margin="10,8">
+                                                    <TextBlock Text="{Binding Name}" FontSize="13"
+                                                               FontWeight="Medium" Foreground="#EEE" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                        <TextBlock Text="{Binding Shortcuts.Count, StringFormat={}{0} éléments}"
+                                                                   FontSize="11" Foreground="#777" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                            VerticalAlignment="Center" Margin="0,0,6,0">
+                                                    <Button Content="..." Width="22" Height="22"
+                                                            Background="#33FFFFFF" BorderThickness="0"
+                                                            Foreground="#AAA" FontSize="14"
+                                                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_Edit]}"
+                                                            Command="{Binding EditCommand}" />
+                                                    <Button Content="✕" Width="22" Height="22"
+                                                            Background="#33FF0000" BorderThickness="0"
+                                                            Foreground="#FF6666" FontSize="10"
+                                                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_Delete]}"
+                                                            Command="{Binding DeleteCommand}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- Bottom: Options -->
+                        <StackPanel Grid.Row="3" Margin="12,4,12,10">
+                            <Separator Background="#444" Margin="0,6" />
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Lang_Label]}" Foreground="#AAA" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <ComboBox Grid.Column="1" x:Name="LanguageCombo"
+                                          SelectedIndex="{Binding LanguageIndex}"
+                                          Background="#252525" Foreground="#EEE"
+                                          BorderBrush="#444" FontSize="11"
+                                          SelectionChanged="LanguageCombo_SelectionChanged">
+                                    <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Lang_English]}" Tag="en" />
+                                    <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Lang_French]}" Tag="fr" />
+                                </ComboBox>
+                            </Grid>
+                            <Separator Background="#444" Margin="0,6" />
+                            <Button Content="{Binding ToggleIconsText}"
+                                    Height="30" Background="#252525"
+                                    BorderThickness="1" BorderBrush="#333"
+                                    Foreground="#AAA" FontSize="11"
+                                    Cursor="Hand" Command="{Binding ToggleIconsCommand}" />
+                            <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_AutoSortNew]}"
+                                      IsChecked="{Binding IsAutoSortEnabled}"
+                                      Margin="0,6,0,0"
+                                      Foreground="#AAA" FontSize="11"
+                                      Cursor="Hand" />
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
+                                        Visibility="{Binding IsAutoSortEnabled, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_Destination]}" Foreground="#AAA" FontSize="11"
+                                           VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding DestinationOptions}"
+                                          SelectedValue="{Binding AutoSortTargetIdentifier}"
+                                          SelectedValuePath="Identifier"
+                                          DisplayMemberPath="Name"
+                                          Width="140" Height="24"
+                                          Background="#252525" Foreground="#EEE"
+                                          BorderBrush="#444" FontSize="11">
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem">
+                                            <Setter Property="Foreground" Value="#EEE" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDesktop}" Value="True">
+                                                    <Setter Property="Foreground" Value="#4CAF50" />
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                            </StackPanel>
+                            <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_AutoSnapshot]}"
+                                      IsChecked="{Binding IsAutoSnapshotEnabled}"
+                                      Margin="0,4,0,0"
+                                      Foreground="#AAA" FontSize="11"
+                                      Cursor="Hand" />
+                            <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_ShowShortcutArrow]}"
+                                      IsChecked="{Binding ShowDesktopShortcutArrow}"
+                                      Margin="0,4,0,0"
+                                      Foreground="#AAA" FontSize="11"
+                                      Cursor="Hand" />
+                            <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_Export]}"
+                                    Height="28" Background="#252525" BorderThickness="1"
+                                    BorderBrush="#333" Foreground="#AAA" FontSize="11"
+                                    Margin="0,6,0,0" Cursor="Hand"
+                                    Command="{Binding ExportConfigCommand}" />
+                            <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_Import]}"
+                                    Height="28" Background="#252525" BorderThickness="1"
+                                    BorderBrush="#333" Foreground="#AAA" FontSize="11"
+                                    Margin="0,4,0,0" Cursor="Hand"
+                                    Command="{Binding ImportConfigCommand}" />
+                            <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_HardReset]}"
+                                    Height="28" Background="#3A1A1A" BorderThickness="1"
+                                    BorderBrush="#633" Foreground="#E66" FontSize="11"
+                                    Margin="0,6,0,0" Cursor="Hand"
+                                    Command="{Binding HardResetCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ===== RIGHT PANEL ===== -->
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+                              Background="#1A1A1A" HorizontalScrollBarVisibility="Disabled"
+                              Padding="16,12">
+                    <StackPanel>
+
+                        <!-- ===== HOME VIEW (no container selected) ===== -->
+                        <StackPanel x:Name="HomePanel">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedContainer}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <!-- Welcome -->
+                            <Border Background="#252525" CornerRadius="10" Padding="24" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Palisades" FontSize="22" FontWeight="Bold"
+                                               Foreground="#EEE" HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Welcome_Title]}"
+                                               FontSize="13" Foreground="#777"
+                                               HorizontalAlignment="Center" Margin="0,8,0,0" />
+                                    <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Welcome_CreateContainer]}"
+                                            Background="#2A4A2A" BorderBrush="#4A6A4A" BorderThickness="1"
+                                            Foreground="#8D8" Padding="14,8" FontSize="13"
+                                            HorizontalAlignment="Center" Margin="0,14,0,0"
+                                            Cursor="Hand" Command="{Binding CreateContainerCommand}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Default Options pour nouveaux conteneurs -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_Title]}" FontSize="15" FontWeight="SemiBold"
+                                                   Foreground="#DDD" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_Save]}"
+                                                Background="#2A4A2A" BorderBrush="#4A6A4A" BorderThickness="1"
+                                                Foreground="#8D8" Padding="12,6" FontSize="11"
+                                                Cursor="Hand" Command="{Binding SaveDefaultOptionsCommand}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_Description]}"
+                                               Foreground="#666" FontSize="11" FontStyle="Italic" Margin="0,0,0,8" />
+
+                                    <!-- Preview container selector -->
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_LivePreview]}" Foreground="#999" VerticalAlignment="Center" FontSize="11" Margin="0,0,6,0" />
+                                        <ComboBox Grid.Column="1"
+                                                  x:Name="PreviewContainerCombo"
+                                                  ItemsSource="{Binding Containers}"
+                                                  DisplayMemberPath="Name"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="11" />
+                                        <CheckBox Grid.Column="2" x:Name="LivePreviewToggle"
+                                                  Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_LivePreview]}" IsChecked="True"
+                                                  Foreground="#8D8" FontSize="11" Margin="6,0,0,0" />
+                                    </Grid>
+                                    <!-- Import defaults from an existing container -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_ImportFrom]}" Foreground="#999" VerticalAlignment="Center" FontSize="11" Margin="0,0,6,0" />
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding Containers}"
+                                                  DisplayMemberPath="Name"
+                                                  SelectedItem="{Binding ImportSourceContainer}"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="11" />
+                                        <Button Grid.Column="2" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_Import]}"
+                                                Background="#3A3A5F" BorderBrush="#555" BorderThickness="1"
+                                                Foreground="#CCC" Padding="10,4" FontSize="11"
+                                                Margin="6,0,0,0" Cursor="Hand"
+                                                Command="{Binding ImportDefaultsFromContainerCommand}" />
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="45" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_OpacityInactive]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="100"
+                                                Value="{Binding DefaultModel.IdleOpacity, Mode=TwoWay}"
+                                                TickFrequency="5" IsSnapToTickEnabled="True"
+                                                Tag="IdleOpacity"
+                                                ValueChanged="DefaultSlider_ValueChanged" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding DefaultModel.IdleOpacity, StringFormat={}{0:F0}%}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="45" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_OpacityActive]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="100"
+                                                Value="{Binding DefaultModel.ActiveOpacity, Mode=TwoWay}"
+                                                TickFrequency="5" IsSnapToTickEnabled="True"
+                                                Tag="ActiveOpacity"
+                                                ValueChanged="DefaultSlider_ValueChanged" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding DefaultModel.ActiveOpacity, StringFormat={}{0:F0}%}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_ViewMode]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                  SelectedValue="{Binding DefaultModel.ViewMode}"
+                                                  SelectedValuePath="Tag"
+                                                  Tag="ViewMode" SelectionChanged="DefaultComboBox_Changed"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="12">
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_Icons]}" Tag="Icons" />
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_Details]}" Tag="Details" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_IconSize]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="24" Maximum="64"
+                                                Value="{Binding DefaultModel.ShortcutIconSize, Mode=TwoWay}"
+                                                Tag="ShortcutIconSize"
+                                                ValueChanged="DefaultSlider_ValueChanged" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding DefaultModel.ShortcutIconSize, StringFormat={}{0:F0}}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_AnimationSpeed]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="100" Maximum="1000" SmallChange="50" LargeChange="200"
+                                                Value="{Binding DefaultModel.AnimationSpeedMs, Mode=TwoWay}"
+                                                Tag="AnimationSpeedMs"
+                                                ValueChanged="DefaultSlider_ValueChanged" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding DefaultModel.AnimationSpeedMs, StringFormat={}{0:F0}}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_CornerRadius]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="30"
+                                                Value="{Binding DefaultModel.CornerRadius, Mode=TwoWay}"
+                                                Tag="CornerRadius"
+                                                ValueChanged="DefaultSlider_ValueChanged" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding DefaultModel.CornerRadius, StringFormat={}{0:F0}}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- En-tête -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Title]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <CheckBox Margin="0,0,0,8" IsChecked="{Binding DefaultModel.ShowTitle}"
+                                              Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed"
+                                              Tag="ShowTitle" Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_ShowTitle]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Font]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding Source={x:Static vm:ContainerViewModel.FontFamilies}}"
+                                                  SelectedItem="{Binding DefaultModel.TitleFontFamily}"
+                                                  Tag="TitleFontFamily" SelectionChanged="DefaultComboBox_Changed"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Size]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="9" Maximum="20"
+                                                Value="{Binding DefaultModel.TitleFontSize, Mode=TwoWay}"
+                                                Tag="TitleFontSize" ValueChanged="DefaultSlider_ValueChanged" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding DefaultModel.TitleFontSize, StringFormat={}{0:F0}}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Alignment]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                  SelectedValue="{Binding DefaultModel.TitleAlignment}"
+                                                  SelectedValuePath="Content"
+                                                  Tag="TitleAlignment" SelectionChanged="DefaultComboBox_Changed"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="12">
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Left]}" />
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Center]}" />
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Right]}" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_IconSize]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="6" Maximum="16"
+                                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                                Value="{Binding DefaultModel.HeaderIconSize, Mode=TwoWay}"
+                                                Tag="HeaderIconSize" ValueChanged="DefaultSlider_ValueChanged" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding DefaultModel.HeaderIconSize}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding DefaultModel.TitleHoverEffect}"
+                                              Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed"
+                                              Tag="TitleHoverEffect" Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_HoverEffect]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Comportement -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_Title]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox IsChecked="{Binding DefaultModel.AutoHide}"
+                                                  Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed"
+                                                  Tag="AutoHide" Foreground="#AAA" FontSize="12">
+                                            <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_AutoHide]}" Foreground="#AAA" FontSize="12" />
+                                        </CheckBox>
+                                        <TextBlock Grid.Column="1" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_Delay]}" Foreground="#777"
+                                                   VerticalAlignment="Center" FontSize="11" Margin="10,0,6,0" />
+                                        <TextBox Grid.Column="2"
+                                                 Text="{Binding DefaultModel.AutoHideDelayMs, UpdateSourceTrigger=PropertyChanged}"
+                                                 Tag="AutoHideDelayMs" TextChanged="DefaultTextBox_Changed"
+                                                 Background="#2A2A2A" BorderBrush="#444"
+                                                 Foreground="#EEE" Padding="6,3" FontSize="12"
+                                                 Width="70" HorizontalAlignment="Left" />
+                                    </Grid>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding DefaultModel.IsLocked}"
+                                              Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed"
+                                              Tag="IsLocked" Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_Lock]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding DefaultModel.AutoHideOnEdge}"
+                                              Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed"
+                                              Tag="AutoHideOnEdge" Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_AutoHideEdge]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding DefaultModel.OpenOnDoubleClick, Converter={StaticResource InvertBoolConverter}}"
+                                              Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed"
+                                              Tag="OpenOnDoubleClick" Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_SingleClick]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding DefaultModel.UseShellContextMenu}"
+                                              Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed"
+                                              Tag="UseShellContextMenu" Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_ContextMenu]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Couleurs -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Colors_Title]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Colors_HeaderBg]}" Foreground="#999" Margin="0,0,0,6" FontSize="12" />
+                                    <UniformGrid Columns="10" Height="24" Margin="0,0,0,12">
+                                        <Border Background="#2D2D2D" Tag="#FF2D2D2D" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_DarkGrey]}" />
+                                        <Border Background="#1E3A5F" Tag="#FF1E3A5F" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_SteelBlue]}" />
+                                        <Border Background="#3A1E5F" Tag="#FF3A1E5F" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Plum]}" />
+                                        <Border Background="#1E4A3A" Tag="#FF1E4A3A" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Pine]}" />
+                                        <Border Background="#5F4E1E" Tag="#FF5F4E1E" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Bronze]}" />
+                                        <Border Background="#5F2D1E" Tag="#FF5F2D1E" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Ember]}" />
+                                        <Border Background="#4A1E3A" Tag="#FF4A1E3A" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Berry]}" />
+                                        <Border Background="#1E4A5F" Tag="#FF1E4A5F" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Teal]}" />
+                                        <Border Background="#151515" Tag="#FF151515" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_NearBlack]}" />
+                                        <Border Background="#1A1A2E" Tag="#FF1A1A2E" MouseDown="DefaultHeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Midnight]}" />
+                                    </UniformGrid>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Colors_BodyBg]}" Foreground="#999" Margin="0,0,0,6" FontSize="12" />
+                                    <UniformGrid Columns="10" Height="24">
+                                        <Border Background="#2D2D2D" Tag="#FF2D2D2D" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_DarkGrey]}" />
+                                        <Border Background="#1E3A5F" Tag="#FF1E3A5F" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_SteelBlue]}" />
+                                        <Border Background="#3A1E5F" Tag="#FF3A1E5F" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Plum]}" />
+                                        <Border Background="#1E4A3A" Tag="#FF1E4A3A" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Pine]}" />
+                                        <Border Background="#5F4E1E" Tag="#FF5F4E1E" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Bronze]}" />
+                                        <Border Background="#5F2D1E" Tag="#FF5F2D1E" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Ember]}" />
+                                        <Border Background="#4A1E3A" Tag="#FF4A1E3A" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Berry]}" />
+                                        <Border Background="#1E4A5F" Tag="#FF1E4A5F" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Teal]}" />
+                                        <Border Background="#151515" Tag="#FF151515" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_NearBlack]}" />
+                                        <Border Background="#1A1A2E" Tag="#FF1A1A2E" MouseDown="DefaultBodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Midnight]}" />
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Thème global -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Theme_Title]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <CheckBox Margin="0,0,0,6" IsChecked="{Binding IsDarkMode}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Theme_DarkMode]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Theme_Preset]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding ThemeNames}"
+                                                  SelectedItem="{Binding SelectedThemeName}"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="45" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Theme_Opacity]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="100"
+                                                Value="{Binding Theme.GlobalOpacity, Mode=TwoWay}"
+                                                TickFrequency="5" IsSnapToTickEnabled="True" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding Theme.GlobalOpacity, StringFormat={}{0:F0}%}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Theme_ShowAll]}"
+                                                Background="#2A3A2A" BorderBrush="#4A5A4A" BorderThickness="1"
+                                                Foreground="#8D8" Padding="12,6" FontSize="11"
+                                                Margin="0,0,8,0" Cursor="Hand"
+                                                Command="{Binding ShowAllContainersCommand}" />
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Theme_HideAll]}"
+                                                Background="#3A2A2A" BorderBrush="#5A4A4A" BorderThickness="1"
+                                                Foreground="#FF8888" Padding="12,6" FontSize="11"
+                                                Cursor="Hand"
+                                                Command="{Binding HideAllContainersCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Snapshots -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Snapshots_Title]}" FontSize="15" FontWeight="SemiBold"
+                                                   Foreground="#DDD" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Snapshots_Capture]}"
+                                                Background="#2A4A2A" BorderBrush="#4A6A4A" BorderThickness="1"
+                                                Foreground="#8D8" Padding="10,5" FontSize="11"
+                                                Cursor="Hand" Command="{Binding CreateSnapshotCommand}" />
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding Snapshots}" Margin="0,4,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#2A2A2A" CornerRadius="6" Padding="10" Margin="0,3">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" FontSize="12"
+                                                                       FontWeight="Medium" Foreground="#EEE" />
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding CreatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}"
+                                                                           FontSize="10" Foreground="#777" Margin="0,2,8,0" />
+                                                                <TextBlock Text="{Binding Type}" FontSize="10"
+                                                                           Foreground="#FFA500" Margin="0,2,0,0" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <Border Grid.Column="1" Width="100" Height="60" Margin="8,0"
+                                                                CornerRadius="4" BorderBrush="#444" BorderThickness="1"
+                                                                MouseLeftButtonUp="SnapshotPreview_Click" Cursor="Hand"
+                                                                VerticalAlignment="Center">
+                                                            <Image Source="{Binding ScreenshotPath, Converter={StaticResource FilePathToImage}}"
+                                                                   Stretch="UniformToFill" />
+                                                        </Border>
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Button Content="↩" Width="26" Height="26"
+                                                                    Background="#2A4A2A" BorderThickness="0"
+                                                                    Foreground="#8D8" FontSize="12"
+                                                                    ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Snapshots_Restore]}"
+                                                                    Command="{Binding DataContext.RestoreSnapshotCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding Identifier}" />
+                                                            <Button Content="✎" Width="26" Height="26" Margin="4,0"
+                                                                    Background="#333" BorderThickness="0"
+                                                                    Foreground="#FFA500" FontSize="12"
+                                                                    ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Snapshots_Rename]}"
+                                                                    Tag="{Binding Identifier}"
+                                                                    Click="SnapshotRename_Click" />
+                                                            <Button Content="✕" Width="26" Height="26"
+                                                                    Background="#3A1E1E" BorderThickness="0"
+                                                                    Foreground="#FF6666" FontSize="10"
+                                                                    ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Snapshots_Delete]}"
+                                                                    Command="{Binding DataContext.DeleteSnapshotCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding Identifier}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ===== CONTAINER PROPERTIES ===== -->
+                        <StackPanel>
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedContainer}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <!-- Section: Général -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_General]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_Name]}" Foreground="#999" VerticalAlignment="Center" FontSize="13" />
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding SelectedContainer.Name, UpdateSourceTrigger=PropertyChanged}"
+                                                 Background="#2A2A2A" BorderBrush="#444"
+                                                 Foreground="#EEE" Padding="8,5" FontSize="13" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_ResetDefaults]}"
+                                                Background="#3A3A3A" BorderBrush="#555" BorderThickness="1"
+                                                Foreground="#CCC" Padding="12,6" FontSize="12"
+                                                Cursor="Hand"
+                                                Command="{Binding ApplyDefaultsToContainerCommand}"
+                                                ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_ResetDefaults]}" />
+                                        <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_SetAsDefault]}"
+                                                Background="#2A3A2A" BorderBrush="#4A5A4A" BorderThickness="1"
+                                                Foreground="#8D8" Padding="12,6" FontSize="12"
+                                                Margin="8,0,0,0" Cursor="Hand"
+                                                Command="{Binding SelectedContainer.SetAsDefaultCommand}"
+                                                ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_SetAsDefault]}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Section: Apparence -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_Appearance]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="45" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_OpacityInactive]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="100"
+                                                Value="{Binding SelectedContainer.IdleOpacityPercent, Mode=TwoWay}"
+                                                TickFrequency="5" IsSnapToTickEnabled="True" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding SelectedContainer.IdleOpacityPercent, StringFormat={}{0:F0}%}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="45" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_OpacityActive]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="100"
+                                                Value="{Binding SelectedContainer.ActiveOpacityPercent, Mode=TwoWay}"
+                                                TickFrequency="5" IsSnapToTickEnabled="True" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding SelectedContainer.ActiveOpacityPercent, StringFormat={}{0:F0}%}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="45" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_CornerRadius]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="0" Maximum="30"
+                                                Value="{Binding SelectedContainer.CornerRadius, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding SelectedContainer.CornerRadius, StringFormat={}{0:F0}}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_Theme]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                   ItemsSource="{Binding ContainerThemeNames}"
+                                                   SelectedItem="{Binding SelectedContainer.ContainerThemeName}"
+                                                   Background="#2A2A2A" BorderBrush="#444"
+                                                   Foreground="#EEE" FontSize="12" />
+                                    </Grid>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding SelectedContainer.ShowBorder}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_ShowBorder]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding SelectedContainer.RoundedCornersEnabled}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_RoundedCorners]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Section: En-tête -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Title]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <CheckBox Margin="0,0,0,8" IsChecked="{Binding SelectedContainer.ShowTitle}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_ShowTitle]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Font]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding Source={x:Static vm:ContainerViewModel.FontFamilies}}"
+                                                  SelectedItem="{Binding SelectedContainer.TitleFontFamily}"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Size]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="9" Maximum="20"
+                                                Value="{Binding SelectedContainer.TitleFontSize, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding SelectedContainer.TitleFontSize, StringFormat={}{0:F0}}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Alignment]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                  SelectedValue="{Binding SelectedContainer.TitleAlignment}"
+                                                  SelectedValuePath="Content"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="12">
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Left]}" />
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Center]}" />
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Right]}" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_IconSize]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_IconSize]}" />
+                                        <Slider Grid.Column="1" Minimum="6" Maximum="16"
+                                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                                Value="{Binding SelectedContainer.HeaderIconSize, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding SelectedContainer.HeaderIconSize}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding SelectedContainer.TitleHoverEffect}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_HoverEffect]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Section: Comportement -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_Title]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox IsChecked="{Binding SelectedContainer.AutoHide}"
+                                                  Foreground="#AAA" FontSize="12">
+                                            <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_AutoHide]}" Foreground="#AAA" FontSize="12" />
+                                        </CheckBox>
+                                        <TextBlock Grid.Column="1" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_Delay]}" Foreground="#777"
+                                                   VerticalAlignment="Center" FontSize="11" Margin="10,0,6,0" />
+                                        <TextBox Grid.Column="2"
+                                                 Text="{Binding SelectedContainer.AutoHideDelayMs, UpdateSourceTrigger=PropertyChanged}"
+                                                 Background="#2A2A2A" BorderBrush="#444"
+                                                 Foreground="#EEE" Padding="6,3" FontSize="12"
+                                                 Width="70" HorizontalAlignment="Left" />
+                                    </Grid>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding SelectedContainer.IsLocked}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_Lock]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding SelectedContainer.AutoHideOnEdge}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_AutoHideEdge]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox IsChecked="{Binding SelectedContainer.OpenOnDoubleClick, Converter={StaticResource InvertBoolConverter}}"
+                                                  Foreground="#AAA" FontSize="12">
+                                            <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_SingleClick]}" Foreground="#AAA" FontSize="12" />
+                                        </CheckBox>
+                                        <TextBlock Grid.Column="1" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_SingleClickHint]}"
+                                                   Foreground="#666" FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                    <CheckBox Margin="0,4,0,0" IsChecked="{Binding SelectedContainer.UseShellContextMenu}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Behavior_ContextMenu]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Section: Raccourcis -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_Shortcuts]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <CheckBox Margin="0,0,0,6" IsChecked="{Binding SelectedContainer.ShowShortcutArrow}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_ShowShortcutArrow]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_ViewMode]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                  SelectedValue="{Binding SelectedContainer.ViewMode}"
+                                                  SelectedValuePath="Tag"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="12">
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_Icons]}" Tag="Icons" />
+                                            <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_Details]}" Tag="Details" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_IconSize]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="24" Maximum="64"
+                                                Value="{Binding SelectedContainer.ShortcutIconSize, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding SelectedContainer.ShortcutIconSize, StringFormat={}{0:F0}}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[DefaultOptions_AnimationSpeed]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Minimum="100" Maximum="1000" SmallChange="50" LargeChange="200"
+                                                Value="{Binding SelectedContainer.AnimationSpeedMs, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding SelectedContainer.AnimationSpeedMs, StringFormat={}{0:F0}}"
+                                                   Foreground="#999" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+
+                                    <Separator Background="#333" Margin="0,10" />
+
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_AutoSort]}" FontSize="13" FontWeight="Medium"
+                                               Foreground="#CCC" Margin="0,0,0,8" />
+                                    <CheckBox Margin="0,0,0,6" IsChecked="{Binding SelectedContainer.ShowCounter}"
+                                              Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_ShowCounter]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoriesEnabled]}" Foreground="#888" FontSize="11" Margin="0,0,0,4" />
+                                    <ItemsControl ItemsSource="{Binding SelectedContainer.AutoSortCategories}" Margin="0,0,0,6">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#1E3A1E" CornerRadius="4" Padding="8,3" Margin="2,2" BorderBrush="#3A5A3A" BorderThickness="1">
+                                                    <TextBlock Text="{Binding}" Foreground="#8D8" FontSize="11" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Filter_ActivateByCategory]}" Foreground="#777" FontSize="10" Margin="0,0,0,4" />
+                                    <WrapPanel Margin="0,0,0,6">
+                                        <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryPrograms]}" Tag="Programs" Margin="0,0,10,4"
+                                                  IsChecked="{Binding SelectedContainer.AutoSortCategories, Converter={StaticResource IsInListConverter}, ConverterParameter=Programs, Mode=OneWay}"
+                                                  Checked="AutoSortCategory_Changed" Unchecked="AutoSortCategory_Changed"
+                                                  Foreground="#AAA" FontSize="11" />
+                                        <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryDocuments]}" Tag="Documents" Margin="0,0,10,4"
+                                                  IsChecked="{Binding SelectedContainer.AutoSortCategories, Converter={StaticResource IsInListConverter}, ConverterParameter=Documents, Mode=OneWay}"
+                                                  Checked="AutoSortCategory_Changed" Unchecked="AutoSortCategory_Changed"
+                                                  Foreground="#AAA" FontSize="11" />
+                                        <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryImages]}" Tag="Images" Margin="0,0,10,4"
+                                                  IsChecked="{Binding SelectedContainer.AutoSortCategories, Converter={StaticResource IsInListConverter}, ConverterParameter=Images, Mode=OneWay}"
+                                                  Checked="AutoSortCategory_Changed" Unchecked="AutoSortCategory_Changed"
+                                                  Foreground="#AAA" FontSize="11" />
+                                        <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryVideos]}" Tag="Videos" Margin="0,0,10,4"
+                                                  IsChecked="{Binding SelectedContainer.AutoSortCategories, Converter={StaticResource IsInListConverter}, ConverterParameter=Videos, Mode=OneWay}"
+                                                  Checked="AutoSortCategory_Changed" Unchecked="AutoSortCategory_Changed"
+                                                  Foreground="#AAA" FontSize="11" />
+                                        <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryMusic]}" Tag="Music" Margin="0,0,10,4"
+                                                  IsChecked="{Binding SelectedContainer.AutoSortCategories, Converter={StaticResource IsInListConverter}, ConverterParameter=Music, Mode=OneWay}"
+                                                  Checked="AutoSortCategory_Changed" Unchecked="AutoSortCategory_Changed"
+                                                  Foreground="#AAA" FontSize="11" />
+                                        <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryArchives]}" Tag="Archives" Margin="0,0,10,4"
+                                                  IsChecked="{Binding SelectedContainer.AutoSortCategories, Converter={StaticResource IsInListConverter}, ConverterParameter=Archives, Mode=OneWay}"
+                                                  Checked="AutoSortCategory_Changed" Unchecked="AutoSortCategory_Changed"
+                                                  Foreground="#AAA" FontSize="11" />
+                                        <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryLinks]}" Tag="Links" Margin="0,0,10,4"
+                                                  IsChecked="{Binding SelectedContainer.AutoSortCategories, Converter={StaticResource IsInListConverter}, ConverterParameter=Links, Mode=OneWay}"
+                                                  Checked="AutoSortCategory_Changed" Unchecked="AutoSortCategory_Changed"
+                                                  Foreground="#AAA" FontSize="11" />
+                                        <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryFolders]}" Tag="Folders" Margin="0,0,10,4"
+                                                  IsChecked="{Binding SelectedContainer.AutoSortCategories, Converter={StaticResource IsInListConverter}, ConverterParameter=Folders, Mode=OneWay}"
+                                                  Checked="AutoSortCategory_Changed" Unchecked="AutoSortCategory_Changed"
+                                                  Foreground="#AAA" FontSize="11" />
+                                    </WrapPanel>
+                                    <TextBlock Foreground="#666" FontSize="10" FontStyle="Italic"
+                                               TextWrapping="Wrap" Margin="0,6,0,8"
+                                               Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_CategoryHint]}" />
+                                    <WrapPanel>
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_ImportMatching]}"
+                                                Background="#2A4A2A" BorderBrush="#4A6A4A" BorderThickness="1"
+                                                Foreground="#8D8" Padding="12,6" FontSize="12"
+                                                Margin="0,0,8,0" Cursor="Hand"
+                                                Command="{Binding SortUnassignedCommand}" />
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_SortByName]}"
+                                                Background="#3A3A5F" BorderBrush="#555" BorderThickness="1"
+                                                Foreground="#CCC" Padding="12,6" FontSize="12"
+                                                Cursor="Hand"
+                                                Command="{Binding SortAllCommand}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Section: Private Box -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[PrivateBox_Header]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <StackPanel x:Name="PrivateBoxPanel" Margin="0,0,0,8">
+                                        <Button x:Name="SetPasswordBtn" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[PrivateBox_SetPassword]}"
+                                                Background="#5A3A1E" BorderBrush="#7A5A3E" BorderThickness="1"
+                                                Foreground="#DDB888" Padding="12,6" FontSize="12"
+                                                HorizontalAlignment="Left" Cursor="Hand"
+                                                Click="SetPassword_Click"
+                                                Visibility="{Binding SelectedContainer.HasPassword, Converter={StaticResource InvertBoolConverter}}" />
+                                        <StackPanel Orientation="Horizontal"
+                                                    Visibility="{Binding SelectedContainer.HasPassword, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[PrivateBox_Lock]}"
+                                                    Background="#3A1E1E" BorderBrush="#5A3E3E" BorderThickness="1"
+                                                    Foreground="#FF8888" Padding="12,6" FontSize="12"
+                                                    Margin="0,0,8,0" Cursor="Hand"
+                                                    Click="LockContainer_Click" />
+                                            <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[PrivateBox_DeletePassword]}"
+                                                    Background="#3A1E1E" BorderBrush="#5A3E3E" BorderThickness="1"
+                                                    Foreground="#FF8888" Padding="12,6" FontSize="12"
+                                                    Cursor="Hand"
+                                                    Click="RemovePassword_Click" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[PrivateBox_AutoLock]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[PrivateBox_AutoLock]}" />
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding SelectedContainer.PrivateBoxAutoLockSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                                 Background="#2A2A2A" BorderBrush="#444"
+                                                 Foreground="#EEE" Padding="6,3" FontSize="12"
+                                                 Width="60" HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[PrivateBox_Seconds]}" Foreground="#666" VerticalAlignment="Center" FontSize="11" Margin="6,0,0,0" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Section: Couleurs -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Colors_Title]}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="#DDD" Margin="0,0,0,14" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Colors_HeaderBg]}" Foreground="#999" Margin="0,0,0,6" FontSize="12" />
+                                    <UniformGrid Columns="10" Height="24" Margin="0,0,0,12">
+                                        <Border Background="#2D2D2D" Tag="#FF2D2D2D" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_DarkGrey]}" />
+                                        <Border Background="#1E3A5F" Tag="#FF1E3A5F" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_SteelBlue]}" />
+                                        <Border Background="#3A1E5F" Tag="#FF3A1E5F" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Plum]}" />
+                                        <Border Background="#1E4A3A" Tag="#FF1E4A3A" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Pine]}" />
+                                        <Border Background="#5F4E1E" Tag="#FF5F4E1E" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Bronze]}" />
+                                        <Border Background="#5F2D1E" Tag="#FF5F2D1E" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Ember]}" />
+                                        <Border Background="#4A1E3A" Tag="#FF4A1E3A" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Berry]}" />
+                                        <Border Background="#1E4A5F" Tag="#FF1E4A5F" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Teal]}" />
+                                        <Border Background="#151515" Tag="#FF151515" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_NearBlack]}" />
+                                        <Border Background="#1A1A2E" Tag="#FF1A1A2E" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Midnight]}" />
+                                    </UniformGrid>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Colors_BodyBg]}" Foreground="#999" Margin="0,0,0,6" FontSize="12" />
+                                    <UniformGrid Columns="10" Height="24">
+                                        <Border Background="#2D2D2D" Tag="#FF2D2D2D" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_DarkGrey]}" />
+                                        <Border Background="#1E3A5F" Tag="#FF1E3A5F" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_SteelBlue]}" />
+                                        <Border Background="#3A1E5F" Tag="#FF3A1E5F" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Plum]}" />
+                                        <Border Background="#1E4A3A" Tag="#FF1E4A3A" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Pine]}" />
+                                        <Border Background="#5F4E1E" Tag="#FF5F4E1E" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Bronze]}" />
+                                        <Border Background="#5F2D1E" Tag="#FF5F2D1E" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Ember]}" />
+                                        <Border Background="#4A1E3A" Tag="#FF4A1E3A" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Berry]}" />
+                                        <Border Background="#1E4A5F" Tag="#FF1E4A5F" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Teal]}" />
+                                        <Border Background="#151515" Tag="#FF151515" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_NearBlack]}" />
+                                        <Border Background="#1A1A2E" Tag="#FF1A1A2E" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Color_Midnight]}" />
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Section: Filtre -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Filter_Title]}" FontSize="15" FontWeight="SemiBold"
+                                                Foreground="#DDD" Margin="0,0,0,14" />
+                                    <CheckBox Margin="0,0,0,6" IsChecked="{Binding SelectedContainer.FilterEnabled}"
+                                                Foreground="#AAA" FontSize="12">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Filter_Enable]}" Foreground="#AAA" FontSize="12" />
+                                    </CheckBox>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Filter_Type]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1"
+                                                  SelectedValue="{Binding SelectedContainer.FilterType}"
+                                                  SelectedValuePath="Content"
+                                                  Background="#2A2A2A" BorderBrush="#444"
+                                                  Foreground="#EEE" FontSize="12">
+                                            <ComboBoxItem Content="All" />
+                                            <ComboBoxItem Content="Programs" />
+                                            <ComboBoxItem Content="Documents" />
+                                            <ComboBoxItem Content="Images" />
+                                            <ComboBoxItem Content="Videos" />
+                                            <ComboBoxItem Content="Music" />
+                                            <ComboBoxItem Content="Archives" />
+                                            <ComboBoxItem Content="Links" />
+                                            <ComboBoxItem Content="Folders" />
+                                            <ComboBoxItem Content="Custom" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Filter_Pattern]}" Foreground="#999" VerticalAlignment="Center" FontSize="12" />
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding SelectedContainer.FilterPattern, UpdateSourceTrigger=PropertyChanged}"
+                                                 Background="#2A2A2A" BorderBrush="#444" Foreground="#EEE"
+                                                 Padding="6,3" FontSize="12"
+                                                 ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Filter_CustomTooltip]}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Folder Portal -->
+                            <Border BorderBrush="#2A4A2A" BorderThickness="1" CornerRadius="10" Padding="18"
+                                    Margin="0,0,0,10"
+                                    Visibility="{Binding SelectedContainer.FolderPortalPath, Converter={StaticResource NullToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[FolderPortal_Title]}" FontSize="15" FontWeight="SemiBold"
+                                                Foreground="#8D8" Margin="0,0,0,10" />
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[FolderPortal_Path]}" Foreground="#999"
+                                                    VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding SelectedContainer.FolderPortalPath}"
+                                                   Foreground="#8D8" FontSize="11"
+                                                   TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding SelectedContainer.FolderPortalPath}" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[FolderPortal_SyncedContent]}"
+                                                Foreground="#555" FontSize="10" FontStyle="Italic" Margin="0,0,0,8" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[FolderPortal_SyncAll]}"
+                                                Background="#3A3A5F" BorderBrush="#555" BorderThickness="1"
+                                                Foreground="#CCC" Padding="12,6" FontSize="11"
+                                                Margin="0,0,8,0" Cursor="Hand"
+                                                Command="{Binding SyncAllFolderPortalsCommand}" />
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[FolderPortal_ChangeFolder]}"
+                                                Background="#2A4A2A" BorderBrush="#4A6A4A" BorderThickness="1"
+                                                Foreground="#8D8" Padding="12,6" FontSize="11"
+                                                Cursor="Hand"
+                                                Command="{Binding SelectedContainer.ChangeFolderPortalPathCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Section: Actions rapides -->
+                            <Border Background="#252525" CornerRadius="10" Padding="18" Margin="0,0,10,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[QuickActions_Title]}" FontSize="15" FontWeight="SemiBold"
+                                                Foreground="#DDD" Margin="0,0,0,10" />
+                                     <WrapPanel>
+                                         <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[QuickActions_Recenter]}"
+                                                 Background="#333" BorderBrush="#555" BorderThickness="1"
+                                                 Foreground="#CCC" Padding="12,6" FontSize="12"
+                                                 Margin="0,0,8,8" Cursor="Hand"
+                                                 Command="{Binding SelectedContainer.RecenterCommand}" />
+                                         <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[QuickActions_SnapToGrid]}"
+                                                 Background="#3A3A5F" BorderBrush="#555" BorderThickness="1"
+                                                 Foreground="#CCC" Padding="12,6" FontSize="12"
+                                                 Margin="0,0,8,8" Cursor="Hand"
+                                                 Command="{Binding SelectedContainer.ResizeToIconMultiplesCommand}" />
+                                         <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[QuickActions_ApplyToAll]}"
+                                                 Background="#3A3A5F" BorderBrush="#555" BorderThickness="1"
+                                                 Foreground="#CCC" Padding="12,6" FontSize="12"
+                                                 Margin="0,0,8,8" Cursor="Hand"
+                                                 Command="{Binding ApplyOptionsToAllCommand}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- ===== STATUS BAR ===== -->
+            <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#2A2A2A" BorderThickness="0,1,0,0">
+                <TextBlock x:Name="StatusText" Foreground="#777" FontSize="11"
+                           VerticalAlignment="Center" Margin="14,0" />
+            </Border>
+
+        </Grid>
+    </Border>
+</Window>

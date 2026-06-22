@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!-- Theme Meta -->
+    <system:String x:Key="ThemeName">Minecraft Obsidian</system:String>
+
+    <!-- Container Theme Brushes (tiled pixel art textures) -->
+    <ImageBrush x:Key="ContainerBackgroundBrush" ImageSource="obsidian.png" TileMode="Tile" Viewport="0,0,64,64" ViewportUnits="Absolute" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+    <SolidColorBrush x:Key="ContainerBorderBrush" Color="#FF4A4A4A" />
+    <SolidColorBrush x:Key="ContainerBorderBrushHover" Color="#FF4CAF50" />
+    
+    <ImageBrush x:Key="ContainerHeaderBrush" ImageSource="dirt.png" TileMode="Tile" Viewport="0,0,64,64" ViewportUnits="Absolute" Stretch="None" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+    <SolidColorBrush x:Key="ContainerHeaderBrushHover" Color="#FF3E2723" />
+    
+    <SolidColorBrush x:Key="ContainerTitleForeground" Color="#FF8BC34A" />
+    <SolidColorBrush x:Key="ContainerLabelsForeground" Color="#FFFFFFFF" />
+
+    <!-- Container Layout Options -->
+    <CornerRadius x:Key="ContainerCornerRadius">0</CornerRadius>
+    <Thickness x:Key="ContainerBorderThickness">4</Thickness>
+
+</ResourceDictionary>

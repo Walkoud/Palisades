@@ -1,0 +1,114 @@
+<UserControl x:Class="Palisades.Views.Controls.NoteControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+              xmlns:conv="clr-namespace:Palisades.Converters"
+              xmlns:svc="clr-namespace:Palisades.Services"
+             Width="{Binding Width, Mode=TwoWay}"
+             Height="{Binding Height, Mode=TwoWay}">
+    <UserControl.Resources>
+        <conv:ColorConverter x:Key="ColorConverter" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
+    <Border x:Name="MainBorder" CornerRadius="4" BorderThickness="1" BorderBrush="#44FFFFFF">
+        <Grid>
+            <Border x:Name="HeaderBar" Height="26" VerticalAlignment="Top"
+                    Cursor="SizeAll" Background="#00000033">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid Grid.Column="0">
+                        <TextBlock x:Name="TitleBlock" Text="{Binding Title}"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="#000" VerticalAlignment="Center"
+                                   Margin="6,0,4,0"
+                                   TextTrimming="CharacterEllipsis"
+                                   MouseLeftButtonDown="TitleBlock_MouseLeftButtonDown" />
+                        <TextBox x:Name="TitleEditBox"
+                                 FontSize="11" FontWeight="SemiBold"
+                                 Foreground="#000" Background="#00000022"
+                                 BorderThickness="1" BorderBrush="#888"
+                                 VerticalAlignment="Center"
+                                 Margin="4,0,4,0"
+                                 Visibility="Collapsed"
+                                 PreviewMouseLeftButtonDown="TitleEditBox_PreviewMouseLeftButtonDown"
+                                 LostFocus="TitleEditBox_LostFocus"
+                                 KeyDown="TitleEditBox_KeyDown" />
+                    </Grid>
+                    <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_Color]}" FontSize="9" FontWeight="Bold"
+                            Width="36" Height="18" Margin="0,0,2,0"
+                            Background="#336633" BorderThickness="0"
+                            Foreground="#FFF" Cursor="Hand"
+                            Click="ColorButton_Click"
+                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_Tooltip_ChangeColor]}" />
+                    <Button Grid.Column="2" Content="✕" FontSize="12" FontWeight="Bold"
+                            Width="20" Height="18" Margin="0,0,3,0"
+                            Background="#663333" BorderThickness="0"
+                            Foreground="#FFF" Cursor="Hand"
+                            Click="DeleteButton_Click"
+                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_Tooltip_Delete]}" />
+                    <Button Grid.Column="3" Content="☰" FontSize="10" FontWeight="Bold"
+                            Width="20" Height="18" Margin="0,0,3,0"
+                            Background="#555555" BorderThickness="0"
+                            Foreground="#FFF" Cursor="Hand"
+                            Click="HamburgerButton_Click"
+                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_Tooltip_Options]}" />
+                </Grid>
+            </Border>
+            <Popup x:Name="HamburgerPopup" Placement="Bottom" PlacementTarget="{Binding ElementName=HeaderBar}"
+                   StaysOpen="False" PopupAnimation="Slide">
+                <Border Background="#2D2D2D" BorderBrush="#555" BorderThickness="1" CornerRadius="4" Padding="6">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_TextSize]}" Foreground="#AAA" FontSize="10" Margin="0,0,0,4" />
+                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_Small]}" FontSize="11" Height="24"
+                                Background="Transparent" BorderThickness="0"
+                                Foreground="#EEE" Cursor="Hand"
+                                Click="FontSize_Click" Tag="10"
+                                Margin="0,1" HorizontalAlignment="Stretch" />
+                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_Medium]}" FontSize="11" Height="24"
+                                Background="Transparent" BorderThickness="0"
+                                Foreground="#EEE" Cursor="Hand"
+                                Click="FontSize_Click" Tag="12"
+                                Margin="0,1" HorizontalAlignment="Stretch" />
+                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_Large]}" FontSize="11" Height="24"
+                                Background="Transparent" BorderThickness="0"
+                                Foreground="#EEE" Cursor="Hand"
+                                Click="FontSize_Click" Tag="16"
+                                Margin="0,1" HorizontalAlignment="Stretch" />
+                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_XLarge]}" FontSize="11" Height="24"
+                                Background="Transparent" BorderThickness="0"
+                                Foreground="#EEE" Cursor="Hand"
+                                Click="FontSize_Click" Tag="20"
+                                Margin="0,1" HorizontalAlignment="Stretch" />
+                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Note_Max]}" FontSize="11" Height="24"
+                                Background="Transparent" BorderThickness="0"
+                                Foreground="#EEE" Cursor="Hand"
+                                Click="FontSize_Click" Tag="40"
+                                Margin="0,1" HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                </Border>
+            </Popup>
+            <TextBox x:Name="ContentBox"
+                     Margin="4,32,4,12" Padding="4"
+                     Background="Transparent" BorderThickness="0"
+                     Foreground="#000"
+                     FontSize="12"
+                     FontFamily="Segoe UI"
+                     TextWrapping="Wrap" AcceptsReturn="True"
+                     Text="{Binding Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     PreviewMouseLeftButtonDown="ContentBox_PreviewMouseLeftButtonDown"
+                     LostFocus="ContentBox_LostFocus"
+                     IsUndoEnabled="True" />
+            <Grid Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                <Rectangle x:Name="ResizeHandle" Width="12" Height="12"
+                           Cursor="SizeNWSE" Fill="Transparent" />
+                <Rectangle Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                           Fill="#00000033" IsHitTestVisible="False"
+                           Visibility="{Binding DataContext.ShowDesktopResizeHandle, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

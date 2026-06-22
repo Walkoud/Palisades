@@ -1,0 +1,94 @@
+<UserControl x:Class="Palisades.Views.Controls.PluginGadgetWrapper"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:Palisades.Converters"
+             Width="{Binding Width, Mode=TwoWay}"
+             Height="{Binding Height, Mode=TwoWay}"
+             Canvas.Left="{Binding X, Mode=TwoWay}"
+             Canvas.Top="{Binding Y, Mode=TwoWay}">
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <conv:StringToColorConverter x:Key="StringToColor" />
+        <conv:ColorConverter x:Key="ColorToBrush" />
+        <conv:DoubleToCornerRadiusConverter x:Key="DoubleToCornerRadius" />
+    </UserControl.Resources>
+    
+    <Border x:Name="MainBorder" 
+            CornerRadius="{Binding CornerRadiusValue, Converter={StaticResource DoubleToCornerRadius}, FallbackValue=8}" 
+            BorderThickness="{Binding BorderThicknessValue, FallbackValue=1.5}" 
+            BorderBrush="{Binding BorderColor, Converter={StaticResource ColorToBrush}, FallbackValue='#35FFFFFF'}"
+            Margin="{Binding MarginThickness}" Opacity="{Binding Opacity}">
+        <Border.Background>
+            <SolidColorBrush Color="{Binding BgColor, Converter={StaticResource StringToColor}, FallbackValue='#000000'}" 
+                             Opacity="{Binding BgOpacity, FallbackValue=0.15}" />
+        </Border.Background>
+        <Grid Background="Transparent">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Frosted Glass Header Bar for Dragging -->
+            <Border x:Name="HeaderBar" Grid.Row="0" Height="28" 
+                    CornerRadius="{Binding CornerRadiusValue, Converter={StaticResource DoubleToCornerRadius}, FallbackValue=8}"
+                    Cursor="SizeAll" 
+                    Background="{Binding HeaderBgColor, Converter={StaticResource ColorToBrush}, FallbackValue='#25101520'}" 
+                    BorderBrush="{Binding HeaderBorderColor, Converter={StaticResource ColorToBrush}, FallbackValue='#20FFFFFF'}" 
+                    BorderThickness="0,0,0,1"
+                    Visibility="{Binding HideHeader, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <!-- Title -->
+                    <TextBlock x:Name="TitleBlock" Text="{Binding Title}" Grid.Column="0"
+                               FontSize="{Binding TitleFontSize, FallbackValue=11}" FontWeight="SemiBold"
+                               Foreground="{Binding TitleColor, Converter={StaticResource ColorToBrush}, FallbackValue='#7DD3FC'}" VerticalAlignment="Center"
+                               Margin="8,0,4,0" TextTrimming="CharacterEllipsis"
+                               MouseLeftButtonDown="TitleBlock_MouseLeftButtonDown" />
+                    
+                    <TextBox x:Name="TitleEditBox" Grid.Column="0"
+                             FontSize="11" FontWeight="SemiBold"
+                             Foreground="#FFF" Background="#20000000"
+                             BorderThickness="1" BorderBrush="#50FFFFFF"
+                             VerticalAlignment="Center" Margin="6,0,4,0"
+                             Visibility="Collapsed"
+                             PreviewMouseLeftButtonDown="TitleEditBox_PreviewMouseLeftButtonDown"
+                             LostFocus="TitleEditBox_LostFocus"
+                             KeyDown="TitleEditBox_KeyDown" />
+
+                    <!-- Close/Delete Button -->
+                    <Button Grid.Column="1" Content="✕" FontSize="11" FontWeight="Bold"
+                            Width="20" Height="20" Margin="0,0,6,0"
+                            Background="#40663333" BorderThickness="0"
+                            Foreground="#FFF" Cursor="Hand"
+                            Click="DeleteButton_Click">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Dynamic Plugin View Container -->
+            <Border x:Name="ChildContainer" Grid.Row="1" CornerRadius="0,0,6,6" Background="Transparent"
+                    Padding="{Binding PaddingThickness}" />
+
+            <!-- Resize handle in bottom right -->
+            <Grid Width="12" Height="12" Grid.Row="1"
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2">
+                <Path Data="M 8,12 L 12,8 M 4,12 L 12,4 M 0,12 L 12,0"
+                      Stroke="#50FFFFFF" StrokeThickness="1.2"
+                      Width="12" Height="12"
+                      IsHitTestVisible="False"
+                      Visibility="{Binding DataContext.ShowDesktopResizeHandle, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Converter={StaticResource BoolToVisibility}}" />
+                <Rectangle x:Name="ResizeHandle" Width="12" Height="12"
+                           Cursor="SizeNWSE" Fill="Transparent" />
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,0 +1,47 @@
+name: Build & Package Palisades
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore Dependencies
+      run: dotnet restore Palisades.sln
+
+    - name: Publish Application
+      run: dotnet publish Palisades.Application/Palisades.Application.csproj -c Release -o publish_output --self-contained false
+
+    - name: Create Portable Zip
+      shell: powershell
+      run: |
+        Compress-Archive -Path publish_output\* -DestinationPath Palisades_portable.zip -Force
+
+    - name: Compile Installer with Inno Setup
+      run: |
+        iscc Palisades.iss
+
+    - name: Upload Installer Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Palisades-Setup
+        path: Palisades_setup.exe
+
+    - name: Upload Portable Zip Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Palisades-Portable
+        path: Palisades_portable.zip

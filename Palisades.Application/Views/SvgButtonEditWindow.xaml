@@ -1,0 +1,123 @@
+<Window x:Class="Palisades.Views.SvgButtonEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:svc="clr-namespace:Palisades.Services"
+        Title="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_WindowTitle]}"
+        Height="540" Width="480"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize">
+
+    <Border CornerRadius="12" Background="#1E1E1E" BorderBrush="#333" BorderThickness="1.5">
+        <Grid Margin="15">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /> <!-- Title / Drag area -->
+                <RowDefinition Height="*" />    <!-- Content Form -->
+                <RowDefinition Height="Auto" /> <!-- Actions (Buttons) -->
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Grid Grid.Row="0" Margin="0,0,0,15" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Title]}" Foreground="White" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Content="✕" Width="24" Height="24" HorizontalAlignment="Right" VerticalAlignment="Center" 
+                        Background="Transparent" BorderThickness="0" Foreground="#888" FontSize="14" Cursor="Hand" Click="Cancel_Click" />
+            </Grid>
+
+            <!-- Scrollable Content Form -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,15">
+                <StackPanel>
+                    <!-- Name -->
+                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Name]}" Foreground="#B0B0B0" FontSize="12" Margin="0,0,0,3" />
+                    <TextBox x:Name="NameTextBox" Height="28" Padding="5,2" Background="#2D2D2D" Foreground="White" BorderBrush="#444" BorderThickness="1" SelectionBrush="#3B82F6"/>
+
+                    <!-- Target Path -->
+                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_TargetPath]}" Foreground="#B0B0B0" FontSize="12" Margin="0,5,0,3" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="TargetPathTextBox" Grid.Column="0" Height="28" Padding="5,2" Background="#2D2D2D" Foreground="White" BorderBrush="#444" BorderThickness="1" SelectionBrush="#3B82F6"/>
+                        <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_BrowseFile]}" Margin="5,0,0,0" Width="55" Height="28" Background="#2D2D2D" Foreground="White" BorderBrush="#444" Cursor="Hand" Click="BrowseFile_Click" />
+                        <Button Grid.Column="2" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_BrowseFolder]}" Margin="5,0,0,0" Width="60" Height="28" Background="#2D2D2D" Foreground="White" BorderBrush="#444" Cursor="Hand" Click="BrowseFolder_Click" />
+                    </Grid>
+
+                    <!-- Arguments -->
+                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Arguments]}" Foreground="#B0B0B0" FontSize="12" Margin="0,5,0,3" />
+                    <TextBox x:Name="ArgumentsTextBox" Height="28" Padding="5,2" Background="#2D2D2D" Foreground="White" BorderBrush="#444" BorderThickness="1" SelectionBrush="#3B82F6"/>
+
+                    <!-- Hotkey -->
+                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Hotkey]}" Foreground="#B0B0B0" FontSize="12" Margin="0,5,0,3" />
+                    <TextBox x:Name="HotkeyTextBox" Height="28" Padding="5,2" Background="#2D2D2D" Foreground="White" BorderBrush="#444" BorderThickness="1" SelectionBrush="#3B82F6"
+                             PreviewKeyDown="HotkeyTextBox_PreviewKeyDown" IsReadOnly="True" Cursor="Arrow" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_HotkeyTooltip]}"/>
+
+                    <!-- SVG Code -->
+                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_SvgContent]}" Foreground="#B0B0B0" FontSize="12" Margin="0,5,0,3" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Import]}" Width="100" Height="26" Background="#2D2D2D" Foreground="White" BorderBrush="#444" Cursor="Hand" Click="ImportSvg_Click"/>
+                        <Button Grid.Column="2" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Clear]}" Margin="5,0,0,0" Width="50" Height="26" Background="#2D2D2D" Foreground="White" BorderBrush="#444" Cursor="Hand" Click="ClearSvg_Click"/>
+                    </Grid>
+                    <TextBox x:Name="SvgTextBox" Height="80" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Padding="5" Background="#2D2D2D" Foreground="White" BorderBrush="#444" BorderThickness="1" FontSize="11" FontFamily="Consolas" SelectionBrush="#3B82F6" TextChanged="SvgTextBox_TextChanged"/>
+
+                    <!-- SVG Presets -->
+                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Presets]}" Foreground="#B0B0B0" FontSize="12" Margin="0,5,0,3" />
+                    <UniformGrid Columns="4" Margin="0,0,0,8">
+                        <UniformGrid.Resources>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#2D2D2D" />
+                                <Setter Property="Foreground" Value="White" />
+                                <Setter Property="BorderBrush" Value="#444" />
+                                <Setter Property="Height" Value="24" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="FontSize" Value="11" />
+                            </Style>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </UniformGrid.Resources>
+                        <Button Content="Browser" Margin="2" Click="PresetBrowser_Click"/>
+                        <Button Content="Folder" Margin="2" Click="PresetFolder_Click"/>
+                        <Button Content="Editor" Margin="2" Click="PresetEditor_Click"/>
+                        <Button Content="Game" Margin="2" Click="PresetGame_Click"/>
+                        <Button Content="Terminal" Margin="2" Click="PresetTerminal_Click"/>
+                        <Button Content="Music" Margin="2" Click="PresetMusic_Click"/>
+                        <Button Content="Monitor" Margin="2" Click="PresetMonitor_Click"/>
+                        <Button Content="Settings" Margin="2" Click="PresetSettings_Click"/>
+                    </UniformGrid>
+
+                    <!-- SVG Preview Panel -->
+                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_LivePreview]}" Foreground="#B0B0B0" FontSize="12" Margin="0,5,0,3" />
+                    <Border Height="80" Background="#151515" BorderBrush="#444" BorderThickness="1" CornerRadius="4">
+                        <Image x:Name="SvgPreviewImage" Width="48" Height="48" HorizontalAlignment="Center" VerticalAlignment="Center" Stretch="Uniform"/>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Actions Row -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Cancel]}" Width="80" Height="30" Background="#2D2D2D" Foreground="White" BorderThickness="0" Cursor="Hand" Click="Cancel_Click" Margin="0,0,10,0">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6" />
+                        </Style>
+                    </Button.Resources>
+                </Button>
+                <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[SvgEdit_Save]}" Width="80" Height="30" Background="#3B82F6" Foreground="White" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Click="Save_Click">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6" />
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

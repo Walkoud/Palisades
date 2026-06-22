@@ -7,6 +7,11 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+
+temp/
+backup/
+
+
 # User-specific files
 *.rsuser
 *.suo
@@ -403,3 +408,7 @@ FodyWeavers.xsd
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio
+build_test/
+publish_output/
+*.zip
+*.exe

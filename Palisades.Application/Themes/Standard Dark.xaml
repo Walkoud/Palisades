@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=mscorlib">
+
+    <!-- Theme Meta -->
+    <system:String x:Key="ThemeName">Standard Dark</system:String>
+
+    <!-- Container Theme Brushes -->
+    <SolidColorBrush x:Key="ContainerBackgroundBrush" Color="#DF121212" />
+    <SolidColorBrush x:Key="ContainerBorderBrush" Color="#22FFFFFF" />
+    <SolidColorBrush x:Key="ContainerBorderBrushHover" Color="#66FFFFFF" />
+    <SolidColorBrush x:Key="ContainerHeaderBrush" Color="#FF1A1A1A" />
+    <SolidColorBrush x:Key="ContainerHeaderBrushHover" Color="#FF2D2D2D" />
+    <SolidColorBrush x:Key="ContainerTitleForeground" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="ContainerLabelsForeground" Color="#FFDDDDDD" />
+
+    <!-- Container Layout Options -->
+    <CornerRadius x:Key="ContainerCornerRadius">8</CornerRadius>
+    <Thickness x:Key="ContainerBorderThickness">1</Thickness>
+
+</ResourceDictionary>
