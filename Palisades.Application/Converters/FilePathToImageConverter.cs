@@ -12,14 +12,21 @@ namespace Palisades.Converters
         {
             if (value is string path && !string.IsNullOrEmpty(path) && File.Exists(path))
             {
-                var uri = new Uri("file:///" + path.Replace('\\', '/'));
-                var img = new BitmapImage();
-                img.BeginInit();
-                img.CacheOption = BitmapCacheOption.OnLoad;
-                img.UriSource = uri;
-                img.EndInit();
-                img.Freeze();
-                return img;
+                try
+                {
+                    var uri = new Uri("file:///" + path.Replace('\\', '/'));
+                    var img = new BitmapImage();
+                    img.BeginInit();
+                    img.CacheOption = BitmapCacheOption.OnLoad;
+                    img.UriSource = uri;
+                    img.EndInit();
+                    img.Freeze();
+                    return img;
+                }
+                catch
+                {
+                    // Safe fallback if path is not a valid decodeable image file (e.g. .lnk or .exe)
+                }
             }
             return null!;
         }
