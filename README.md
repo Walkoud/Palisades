@@ -1,14 +1,14 @@
 # Palisades
 
 <p align="center">
-  <a href="https://github.com/Xstoudi/Palisades/blob/main/LICENSE">
-    <img alt="MIT" src="https://img.shields.io/github/license/Xstoudi/Palisades?style=flat-square"/>
+  <a href="https://github.com/Walkoud/Palisades/blob/main/LICENSE">
+    <img alt="MIT" src="https://img.shields.io/github/license/Walkoud/Palisades?style=flat-square"/>
   </a>
-  <a href="https://github.com/Xstoudi/Palisades/releases">
-    <img alt="Version" src="https://img.shields.io/github/v/release/Xstoudi/Palisades?label=Version&style=flat-square"/>
+  <a href="https://github.com/Walkoud/Palisades/releases">
+    <img alt="Version" src="https://img.shields.io/github/v/release/Walkoud/Palisades?label=Version&style=flat-square"/>
   </a>
-  <a href="https://github.com/Xstoudi/Palisades/releases">
-    <img alt="Downloads" src="https://img.shields.io/github/downloads/Xstoudi/Palisades/total?style=flat-square"/>
+  <a href="https://github.com/Walkoud/Palisades/releases">
+    <img alt="Downloads" src="https://img.shields.io/github/downloads/Walkoud/Palisades/total?style=flat-square"/>
   </a>
 </p>
 
@@ -44,7 +44,7 @@ Palisades declutter your Windows desktop. Drop icons into organized containers, 
 
 ## Quick start
 
-1. Download the latest installer from [Releases](https://github.com/Xstoudi/Palisades/releases)
+1. Download the latest installer from [Releases](https://github.com/Walkoud/Palisades/releases)
 2. Install and launch — Palisades runs in your system tray
 3. Drag desktop shortcuts into a container
 4. Right-click a container header to rename, recolor, or tweak it
