@@ -31,6 +31,7 @@ namespace Palisades.Models
         public string BodyColor { get; set; } = "#FF181818";
         public string TitleColor { get; set; } = "#FFFFFFFF";
         public string LabelsColor { get; set; } = "#FFFFFFFF";
+        public string? GradientEndColor { get; set; }
         public int CornerRadius { get; set; } = 12;
         public int BodyOpacity { get; set; } = 100;
         public bool IsExpanded { get; set; } = true;

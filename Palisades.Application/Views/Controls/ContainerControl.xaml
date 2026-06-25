@@ -782,7 +782,7 @@
                                                     <Grid Width="{Binding DataContext.SvgImageSize, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                           Height="{Binding DataContext.SvgImageSize, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}">
                                                         <!-- SVG Graphic -->
-                                                        <Image Source="{Binding Converter={StaticResource SvgToImageConverter}, ConverterParameter='#FFFFFF'}" 
+                                                        <Image Source="{Binding SvgContent, Converter={StaticResource SvgToImageConverter}, ConverterParameter='#FFFFFF'}" 
                                                                Stretch="Uniform"
                                                                ToolTip="{Binding DisplayName}"
                                                                RenderOptions.BitmapScalingMode="HighQuality">
@@ -876,7 +876,8 @@
                                 </ItemsControl>
 
                                 <!-- Add SVG Button + Button -->
-                                <Border Margin="6"
+                                <Border x:Name="AddSvgButtonBorder"
+                                        Margin="6"
                                         CornerRadius="10"
                                         Width="{Binding SvgButtonSize}"
                                         Height="{Binding SvgButtonSize}"

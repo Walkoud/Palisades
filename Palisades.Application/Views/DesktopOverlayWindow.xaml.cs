@@ -22,6 +22,7 @@ namespace Palisades.Views
     public partial class DesktopOverlayWindow : Window
     {
         private MainViewModel? _mainViewModel;
+        private readonly Dictionary<string, ContainerWindow> _containerWindows = new();
         private readonly Dictionary<string, ContainerControl> _containerControls = new();
         private readonly Dictionary<string, Border> _iconElements = new();
         private readonly Dictionary<Guid, NoteControl> _noteControls = new();
@@ -728,10 +729,15 @@ namespace Palisades.Views
                 }
                 UpdateSelectionVisual();
 
-                // Show custom popup menu at mouse coordinates and keep selection rect visible
                 if (_selectedIcons.Count == 0 && w >= 50 && h >= 50)
                 {
                     ShowDrawToCreateMenu(x + OverlayOffsetX, y + OverlayOffsetY, w, h, canvasPt);
+                }
+                else if (_selectedIcons.Count > 1)
+                {
+                    OverlayCanvas.Children.Remove(_selectRect);
+                    _selectRect = null;
+                    ShowMultiSelectMenu(canvasPt);
                 }
                 else
                 {
@@ -1746,12 +1752,26 @@ namespace Palisades.Views
             btnStyle.Setters.Add(new Setter(Button.VerticalContentAlignmentProperty, VerticalAlignment.Center));
             btnStyle.Setters.Add(new Setter(Button.FontSizeProperty, 12.0));
 
-            Style borderStyle = new Style(typeof(Border));
-            borderStyle.Setters.Add(new Setter(Border.CornerRadiusProperty, new CornerRadius(0)));
-            btnStyle.Resources.Add(typeof(Border), borderStyle);
+            // Custom template to prevent Windows/WPF default hover styling
+            ControlTemplate template = new ControlTemplate(typeof(Button));
+            FrameworkElementFactory borderFactory = new FrameworkElementFactory(typeof(Border));
+            borderFactory.Name = "border";
+            borderFactory.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
+            borderFactory.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Button.BorderBrushProperty));
+            borderFactory.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Button.BorderThicknessProperty));
+            borderFactory.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Button.PaddingProperty));
+
+            FrameworkElementFactory contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
+            contentFactory.SetValue(ContentPresenter.HorizontalAlignmentProperty, new TemplateBindingExtension(Button.HorizontalContentAlignmentProperty));
+            contentFactory.SetValue(ContentPresenter.VerticalAlignmentProperty, new TemplateBindingExtension(Button.VerticalContentAlignmentProperty));
+
+            borderFactory.AppendChild(contentFactory);
+            template.VisualTree = borderFactory;
+            btnStyle.Setters.Add(new Setter(Button.TemplateProperty, template));
 
             var trigger = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
-            trigger.Setters.Add(new Setter(Button.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x3D, 0x3D, 0x3D))));
+            trigger.Setters.Add(new Setter(Button.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x35, 0x40, 0x50))));
+            trigger.Setters.Add(new Setter(Button.ForegroundProperty, new SolidColorBrush(Color.FromRgb(0x7D, 0xD3, 0xFC))));
             btnStyle.Triggers.Add(trigger);
 
             var btnNormal = new Button { Content = "Standard Container", Style = btnStyle };
@@ -1792,6 +1812,95 @@ namespace Palisades.Views
             Canvas.SetZIndex(_drawMenuPopup, 99999);
 
             _drawMenuPopup.MouseLeave += (s, e) => CancelDrawMenu();
+
+            OverlayCanvas.Children.Add(_drawMenuPopup);
+        }
+
+        private void ShowMultiSelectMenu(Point mousePos)
+        {
+            CancelDrawMenu();
+            var items = _selectedIcons.ToList();
+            if (items.Count == 0) return;
+
+            _drawMenuPopup = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(0, 3, 0, 3),
+                Width = 200,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = Colors.Black, Direction = 320, ShadowDepth = 3,
+                    Opacity = 0.45, BlurRadius = 8
+                }
+            };
+
+            var stack = new StackPanel();
+
+            Style btnStyle = new Style(typeof(Button));
+            btnStyle.Setters.Add(new Setter(Button.BackgroundProperty, Brushes.Transparent));
+            btnStyle.Setters.Add(new Setter(Button.ForegroundProperty, new SolidColorBrush(Color.FromRgb(0xEE, 0xEE, 0xEE))));
+            btnStyle.Setters.Add(new Setter(Button.BorderThicknessProperty, new Thickness(0)));
+            btnStyle.Setters.Add(new Setter(Button.HeightProperty, 28.0));
+            btnStyle.Setters.Add(new Setter(Button.CursorProperty, Cursors.Hand));
+            btnStyle.Setters.Add(new Setter(Button.PaddingProperty, new Thickness(16, 0, 16, 0)));
+            btnStyle.Setters.Add(new Setter(Button.HorizontalContentAlignmentProperty, HorizontalAlignment.Left));
+            btnStyle.Setters.Add(new Setter(Button.VerticalContentAlignmentProperty, VerticalAlignment.Center));
+            btnStyle.Setters.Add(new Setter(Button.FontSizeProperty, 12.0));
+            ControlTemplate template = new ControlTemplate(typeof(Button));
+            FrameworkElementFactory borderFactory = new FrameworkElementFactory(typeof(Border));
+            borderFactory.Name = "border";
+            borderFactory.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Button.BackgroundProperty));
+            borderFactory.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Button.BorderBrushProperty));
+            borderFactory.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Button.BorderThicknessProperty));
+            borderFactory.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Button.PaddingProperty));
+            FrameworkElementFactory contentFactory = new FrameworkElementFactory(typeof(ContentPresenter));
+            contentFactory.SetValue(ContentPresenter.HorizontalAlignmentProperty, new TemplateBindingExtension(Button.HorizontalContentAlignmentProperty));
+            contentFactory.SetValue(ContentPresenter.VerticalAlignmentProperty, new TemplateBindingExtension(Button.VerticalContentAlignmentProperty));
+            borderFactory.AppendChild(contentFactory);
+            template.VisualTree = borderFactory;
+            btnStyle.Setters.Add(new Setter(Button.TemplateProperty, template));
+            var trigger = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
+            trigger.Setters.Add(new Setter(Button.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x35, 0x40, 0x50))));
+            trigger.Setters.Add(new Setter(Button.ForegroundProperty, new SolidColorBrush(Color.FromRgb(0x7D, 0xD3, 0xFC))));
+            btnStyle.Triggers.Add(trigger);
+
+            var btnOpen = new Button { Content = $"Open all ({items.Count})", Style = btnStyle };
+            btnOpen.Click += (_, _) =>
+            {
+                foreach (var item in items) LaunchItem(item);
+                _selectedIcons.Clear();
+                UpdateSelectionVisual();
+            };
+            stack.Children.Add(btnOpen);
+
+            var btnContainer = new Button { Content = "Create container with selection", Style = btnStyle };
+            btnContainer.Click += (_, _) =>
+            {
+                double cx = mousePos.X - OverlayOffsetX;
+                double cy = mousePos.Y - OverlayOffsetY;
+                CreateContainerWithIconsRequested?.Invoke(cx, cy, 300, 200, items);
+                _selectedIcons.Clear();
+                UpdateSelectionVisual();
+            };
+            stack.Children.Add(btnContainer);
+
+            _drawMenuPopup.Child = stack;
+
+            double menuX = Math.Clamp(mousePos.X - 5, 0, Width - 200);
+            double menuY = Math.Clamp(mousePos.Y - 5, 0, Height - 80);
+            Canvas.SetLeft(_drawMenuPopup, menuX);
+            Canvas.SetTop(_drawMenuPopup, menuY);
+            Canvas.SetZIndex(_drawMenuPopup, 99999);
+
+            _drawMenuPopup.MouseLeave += (_, _) =>
+            {
+                CancelDrawMenu();
+                _selectedIcons.Clear();
+                UpdateSelectionVisual();
+            };
 
             OverlayCanvas.Children.Add(_drawMenuPopup);
         }

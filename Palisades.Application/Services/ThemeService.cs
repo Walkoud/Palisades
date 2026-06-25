@@ -82,6 +82,75 @@ namespace Palisades.Services
         public ThemePreset? CurrentPreset =>
             Presets.FirstOrDefault(p => p.Name == _settings.SelectedTheme) ?? Presets[0];
 
+        public string GuiBackgroundColor
+        {
+            get => _settings.GuiBackgroundColor;
+            set
+            {
+                _settings.GuiBackgroundColor = value;
+                Save();
+                ApplyGuiTheme();
+                ThemeChanged?.Invoke();
+            }
+        }
+
+        public string GuiTextColor
+        {
+            get => _settings.GuiTextColor;
+            set
+            {
+                _settings.GuiTextColor = value;
+                Save();
+                ApplyGuiTheme();
+                ThemeChanged?.Invoke();
+            }
+        }
+
+        public void ApplyGuiTheme()
+        {
+            if (Application.Current == null) return;
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    var bg = (Color)ColorConverter.ConvertFromString(_settings.GuiBackgroundColor);
+                    var fg = (Color)ColorConverter.ConvertFromString(_settings.GuiTextColor);
+
+                    // Original Arctic Shelter palette values
+                    var card = Color.FromRgb(0x15, 0x1B, 0x22);
+                    var border = Color.FromRgb(0x22, 0x2A, 0x35);
+                    var accent = Color.FromRgb(0x7D, 0xD3, 0xFC);
+
+                    // If bg/fg differ from defaults, derive card/border/accent adaptively
+                    var defaultBg = Color.FromRgb(0x11, 0x16, 0x1B);
+                    var defaultFg = Color.FromRgb(0xE2, 0xF1, 0xFF);
+                    if (bg != defaultBg || fg != defaultFg)
+                    {
+                        card = Color.FromRgb(
+                            (byte)Math.Clamp(bg.R + 10, 0, 255),
+                            (byte)Math.Clamp(bg.G + 10, 0, 255),
+                            (byte)Math.Clamp(bg.B + 10, 0, 255));
+                        border = Color.FromRgb(
+                            (byte)Math.Clamp(bg.R + 25, 0, 255),
+                            (byte)Math.Clamp(bg.G + 25, 0, 255),
+                            (byte)Math.Clamp(bg.B + 25, 0, 255));
+                        accent = Color.FromRgb(
+                            (byte)Math.Max(fg.R, (byte)120),
+                            (byte)Math.Max(fg.G, (byte)120),
+                            (byte)Math.Max(fg.B, (byte)120));
+                    }
+
+                    Application.Current.Resources["GuiBackgroundMainBrush"] = new SolidColorBrush(bg);
+                    Application.Current.Resources["GuiBackgroundCardBrush"] = new SolidColorBrush(card);
+                    Application.Current.Resources["GuiTextForegroundBrush"] = new SolidColorBrush(fg);
+                    Application.Current.Resources["GuiBorderBrush"] = new SolidColorBrush(border);
+                    Application.Current.Resources["GuiAccentBrush"] = new SolidColorBrush(accent);
+                }
+                catch { }
+            });
+        }
+
         private ThemeService()
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -91,6 +160,7 @@ namespace Palisades.Services
 
             EnsureThemesDirectory();
             ApplyTheme(_settings.SelectedTheme);
+            ApplyGuiTheme();
         }
 
         private ThemeSettings LoadSettings()
@@ -122,6 +192,7 @@ namespace Palisades.Services
             _settings = new ThemeSettings();
             Save();
             ApplyTheme(_settings.SelectedTheme);
+            ApplyGuiTheme();
             ThemeChanged?.Invoke();
         }
 
@@ -393,5 +464,7 @@ namespace Palisades.Services
         public int AnimationSpeed { get; set; } = 200;
         public bool EnableAnimations { get; set; } = true;
         public string SelectedTheme { get; set; } = "Dark";
+        public string GuiBackgroundColor { get; set; } = "#11161B";
+        public string GuiTextColor { get; set; } = "#E2F1FF";
     }
 }

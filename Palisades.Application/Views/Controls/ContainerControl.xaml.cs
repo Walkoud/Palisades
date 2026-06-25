@@ -93,6 +93,32 @@ namespace Palisades.Views.Controls
                     // Re-apply theme when BodyOpacity changes so background opacity is updated
                     if (e.PropertyName == nameof(ContainerViewModel.BodyOpacity))
                         UpdateContainerTheme();
+
+                    if (e.PropertyName == nameof(ContainerViewModel.HeaderColor))
+                        Resources["ContainerHeaderBrush"] = new SolidColorBrush(viewModel.HeaderColor);
+
+                    if (e.PropertyName == nameof(ContainerViewModel.TitleColor))
+                        Resources["ContainerTitleForeground"] = new SolidColorBrush(viewModel.TitleColor);
+
+                    if (e.PropertyName == nameof(ContainerViewModel.LabelsColor))
+                        Resources["ContainerLabelsForeground"] = new SolidColorBrush(viewModel.LabelsColor);
+
+                    if (e.PropertyName == nameof(ContainerViewModel.BodyColorWithOpacity))
+                    {
+                        if (viewModel.BodyColorWithOpacity is Color startColor)
+                        {
+                            if (viewModel.IsGradient && viewModel.GradientEndColor != null &&
+                                ColorConverter.ConvertFromString(viewModel.GradientEndColor) is Color endRaw)
+                            {
+                                var endColor = Color.FromArgb(startColor.A, endRaw.R, endRaw.G, endRaw.B);
+                                Resources["ContainerBackgroundBrush"] = new LinearGradientBrush(startColor, endColor, new Point(0, 0), new Point(0, 1));
+                            }
+                            else
+                            {
+                                Resources["ContainerBackgroundBrush"] = new SolidColorBrush(startColor);
+                            }
+                        }
+                    }
                 };
 
                 viewModel.RequestCreateShortcut += OnRequestCreateShortcut;
@@ -1115,14 +1141,21 @@ namespace Palisades.Views.Controls
 
             if (_isRectSelecting) return;
 
+            Grid? grid = null;
             if (e.OriginalSource is DependencyObject source)
             {
                 var itemBorder = FindVisualParent<Border>(source, b => b.DataContext is ShortcutItem);
                 if (itemBorder != null) return;
-                if (!IsDescendantOf(source, ContentScrollViewer)) return;
+
+                // Do not initiate rubber band selection if the user clicked the "+" button
+                var addSvgBorder = FindVisualParent<Border>(source, b => b.Name == "AddSvgButtonBorder");
+                if (addSvgBorder != null) return;
+
+                grid = ContentScrollViewer?.Content as Grid;
+                if (grid == null || !IsDescendantOf(source, grid)) return;
             }
 
-            var grid = ContentScrollViewer?.Content as Grid;
+            grid ??= ContentScrollViewer?.Content as Grid;
             if (grid != null)
             {
                 var gridPt = e.GetPosition(grid);
@@ -1257,12 +1290,12 @@ namespace Palisades.Views.Controls
         private static T? FindVisualParent<T>(DependencyObject child, Func<T, bool>? predicate = null)
             where T : DependencyObject
         {
-            var parent = VisualTreeHelper.GetParent(child);
-            while (parent != null)
+            var current = child;
+            while (current != null)
             {
-                if (parent is T tParent && (predicate == null || predicate(tParent)))
+                if (current is T tParent && (predicate == null || predicate(tParent)))
                     return tParent;
-                parent = VisualTreeHelper.GetParent(parent);
+                current = VisualTreeHelper.GetParent(current);
             }
             return null;
         }
@@ -1412,17 +1445,38 @@ namespace Palisades.Views.Controls
                     var editSvgItem = new MenuItem { Header = "Edit SVG Button..." };
                     editSvgItem.Click += (_, _) =>
                     {
+                        EnableWindowActivation();
                         var editWindow = new SvgButtonEditWindow(item);
+                        editWindow.Topmost = true;
                         try
                         {
-                            var owner = Window.GetWindow(this);
-                            if (owner != null && owner.IsVisible)
+                            var owner = System.Windows.Application.Current.Windows.OfType<Window>()
+                                .FirstOrDefault(w => w.IsVisible && !(w is DesktopOverlayWindow) && !(w is ContainerWindow));
+                            if (owner != null)
                             {
                                 editWindow.Owner = owner;
                             }
                         }
-                        catch { }
-                        if (editWindow.ShowDialog() == true)
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Owner error: {ex.Message}");
+                        }
+
+                        bool? dialogResult = false;
+                        try
+                        {
+                            dialogResult = editWindow.ShowDialog();
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"ShowDialog error: {ex.Message}\n{ex.StackTrace}");
+                        }
+                        finally
+                        {
+                            DisableWindowActivation();
+                        }
+
+                        if (dialogResult == true)
                         {
                             item.Name = editWindow.ButtonName;
                             if (editWindow.TargetPath.StartsWith("http://") || editWindow.TargetPath.StartsWith("https://"))
@@ -2422,19 +2476,38 @@ namespace Palisades.Views.Controls
             {
                 e.Handled = true;
 
+                EnableWindowActivation();
                 var editWindow = new SvgButtonEditWindow();
+                editWindow.Topmost = true;
                 try
                 {
                     var owner = System.Windows.Application.Current.Windows.OfType<Window>()
-                        .FirstOrDefault(w => w.IsVisible && !(w is DesktopOverlayWindow));
+                        .FirstOrDefault(w => w.IsVisible && !(w is DesktopOverlayWindow) && !(w is ContainerWindow));
                     if (owner != null)
                     {
                         editWindow.Owner = owner;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Owner error: {ex.Message}");
+                }
 
-                if (editWindow.ShowDialog() == true)
+                bool? dialogResult = false;
+                try
+                {
+                    dialogResult = editWindow.ShowDialog();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ShowDialog error: {ex.Message}\n{ex.StackTrace}");
+                }
+                finally
+                {
+                    DisableWindowActivation();
+                }
+
+                if (dialogResult == true)
                 {
                     var newItem = new ShortcutItem
                     {

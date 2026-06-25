@@ -1,24 +1,17 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Brushes -->
-    <SolidColorBrush x:Key="BackgroundMainBrush" Color="#11161B" />
-    <SolidColorBrush x:Key="BackgroundCardBrush" Color="#151B22" />
-    <SolidColorBrush x:Key="AccentArcticBrush" Color="#7DD3FC" />
-    <SolidColorBrush x:Key="ForegroundIceBrush" Color="#E2F1FF" />
-    <SolidColorBrush x:Key="BorderDarkBrush" Color="#222A35" />
-
     <!-- Glow Effect -->
     <DropShadowEffect x:Key="ArcticGlowEffect" Color="#7DD3FC" BlurRadius="6" ShadowDepth="0" Opacity="0.4" />
 
     <Style TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource BackgroundCardBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource BorderDarkBrush}" />
+        <Setter Property="Background" Value="{DynamicResource GuiBackgroundCardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource GuiBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="0" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource AccentArcticBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource GuiAccentBrush}" />
                 <Setter Property="Effect" Value="{StaticResource ArcticGlowEffect}" />
             </Trigger>
         </Style.Triggers>
@@ -27,14 +20,14 @@
     <Style TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="BorderBrush" Value="{StaticResource BorderDarkBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource ForegroundIceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource GuiBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource GuiTextForegroundBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource AccentArcticBrush}" />
-                <Setter Property="Foreground" Value="#11161B" />
-                <Setter Property="BorderBrush" Value="{StaticResource AccentArcticBrush}" />
+                <Setter Property="Background" Value="{DynamicResource GuiAccentBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource GuiBackgroundMainBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource GuiAccentBrush}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -53,7 +46,7 @@
                             </Grid.RowDefinitions>
                             <!-- Track -->
                             <Border Grid.Row="1" Height="4" Margin="6,0"
-                                    Background="{StaticResource BorderDarkBrush}"
+                                    Background="{DynamicResource GuiBorderBrush}"
                                     CornerRadius="0" />
                             <!-- Thumb -->
                             <Track Grid.Row="1" Name="PART_Track">
@@ -62,7 +55,7 @@
                                            BorderThickness="0">
                                         <Thumb.Template>
                                             <ControlTemplate TargetType="Thumb">
-                                                <Border Background="{StaticResource AccentArcticBrush}" />
+                                                <Border Background="{DynamicResource GuiAccentBrush}" />
                                             </ControlTemplate>
                                         </Thumb.Template>
                                     </Thumb>
@@ -76,7 +69,7 @@
     </Style>
 
     <Style TargetType="CheckBox">
-        <Setter Property="Foreground" Value="{StaticResource ForegroundIceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource GuiTextForegroundBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
@@ -88,13 +81,13 @@
                         </Grid.ColumnDefinitions>
                         <Border Width="16" Height="16"
                                 Background="#0B0F13"
-                                BorderBrush="{StaticResource BorderDarkBrush}"
+                                BorderBrush="{DynamicResource GuiBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="0"
                                 VerticalAlignment="Center">
                             <Border Visibility="Collapsed" x:Name="CheckMark"
                                     Width="8" Height="8"
-                                    Background="{StaticResource AccentArcticBrush}"
+                                    Background="{DynamicResource GuiAccentBrush}"
                                     CornerRadius="0"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center" />
@@ -115,33 +108,33 @@
     </Style>
 
     <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-        <Setter Property="Background" Value="#11161B" />
-        <Setter Property="BorderBrush" Value="{StaticResource BorderDarkBrush}" />
-        <Setter Property="Foreground" Value="#7DD3FC" />
+        <Setter Property="Background" Value="{DynamicResource GuiBackgroundMainBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource GuiBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource GuiAccentBrush}" />
         <Setter Property="Padding" Value="8,4" />
     </Style>
 
     <Style TargetType="ComboBoxItem">
-        <Setter Property="Background" Value="#1A222B" />
-        <Setter Property="Foreground" Value="#E2F1FF" />
+        <Setter Property="Background" Value="{DynamicResource GuiBackgroundCardBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource GuiTextForegroundBrush}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="6,4" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="#7DD3FC" />
-                <Setter Property="Foreground" Value="#11161B" />
+                <Setter Property="Background" Value="{DynamicResource GuiAccentBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource GuiBackgroundMainBrush}" />
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="#222A35" />
-                <Setter Property="Foreground" Value="#7DD3FC" />
+                <Setter Property="Background" Value="{DynamicResource GuiBorderBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource GuiAccentBrush}" />
             </Trigger>
         </Style.Triggers>
     </Style>
 
     <Style TargetType="TextBox">
         <Setter Property="Background" Value="#0B0F13" />
-        <Setter Property="BorderBrush" Value="{StaticResource BorderDarkBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource ForegroundIceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource GuiBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource GuiTextForegroundBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 

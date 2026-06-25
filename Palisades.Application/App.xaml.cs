@@ -18,6 +18,7 @@ namespace Palisades
         private TrayService? _trayService;
         private MainViewModel? _mainViewModel;
         private MainWindow? _mainWindow;
+        private ArcticShelterWindow? _arcticWindow;
         private DesktopOverlayWindow? _overlayWindow;
         private readonly Dictionary<string, System.IO.FileSystemWatcher> _folderWatchers = new();
 
@@ -191,9 +192,12 @@ namespace Palisades
             }
             catch { }
 
-            // Show Arctic Shelter as the main configuration window
-            var arcticWindow = new ArcticShelterWindow(_mainViewModel!);
-            arcticWindow.Show();
+            // Show Arctic Shelter as the main configuration window (skip on auto-start)
+            if (!Environment.GetCommandLineArgs().Contains("--autostart"))
+            {
+                _arcticWindow = new ArcticShelterWindow(_mainViewModel!);
+                _arcticWindow.Show();
+            }
 
             // Show tray notification
             _trayService?.ShowNotification("Palisades", TranslationService.Instance["App_StartupNotification"]);
@@ -340,11 +344,20 @@ namespace Palisades
 
         private void ShowMainWindow()
         {
-            if (_mainWindow != null && _mainWindow.IsLoaded)
+            if (_arcticWindow != null && _arcticWindow.IsLoaded)
             {
-                _mainWindow.WindowState = WindowState.Normal;
-                _mainWindow.Show();
-                _mainWindow.Activate();
+                _arcticWindow.WindowState = WindowState.Normal;
+                _arcticWindow.Show();
+                _arcticWindow.Activate();
+                return;
+            }
+
+            // Re-create if was closed
+            if (_mainViewModel != null)
+            {
+                _arcticWindow = new ArcticShelterWindow(_mainViewModel);
+                _arcticWindow.Show();
+                _arcticWindow.Activate();
             }
         }
 

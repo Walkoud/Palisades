@@ -2,39 +2,63 @@
 
 <p align="center">
   <a href="https://github.com/Xstoudi/Palisades/blob/main/LICENSE">
-    <img alt="mit" src="https://img.shields.io/github/license/Xstoudi/Palisades?style=for-the-badge"/>
+    <img alt="MIT" src="https://img.shields.io/github/license/Xstoudi/Palisades?style=flat-square"/>
   </a>
   <a href="https://github.com/Xstoudi/Palisades/releases">
-    <img alt="mit" src="https://img.shields.io/github/v/release/Xstoudi/Palisades?label=Version&style=for-the-badge"/>
+    <img alt="Version" src="https://img.shields.io/github/v/release/Xstoudi/Palisades?label=Version&style=flat-square"/>
   </a>
   <a href="https://github.com/Xstoudi/Palisades/releases">
-    <img alt="mit" src="https://img.shields.io/github/downloads/Xstoudi/Palisades/total?style=for-the-badge"/>
+    <img alt="Downloads" src="https://img.shields.io/github/downloads/Xstoudi/Palisades/total?style=flat-square"/>
   </a>
 </p>
 
-## Introduction
+<p align="center">
+  <img src="documentation/medias/preview_containers_gadgets.png" width="850" alt="Palisades desktop"/>
+</p>
 
-Palisades allow you to organize your desktop icons.
+Palisades declutter your Windows desktop. Drop icons into organized containers, add live gadgets, and customize everything — no more hunting through a sea of shortcuts.
 
-![image](https://user-images.githubusercontent.com/2575182/181373105-3ba42faa-7cf2-4a71-8a9d-c3b330e0e860.png)
-
-
-## Getting Started
-
-Just download the latest installer on the [Releases](https://github.com/Xstoudi/Palisades/releases) page, use it to install Palisades and run the software.
+---
 
 ## Features
 
-- Drag and drop your shortcuts in a Palisade.
-- Reorder shortcuts in Palisades by drag and dropping them.
-- Individually customize name, background color and text colors for headers and body of your Palisades.
-- Creating more and deleting existing Palisades.
+**Containers** — Drag folders and files into resizable groups. Rename, recolor, reorder, hide, or set transparency per container. Each container remembers its position across monitors and resolutions.
 
-## Usage
-Just drag and drop shortcuts in a Palisade to add it in. If you want to customize your Palisade or add a new one, right click on a Palisade header.
+**Gadgets** — Pin a live clock or system monitor (CPU, RAM, disk) directly on your wallpaper. Plugin system lets you add more.
 
-## Techs used
+**Endless customization** — Customize header, body, title, and label colors on every container. Gradient backgrounds with angle control. Adjustable opacity. Custom border radius, fonts, and sizes.
 
-Palisades was made using .NET 6 and WPF. It uses Material Design In XAML for some part of the UI and Sentry to automagically report issues you could encounters.
+**Themes** — 8 built-in color presets. Import custom `.xaml` themes. Full GUI theme engine: change background, text, accent colors globally.
 
-Palisade is greatly by [Twometer's NoFences](https://github.com/Twometer/NoFences), which was inspired by [Stardock's Fences](https://www.stardock.com/products/fences/). I didn't want to pay 11€ but I also wanted to train on WPF.
+**Snapshots** — Save and restore your entire layout (containers, positions, colors, gadgets) instantly.
+
+**Auto-organize** — Sort shortcuts into containers automatically by type: programs, documents, images, music, archives, links, folders.
+
+**Plugins** — Plugin manager to enable/disable and configure gadgets and extensions.
+
+**Filters** — Show only what you need. Filter a container by file type or custom search.
+
+**Start with Windows** — Option to launch automatically on boot, runs discreetly in the system tray.
+
+**Open source** — MIT license. Fork, modify, contribute.
+
+## Quick start
+
+1. Download the latest installer from [Releases](https://github.com/Xstoudi/Palisades/releases)
+2. Install and launch — Palisades runs in your system tray
+3. Drag desktop shortcuts into a container
+4. Right-click a container header to rename, recolor, or tweak it
+5. Open the Dashboard from the tray icon for global settings
+
+<p align="center">
+  <img src="documentation/medias/preview_dashboard.png" width="650" alt="Palisades dashboard"/>
+</p>
+
+## Built with
+
+- .NET 8 / WPF
+- [Material Design In XAML](https://github.com/MaterialDesignInXAML/MaterialDesignInXamlToolkit)
+
+## Credits
+
+Inspired by [Twometer's NoFences](https://github.com/Twometer/NoFences) and [Stardock's Fences](https://www.stardock.com/products/fences/).

@@ -11,7 +11,13 @@ namespace Palisades.Converters
     {
         public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is not ShortcutItem item || string.IsNullOrWhiteSpace(item.SvgContent))
+            string? svgContent = null;
+            if (value is ShortcutItem item)
+                svgContent = item.SvgContent;
+            else if (value is string str)
+                svgContent = str;
+
+            if (string.IsNullOrWhiteSpace(svgContent))
                 return null;
 
             Brush foreground = Brushes.White;
@@ -29,7 +35,7 @@ namespace Palisades.Converters
                 catch { }
             }
 
-            return SvgRenderer.RenderSvg(item.SvgContent, foreground);
+            return SvgRenderer.RenderSvg(svgContent, foreground);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

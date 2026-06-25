@@ -128,6 +128,24 @@ namespace Palisades.Views
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true });
         }
 
+        private void GithubLink_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/Walkoud/Palisades", UseShellExecute = true });
+            }
+            catch { }
+        }
+
+        private void BuyMeACoffeeLink_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://buymeacoffee.com/walkoud", UseShellExecute = true });
+            }
+            catch { }
+        }
+
         private void DefaultSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (LivePreviewToggle.IsChecked != true) return;
@@ -259,6 +277,131 @@ namespace Palisades.Views
             {
                 var color = (Color)ColorConverter.ConvertFromString(colorStr);
                 _viewModel.SelectedContainer.BodyColor = color;
+            }
+        }
+
+        // --- Gradient color fields ---
+        private string _gradSelC1Hex = "#FF000000";
+        private string _gradSelC2Hex = "#FF1A1A2E";
+        private string _gradDefC1Hex = "#FF000000";
+        private string _gradDefC2Hex = "#FF1A1A2E";
+
+        private string? PickColorViaDialog(string currentHex)
+        {
+            using var dialog = new System.Windows.Forms.ColorDialog();
+            if (ColorConverter.ConvertFromString(currentHex) is Color c)
+                dialog.Color = System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B);
+            dialog.FullOpen = true;
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                var sc = dialog.Color;
+                return $"#{sc.A:X2}{sc.R:X2}{sc.G:X2}{sc.B:X2}";
+            }
+            return null;
+        }
+
+        private void UpdateGradSelPreview()
+        {
+            if (GradSelApplyBtn.Background is LinearGradientBrush b)
+            {
+                b.GradientStops[0].Color = (Color)ColorConverter.ConvertFromString(_gradSelC1Hex);
+                b.GradientStops[1].Color = (Color)ColorConverter.ConvertFromString(_gradSelC2Hex);
+            }
+        }
+
+        private void UpdateGradDefPreview()
+        {
+            if (GradDefApplyBtn.Background is LinearGradientBrush b)
+            {
+                b.GradientStops[0].Color = (Color)ColorConverter.ConvertFromString(_gradDefC1Hex);
+                b.GradientStops[1].Color = (Color)ColorConverter.ConvertFromString(_gradDefC2Hex);
+            }
+        }
+
+        private void GradSelColor1_Click(object sender, MouseButtonEventArgs e)
+        {
+            var hex = PickColorViaDialog(_gradSelC1Hex);
+            if (hex != null)
+            {
+                _gradSelC1Hex = hex;
+                GradSelC1Preview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                UpdateGradSelPreview();
+            }
+        }
+
+        private void GradSelColor2_Click(object sender, MouseButtonEventArgs e)
+        {
+            var hex = PickColorViaDialog(_gradSelC2Hex);
+            if (hex != null)
+            {
+                _gradSelC2Hex = hex;
+                GradSelC2Preview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                UpdateGradSelPreview();
+            }
+        }
+
+        private void GradSelDegree_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            GradSelDegreeLabel.Text = $"{(int)e.NewValue}°";
+        }
+
+        private void GradDefColor1_Click(object sender, MouseButtonEventArgs e)
+        {
+            var hex = PickColorViaDialog(_gradDefC1Hex);
+            if (hex != null)
+            {
+                _gradDefC1Hex = hex;
+                GradDefC1Preview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                UpdateGradDefPreview();
+            }
+        }
+
+        private void GradDefColor2_Click(object sender, MouseButtonEventArgs e)
+        {
+            var hex = PickColorViaDialog(_gradDefC2Hex);
+            if (hex != null)
+            {
+                _gradDefC2Hex = hex;
+                GradDefC2Preview.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                UpdateGradDefPreview();
+            }
+        }
+
+        private void GradDefDegree_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            GradDefDegreeLabel.Text = $"{(int)e.NewValue}°";
+        }
+
+        private void GradientApply_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.SelectedContainer == null) return;
+
+            var swap = GradSelDegree.Value > 180;
+            var c1 = (Color)ColorConverter.ConvertFromString(_gradSelC1Hex);
+            var c2 = (Color)ColorConverter.ConvertFromString(_gradSelC2Hex);
+
+            _viewModel.SelectedContainer.ApplyGradient(swap ? c2 : c1, swap ? c1 : c2);
+        }
+
+        private void DefaultGradientApply_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.DefaultModel == null) return;
+
+            var swap = GradDefDegree.Value > 180;
+            var startHex = swap ? _gradDefC2Hex : _gradDefC1Hex;
+            var endHex = swap ? _gradDefC1Hex : _gradDefC2Hex;
+
+            _viewModel.DefaultModel.HeaderColor = startHex;
+            _viewModel.DefaultModel.BodyColor = startHex;
+            _viewModel.DefaultModel.GradientEndColor = endHex;
+
+            if (LivePreviewToggle.IsChecked == true &&
+                PreviewContainerCombo.SelectedItem is ContainerViewModel target)
+            {
+                target.ApplyGradient(
+                    (Color)ColorConverter.ConvertFromString(startHex),
+                    (Color)ColorConverter.ConvertFromString(endHex));
+                ContainerManager.Instance.Save();
             }
         }
 

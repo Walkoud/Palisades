@@ -12,6 +12,12 @@ namespace Palisades.Converters
         {
             if (value is string path && !string.IsNullOrEmpty(path) && File.Exists(path))
             {
+                string ext = Path.GetExtension(path).ToLowerInvariant();
+                if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".bmp" && ext != ".gif" && ext != ".ico")
+                {
+                    return null!;
+                }
+
                 try
                 {
                     var uri = new Uri("file:///" + path.Replace('\\', '/'));

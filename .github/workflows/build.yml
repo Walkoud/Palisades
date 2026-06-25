@@ -22,17 +22,26 @@ jobs:
     - name: Restore Dependencies
       run: dotnet restore Palisades.sln
 
-    - name: Publish Application
-      run: dotnet publish Palisades.Application/Palisades.Application.csproj -c Release -o publish_output --self-contained false
+    - name: Publish Application (self-contained for portable)
+      run: dotnet publish Palisades.Application/Palisades.Application.csproj -c Release -o publish_portable --self-contained true -r win-x64
+
+    - name: Publish Application (framework-dependent for installer)
+      run: dotnet publish Palisades.Application/Palisades.Application.csproj -c Release -o publish_installer --self-contained false
 
     - name: Create Portable Zip
       shell: powershell
       run: |
-        Compress-Archive -Path publish_output\* -DestinationPath Palisades_portable.zip -Force
+        Compress-Archive -Path publish_portable\* -DestinationPath Palisades_portable.zip -Force
+
+    - name: Install Inno Setup
+      shell: powershell
+      run: |
+        choco install innosetup --no-progress -y
 
     - name: Compile Installer with Inno Setup
+      shell: powershell
       run: |
-        iscc Palisades.iss
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Palisades.iss
 
     - name: Upload Installer Artifact
       uses: actions/upload-artifact@v4
@@ -45,3 +54,12 @@ jobs:
       with:
         name: Palisades-Portable
         path: Palisades_portable.zip
+
+    - name: Publish Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          Palisades_setup.exe
+          Palisades_portable.zip
+        generate_release_notes: true

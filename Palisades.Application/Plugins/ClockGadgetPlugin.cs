@@ -49,10 +49,8 @@ namespace Palisades.Plugins
 
         public ClockGadgetView()
         {
-            Background = new SolidColorBrush(Color.FromArgb(0x15, 0xFF, 0xFF, 0xFF));
-            CornerRadius = new CornerRadius(8);
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x25, 0xFF, 0xFF, 0xFF));
-            BorderThickness = new Thickness(1);
+            Background = Brushes.Transparent;
+            BorderThickness = new Thickness(0);
 
             var mainGrid = new Grid();
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.8, GridUnitType.Star) });

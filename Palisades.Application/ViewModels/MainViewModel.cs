@@ -178,6 +178,26 @@ namespace Palisades.ViewModels
             }
         }
 
+        public string GuiBackgroundColor
+        {
+            get => _theme.GuiBackgroundColor;
+            set
+            {
+                _theme.GuiBackgroundColor = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string GuiTextColor
+        {
+            get => _theme.GuiTextColor;
+            set
+            {
+                _theme.GuiTextColor = value;
+                OnPropertyChanged();
+            }
+        }
+
         private ContainerViewModel? _applyTargetContainer;
         public ContainerViewModel? ApplyTargetContainer
         {
@@ -879,7 +899,9 @@ namespace Palisades.ViewModels
                         {
                             Containers = _manager.Containers.Select(c => c),
                             Defaults = ContainerManager.Instance.LoadDefaults(),
-                            Notes = GetNotesFromOverlay?.Invoke() ?? ContainerManager.Instance.LoadNotes()
+                            Notes = GetNotesFromOverlay?.Invoke() ?? ContainerManager.Instance.LoadNotes(),
+                            Plugins = PluginService.Instance.Plugins.ToDictionary(p => p.Plugin.Id, p => p.IsEnabled),
+                            Gadgets = PluginService.Instance.LoadGadgets()
                         };
                         File.WriteAllText(dialog.FileName,
                             Newtonsoft.Json.JsonConvert.SerializeObject(config,
@@ -913,9 +935,30 @@ namespace Palisades.ViewModels
 
                         var json = File.ReadAllText(dialog.FileName);
                         var data = Newtonsoft.Json.JsonConvert.DeserializeAnonymousType(json,
-                            new { Containers = new List<ContainerModel>(), Defaults = (ContainerModel?)null, Notes = new List<NoteItem>() });
+                            new {
+                                Containers = new List<ContainerModel>(),
+                                Defaults = (ContainerModel?)null,
+                                Notes = new List<NoteItem>(),
+                                Plugins = (Dictionary<string, bool>?)null,
+                                Gadgets = (List<PluginGadgetItem>?)null
+                            });
 
                         if (data?.Containers == null) return;
+
+                        if (data.Plugins != null)
+                        {
+                            foreach (var p in PluginService.Instance.Plugins)
+                            {
+                                if (data.Plugins.TryGetValue(p.Plugin.Id, out bool isEnabled))
+                                    p.IsEnabled = isEnabled;
+                            }
+                            PluginService.Instance.SaveSettings();
+                        }
+
+                        if (data.Gadgets != null)
+                        {
+                            PluginService.Instance.SaveGadgets(data.Gadgets);
+                        }
 
                         foreach (var c in _manager.Containers.ToList())
                             _manager.DeleteContainer(c.Identifier);
@@ -1028,7 +1071,7 @@ namespace Palisades.ViewModels
                     else
                     {
                         string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
-                        rk.SetValue(appName, $"\"{exePath}\"");
+                        rk.SetValue(appName, $"\"{exePath}\" --autostart");
                         MessageBox.Show(TranslationService.Instance["Dialog_StartupEnabled"],
                             TranslationService.Instance["Dialog_Startup"], MessageBoxButton.OK, MessageBoxImage.Information);
                     }

@@ -2,7 +2,12 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Palisades"
-#define MyAppVersion "1.0.0"
+#define AppVer GetFileVersion("publish_installer\Palisades.exe")
+#if AppVer == "0.0.0.0"
+  #define MyAppVersion "1.0.0"
+#else
+  #define MyAppVersion AppVer
+#endif
 #define MyAppPublisher "StouderIO"
 #define MyAppURL "https://github.com/Walkoud/Palisades"
 #define MyAppExeName "Palisades.exe"
@@ -39,7 +44,7 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "publish_output\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "publish_installer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

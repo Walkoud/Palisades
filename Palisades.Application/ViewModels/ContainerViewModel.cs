@@ -248,6 +248,27 @@ namespace Palisades.ViewModels
             }
         }
 
+        public bool IsGradient => !string.IsNullOrEmpty(_model.GradientEndColor);
+
+        public string? GradientEndColor
+        {
+            get => _model.GradientEndColor;
+            set
+            {
+                _model.GradientEndColor = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsGradient));
+                Save();
+            }
+        }
+
+        public void ApplyGradient(Color startColor, Color endColor)
+        {
+            HeaderColor = startColor;
+            BodyColor = startColor;
+            GradientEndColor = endColor.ToString();
+        }
+
         public Color TitleColor
         {
             get => (Color)ColorConverter.ConvertFromString(_model.TitleColor);
@@ -671,6 +692,7 @@ namespace Palisades.ViewModels
             BodyColor = (Color)ColorConverter.ConvertFromString(preset.BodyColor);
             TitleColor = (Color)ColorConverter.ConvertFromString(preset.TitleColor);
             LabelsColor = (Color)ColorConverter.ConvertFromString(preset.LabelsColor);
+            GradientEndColor = null;
         }
 
         // --- END NEW ---
