@@ -566,7 +566,7 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               Margin="6">
-                    <Grid>
+                    <Grid Background="Transparent" MouseDown="ContainerBody_MouseDown">
                     <!-- Icons view -->
                     <ItemsControl ItemsSource="{Binding Source={StaticResource ShortcutsView}}"
                                   x:Name="ShortcutsControl"
@@ -625,7 +625,6 @@
                                             </Image>
                                         </Grid>
                                         <TextBlock Text="{Binding DisplayName}"
-                                                   TextWrapping="NoWrap"
                                                    TextAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"
                                                    FontFamily="Segoe UI"
@@ -635,6 +634,8 @@
                                                    MaxWidth="{Binding Data.ShortcutIconSize, Source={StaticResource VmProxy}}">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
+                                                    <Setter Property="TextWrapping" Value="NoWrap" />
+                                                    <Setter Property="MaxHeight" Value="16" />
                                                     <Setter Property="Foreground">
                                                         <Setter.Value>
                                                             <SolidColorBrush Color="{Binding DataContext.LabelsColor, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" />
@@ -644,6 +645,10 @@
                                                         <!-- Global Theme Active -->
                                                         <DataTrigger Binding="{Binding DataContext.IsThemeActive, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="True">
                                                             <Setter Property="Foreground" Value="{DynamicResource ContainerLabelsForeground}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding DataContext.TwoLineShortcuts, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="True">
+                                                            <Setter Property="TextWrapping" Value="Wrap" />
+                                                            <Setter Property="MaxHeight" Value="30" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>

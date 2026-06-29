@@ -26,8 +26,10 @@
         <ContextMenu Background="#2A2A2A" Foreground="#EEE" BorderBrush="#444" BorderThickness="1">
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_Lock]}" Command="{Binding ToggleLockCommand}" />
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_AutoHide]}" Command="{Binding ToggleAutoHideCommand}" />
+            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_CurtainMode]}" IsCheckable="True" IsChecked="{Binding IsCurtainMode}" />
             <Separator Background="#444" />
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_EditProperties]}" Command="{Binding EditCommand}" />
+            <MenuItem Header="Duplicate" Command="{Binding DuplicateCommand}" />
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_DeleteContainer]}" Command="{Binding DeleteCommand}" />
         </ContextMenu>
     </UserControl.ContextMenu>
@@ -35,6 +37,7 @@
         <conv:SvgToImageConverter x:Key="SvgToImageConverter" />
         <conv:FilePathToImageConverter x:Key="FilePathToImageConverter" />
         <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+        <conv:StringToCharListConverter x:Key="StringToCharListConverter" />
         <conv:PathToImageConverter x:Key="IconConverter" ShowArrow="True" />
         <conv:PathToImageConverter x:Key="IconNoArrowConverter" ShowArrow="False" />
         <conv:StringToTextAlignmentConverter x:Key="TextAlignmentConverter" />
@@ -176,6 +179,7 @@
             </Border.Style>
 
         <Grid>
+            <Grid x:Name="NormalLayoutRoot">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -569,7 +573,9 @@
                               Margin="6">
                         <Grid AllowDrop="True"
                               DragOver="ItemsArea_DragOver"
-                              Drop="ItemsArea_Drop">
+                              Drop="ItemsArea_Drop"
+                              Background="Transparent"
+                              MouseDown="ContainerBody_MouseDown">
                         <Canvas x:Name="SelectionCanvas"
                                 IsHitTestVisible="False"
                                 Panel.ZIndex="10" />
@@ -630,7 +636,6 @@
                                                     </Image>
                                                 </Grid>
                                                 <TextBlock Text="{Binding DisplayName}"
-                                                           TextWrapping="NoWrap"
                                                            TextAlignment="Center"
                                                            TextTrimming="CharacterEllipsis"
                                                            FontFamily="Segoe UI"
@@ -640,6 +645,8 @@
                                                            MaxWidth="{Binding Data.ShortcutIconSize, Source={StaticResource VmProxy}}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
+                                                            <Setter Property="TextWrapping" Value="NoWrap" />
+                                                            <Setter Property="MaxHeight" Value="16" />
                                                             <Setter Property="Foreground">
                                                                 <Setter.Value>
                                                                     <SolidColorBrush Color="{Binding DataContext.LabelsColor, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" />
@@ -648,6 +655,10 @@
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding DataContext.IsThemeActive, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
                                                                     <Setter Property="Foreground" Value="{DynamicResource ContainerLabelsForeground}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DataContext.TwoLineShortcuts, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
+                                                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                                                    <Setter Property="MaxHeight" Value="30" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -937,41 +948,550 @@
                     </Border>
                 </Grid>
 
-                <!-- Resize handles — Grid.RowSpan="2" covers full height, Fill="Transparent" enables hit testing -->
-                <Grid x:Name="ResizeHandleGrid" Grid.RowSpan="2">
-                    <Rectangle x:Name="ResizeLeft" Width="6" HorizontalAlignment="Left"
-                               Cursor="SizeWE" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
-                               Fill="Transparent" />
-                    <Rectangle x:Name="ResizeRight" Width="6" HorizontalAlignment="Right"
-                               Cursor="SizeWE" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
-                               Fill="Transparent" />
-                    <Rectangle x:Name="ResizeTop" Height="6" VerticalAlignment="Top"
-                               Cursor="SizeNS" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
-                               Fill="Transparent" />
-                    <Rectangle x:Name="ResizeBottom" Height="6" VerticalAlignment="Bottom"
-                               Cursor="SizeNS" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
-                               Fill="Transparent" />
-                    <Rectangle x:Name="ResizeTopLeft" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Top"
-                               Cursor="SizeNWSE" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
-                               Fill="Transparent" />
-                    <Rectangle x:Name="ResizeTopRight" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Top"
-                               Cursor="SizeNESW" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
-                               Fill="Transparent" />
-                    <Rectangle x:Name="ResizeBottomLeft" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                               Cursor="SizeNESW" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
-                               Fill="Transparent" />
-                    <!-- Visual corner gripper (resize handle) -->
-                    <Path Data="M 8,12 L 12,8 M 4,12 L 12,4 M 0,12 L 12,0"
-                          Stroke="#50FFFFFF" StrokeThickness="1.2"
-                          Width="12" Height="12"
-                          HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                          IsHitTestVisible="False" Margin="0,0,3,3"
-                          Visibility="{Binding DataContext.ShowDesktopResizeHandle, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Converter={StaticResource BoolToVisibilityConverter}}" />
-                    <Rectangle x:Name="ResizeBottomRight" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                               Cursor="SizeNWSE" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
-                               Fill="Transparent" />
+                <!-- (resize handles moved to shared wrapper below) -->
+            </Grid>
+
+            <!-- Curtain Mode Layout -->
+            <Grid x:Name="CurtainLayoutRoot">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="34" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Curtain Strip (col 0) -->
+                <Grid Grid.Column="0"
+                      x:Name="CurtainStripPanel"
+                      Width="34"
+                      Background="Transparent"
+                      MouseLeftButtonDown="Header_MouseLeftButtonDown"
+                      MouseEnter="HeaderBar_MouseEnter"
+                      MouseLeave="HeaderBar_MouseLeave">
+                    <Rectangle IsHitTestVisible="False" RadiusX="0" RadiusY="0">
+                        <Rectangle.Style>
+                            <Style TargetType="Rectangle">
+                                <Setter Property="Fill">
+                                    <Setter.Value>
+                                        <SolidColorBrush Color="{Binding HeaderColor}" />
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTitleHovered}" Value="True">
+                                        <Setter Property="Fill" Value="#FF303030" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsThemeActive}" Value="True">
+                                        <Setter Property="Fill" Value="{DynamicResource ContainerHeaderBrush}" />
+                                    </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsThemeActive}" Value="True" />
+                                            <Condition Binding="{Binding IsTitleHovered}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Fill" Value="{DynamicResource ContainerHeaderBrushHover}" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Rectangle.Style>
+                    </Rectangle>
+                    <Grid>
+                        <!-- Vertical header text -->
+                        <TextBlock x:Name="CurtainVerticalHeader"
+                                   Text="{Binding Name}"
+                                   Foreground="{Binding TitleColor, Converter={StaticResource ColorToBrushConverter}}"
+                                   FontFamily="{Binding TitleFontFamily}"
+                                   FontSize="{Binding TitleFontSize}"
+                                   FontWeight="SemiBold"
+                                   TextAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center">
+                            <TextBlock.LayoutTransform>
+                                <RotateTransform Angle="-90" />
+                            </TextBlock.LayoutTransform>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurtainHeaderMode}" Value="Vertical">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!-- Stacked header text (letter per line) -->
+                        <ItemsControl ItemsSource="{Binding Name, Converter={StaticResource StringToCharListConverter}}"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Center">
+                            <ItemsControl.Style>
+                                <Style TargetType="ItemsControl">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurtainHeaderMode}" Value="Stacked">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.Style>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               Foreground="{Binding DataContext.TitleColor, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}, Converter={StaticResource ColorToBrushConverter}}"
+                                               FontFamily="{Binding DataContext.TitleFontFamily, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                               FontSize="{Binding DataContext.TitleFontSize, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </Grid>
+
+                <!-- Curtain Content Panel (col 1) -->
+                <Grid Grid.Column="1"
+                      x:Name="CurtainContentElement"
+                      ClipToBounds="True"
+                      MouseDown="ContainerBody_MouseDown">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Hidden mode title (row 0) -->
+                    <TextBlock Text="{Binding Name}"
+                               Foreground="{Binding TitleColor, Converter={StaticResource ColorToBrushConverter}}"
+                               FontFamily="{Binding TitleFontFamily}"
+                               FontSize="{Binding TitleFontSize}"
+                               FontWeight="SemiBold"
+                               TextAlignment="Center"
+                               Margin="4,4,4,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurtainHeaderMode}" Value="Hidden">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- Curtain control bar (row 1) -->
+                    <Grid Grid.Row="1" Height="34" Background="Transparent"
+                          MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Rectangle Grid.ColumnSpan="3" IsHitTestVisible="False" RadiusY="0" RadiusX="0">
+                            <Rectangle.Style>
+                                <Style TargetType="Rectangle">
+                                    <Setter Property="Fill">
+                                        <Setter.Value>
+                                            <SolidColorBrush Color="{Binding HeaderColor}" />
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTitleHovered}" Value="True">
+                                            <Setter Property="Fill" Value="#FF303030" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsThemeActive}" Value="True">
+                                            <Setter Property="Fill" Value="{DynamicResource ContainerHeaderBrush}" />
+                                        </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsThemeActive}" Value="True" />
+                                                <Condition Binding="{Binding IsTitleHovered}" Value="True" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Fill" Value="{DynamicResource ContainerHeaderBrushHover}" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Rectangle.Style>
+                        </Rectangle>
+
+                        <!-- Left: hamburger + search -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsVisuallyCollapsed}" Value="True">
+                                            <Setter Property="Opacity" Value="0" />
+                                            <Setter Property="IsHitTestVisible" Value="False" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Width="34" Height="30" Margin="2,0,0,0" Padding="1"
+                                    Background="Transparent" BorderThickness="0"
+                                    ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_Tooltip_Menu]}"
+                                    Click="HamburgerButton_Click">
+                                <Viewbox Stretch="Uniform"
+                                         Width="{Binding HeaderIconSize}"
+                                         Height="{Binding HeaderIconSize}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center">
+                                    <Grid Width="9" Height="9">
+                                        <Path Data="M0,1 L9,1 M0,4.5 L9,4.5 M0,8 L9,8"
+                                              Stroke="White" StrokeThickness="1.2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Grid>
+                                </Viewbox>
+                                <Button.ContextMenu>
+                                    <ContextMenu Background="#2A2A2A" Foreground="#EEE" BorderBrush="#444" BorderThickness="1">
+                                        <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_CreateShortcut]}" Command="{Binding Data.CreateShortcutCommand, Source={StaticResource VmProxy}}" />
+                                        <Separator Background="#444" />
+                                        <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Display]}">
+                                            <MenuItem.Icon><TextBlock Text="🎨" FontSize="14" /></MenuItem.Icon>
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Filter]}">
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_All]}" Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="FilterAll" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Programs]}" Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="FilterPrograms" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Documents]}" Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="FilterDocuments" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Folders]}" Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="FilterFolders" />
+                                            </MenuItem>
+                                            <Separator Background="#444" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_ShowCounters]}" IsCheckable="True"
+                                                      IsChecked="{Binding Data.ShowCounter, Source={StaticResource VmProxy}}"
+                                                      Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="ShowCounter" />
+                                            <Separator Background="#444" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_ViewMode]}">
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Icons]}" IsCheckable="True"
+                                                          IsChecked="{Binding Data.IsDetailsView, Source={StaticResource VmProxy}, Converter={StaticResource InvertBoolConverter}, Mode=OneWay}"
+                                                          Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="IconsView" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Details]}" IsCheckable="True"
+                                                          IsChecked="{Binding Data.IsDetailsView, Source={StaticResource VmProxy}, Mode=OneWay}"
+                                                          Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="DetailsView" />
+                                            </MenuItem>
+                                            <Separator Background="#444" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_IconSize]}">
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Small]}" Command="{Binding Data.SetIconSizeCommand, Source={StaticResource VmProxy}}" CommandParameter="24" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Medium]}" Command="{Binding Data.SetIconSizeCommand, Source={StaticResource VmProxy}}" CommandParameter="36" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Large]}" Command="{Binding Data.SetIconSizeCommand, Source={StaticResource VmProxy}}" CommandParameter="48" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_XLarge]}" Command="{Binding Data.SetIconSizeCommand, Source={StaticResource VmProxy}}" CommandParameter="64" />
+                                            </MenuItem>
+                                        </MenuItem>
+                                        <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Options]}">
+                                            <MenuItem.Icon><TextBlock Text="⚙" FontSize="14" /></MenuItem.Icon>
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_AutoHide]}" IsCheckable="True"
+                                                      IsChecked="{Binding Data.AutoHide, Source={StaticResource VmProxy}}"
+                                                      Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="AutoHide" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Lock]}" IsCheckable="True"
+                                                      IsChecked="{Binding Data.IsLocked, Source={StaticResource VmProxy}}"
+                                                      Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="IsLocked" />
+                                            <MenuItem Header="SVG Button Mode" IsCheckable="True"
+                                                      IsChecked="{Binding Data.IsSvgButtonContainer, Source={StaticResource VmProxy}}"
+                                                      Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="IsSvgButtonContainer" />
+                                            <Separator Background="#444" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_RoundedCorners]}" IsCheckable="True"
+                                                      IsChecked="{Binding Data.RoundedCornersEnabled, Source={StaticResource VmProxy}}"
+                                                      Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="RoundedCorners" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_TitleBarHighlight]}" IsCheckable="True"
+                                                      IsChecked="{Binding Data.TitleHoverEffect, Source={StaticResource VmProxy}}"
+                                                      Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="TitleHoverEffect" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Border]}" IsCheckable="True"
+                                                      IsChecked="{Binding Data.ShowBorder, Source={StaticResource VmProxy}}"
+                                                      Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="ShowBorder" />
+                                            <Separator Background="#444" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_AnimationSpeed]}">
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Fast]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="200" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Normal]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="400" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Slow]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="600" />
+                                            </MenuItem>
+                                        </MenuItem>
+                                        <Separator Background="#444" />
+                                        <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Actions]}">
+                                            <MenuItem.Icon><TextBlock Text="⚡" FontSize="14" /></MenuItem.Icon>
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_SortAll]}" Command="{Binding Data.SortNowCommand, Source={StaticResource VmProxy}}" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Refresh]}" Command="{Binding Data.RefreshCommand, Source={StaticResource VmProxy}}" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Rename]}" Command="{Binding Data.RenameCommand, Source={StaticResource VmProxy}}" />
+                                        </MenuItem>
+                                        <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Config]}">
+                                            <MenuItem.Icon><TextBlock Text="🔧" FontSize="14" /></MenuItem.Icon>
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Settings]}" Command="{Binding Data.EditCommand, Source={StaticResource VmProxy}}" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_SortRules]}" Click="HamburgerMenuItem_Click" CommandParameter="Rules" />
+                                            <Separator Background="#444" />
+                                            <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_SetAsDefault]}" Command="{Binding Data.SetAsDefaultCommand, Source={StaticResource VmProxy}}" />
+                                        </MenuItem>
+                                        <Separator Background="#444" />
+                                        <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Delete]}" Command="{Binding Data.DeleteCommand, Source={StaticResource VmProxy}}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                            <Button Width="30" Height="30" Margin="0,0,0,0" Padding="1"
+                                    Background="Transparent" BorderThickness="0"
+                                    ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_Tooltip_Search]}"
+                                    Click="SearchButton_Click">
+                                <Viewbox Stretch="Uniform"
+                                         Width="{Binding HeaderIconSize}"
+                                         Height="{Binding HeaderIconSize}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center">
+                                    <Grid Width="9" Height="9">
+                                        <Path Data="M1.5,3.5 A2.5,2.5 0 1,1 6.5,3.5 A2.5,2.5 0 1,1 1.5,3.5 M5.5,5.5 L8,8"
+                                              Stroke="White" StrokeThickness="1.2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Grid>
+                                </Viewbox>
+                            </Button>
+                        </StackPanel>
+                        <!-- Right: chevron -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsVisuallyCollapsed}" Value="True">
+                                            <Setter Property="Opacity" Value="0" />
+                                            <Setter Property="IsHitTestVisible" Value="False" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Button Width="34" Height="30" Margin="0,0,2,0" Padding="1"
+                                    Background="Transparent" BorderThickness="0"
+                                    ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_Tooltip_CollapseExpand]}"
+                                    Command="{Binding ToggleCollapseCommand}">
+                                <Viewbox Stretch="Uniform"
+                                         Width="{Binding HeaderIconSize}"
+                                         Height="{Binding HeaderIconSize}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center">
+                                    <Grid Width="9" Height="9">
+                                        <Path Data="M0,1 L4.5,8 L9,1"
+                                              Stroke="White" StrokeThickness="1.2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              RenderTransformOrigin="0.5,0.5">
+                                            <Path.RenderTransform>
+                                                <RotateTransform Angle="0" />
+                                            </Path.RenderTransform>
+                                        </Path>
+                                    </Grid>
+                                </Viewbox>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Shortcuts (row 2) -->
+                    <ScrollViewer Grid.Row="2"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Margin="6">
+                        <Grid>
+                            <!-- Icons view -->
+                            <ItemsControl ItemsSource="{Binding Source={StaticResource ShortcutsView}}">
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDetailsView}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="4"
+                                                CornerRadius="6"
+                                                MouseDown="Shortcut_OnMouseDown"
+                                                Padding="4,2">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#25FFFFFF" />
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel VerticalAlignment="Top"
+                                                        HorizontalAlignment="Center"
+                                                        Cursor="Hand">
+                                                <Grid Width="{Binding Data.CurtainShortcutIconSize, Source={StaticResource VmProxy}}"
+                                                      Height="{Binding Data.CurtainShortcutIconSize, Source={StaticResource VmProxy}}"
+                                                      Margin="4,2,4,4">
+                                                    <Image Stretch="Uniform"
+                                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                                        <Image.Style>
+                                                            <Style TargetType="Image">
+                                                                <Setter Property="Source" Value="{Binding IconPath, Converter={StaticResource IconConverter}}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding (local:ContainerVisuals.ShowShortcutArrow), RelativeSource={RelativeSource Self}}" Value="False">
+                                                                        <Setter Property="Source" Value="{Binding IconPath, Converter={StaticResource IconNoArrowConverter}}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Image.Style>
+                                                    </Image>
+                                                </Grid>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           TextAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           FontFamily="Segoe UI"
+                                                           FontSize="10"
+                                                           HorizontalAlignment="Center"
+                                                           Margin="2,0,2,2"
+                                                           MaxWidth="{Binding Data.CurtainShortcutIconSize, Source={StaticResource VmProxy}}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="TextWrapping" Value="NoWrap" />
+                                                            <Setter Property="MaxHeight" Value="16" />
+                                                            <Setter Property="Foreground">
+                                                                <Setter.Value>
+                                                                    <SolidColorBrush Color="{Binding DataContext.LabelsColor, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" />
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.IsThemeActive, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource ContainerLabelsForeground}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DataContext.TwoLineShortcuts, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True">
+                                                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                                                    <Setter Property="MaxHeight" Value="30" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Details view -->
+                            <ItemsControl ItemsSource="{Binding Source={StaticResource ShortcutsView}}"
+                                          Visibility="{Binding IsDetailsView, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Setter Property="Foreground">
+                                            <Setter.Value>
+                                                <SolidColorBrush Color="{Binding LabelsColor}" />
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <!-- Global Theme Active -->
+                                            <DataTrigger Binding="{Binding IsThemeActive}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource ContainerLabelsForeground}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderThickness="0,0,0,1"
+                                                BorderBrush="#15FFFFFF"
+                                                Padding="4,6"
+                                                MouseDown="Shortcut_OnMouseDown"
+                                                Cursor="Hand">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#25FFFFFF" />
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="24" />
+                                                    <ColumnDefinition Width="2.5*" />
+                                                    <ColumnDefinition Width="1*" />
+                                                    <ColumnDefinition Width="3.5*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Image Width="20" Height="20"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                       VerticalAlignment="Center">
+                                                    <Image.Style>
+                                                        <Style TargetType="Image">
+                                                            <Setter Property="Source" Value="{Binding IconPath, Converter={StaticResource IconConverter}}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding (local:ContainerVisuals.ShowShortcutArrow), RelativeSource={RelativeSource Self}}" Value="False">
+                                                                    <Setter Property="Source" Value="{Binding IconPath, Converter={StaticResource IconNoArrowConverter}}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Image.Style>
+                                                </Image>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding DisplayName}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="8,0,4,0"
+                                                           FontSize="12" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding DisplayType}"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="#AAA"
+                                                           FontSize="11"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding TargetPath}"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="#777"
+                                                           FontSize="11"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </ScrollViewer>
                 </Grid>
             </Grid>
+            <!-- Resize handles -->
+            <Grid x:Name="ResizeHandleGrid">
+                <Rectangle x:Name="ResizeLeft" Width="6" HorizontalAlignment="Left"
+                           Cursor="SizeWE" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
+                           Fill="Transparent" />
+                <Rectangle x:Name="ResizeRight" Width="6" HorizontalAlignment="Right"
+                           Cursor="SizeWE" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
+                           Fill="Transparent" />
+                <Rectangle x:Name="ResizeTop" Height="6" VerticalAlignment="Top"
+                           Cursor="SizeNS" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
+                           Fill="Transparent" />
+                <Rectangle x:Name="ResizeBottom" Height="6" VerticalAlignment="Bottom"
+                           Cursor="SizeNS" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
+                           Fill="Transparent" />
+                <Rectangle x:Name="ResizeTopLeft" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Top"
+                           Cursor="SizeNWSE" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
+                           Fill="Transparent" />
+                <Rectangle x:Name="ResizeTopRight" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Top"
+                           Cursor="SizeNESW" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
+                           Fill="Transparent" />
+                <Rectangle x:Name="ResizeBottomLeft" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                           Cursor="SizeNESW" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
+                           Fill="Transparent" />
+                <!-- Visual corner gripper -->
+                <Path Data="M 8,12 L 12,8 M 4,12 L 12,4 M 0,12 L 12,0"
+                      Stroke="#50FFFFFF" StrokeThickness="1.2"
+                      Width="12" Height="12"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                      IsHitTestVisible="False" Margin="0,0,3,3"
+                      Visibility="{Binding DataContext.ShowDesktopResizeHandle, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Converter={StaticResource BoolToVisibilityConverter}}" />
+                <Rectangle x:Name="ResizeBottomRight" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                           Cursor="SizeNWSE" MouseMove="Resize_MouseMove" MouseDown="Resize_MouseDown" MouseUp="Resize_MouseUp"
+                           Fill="Transparent" />
+            </Grid>
+        </Grid>
         </Border>
     </Grid>
 </UserControl>

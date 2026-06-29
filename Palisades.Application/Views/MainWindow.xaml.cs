@@ -257,6 +257,7 @@ namespace Palisades.Views
                     case "AutoHideOnEdge": target.AutoHideOnEdge = val; break;
                     case "OpenOnDoubleClick": target.OpenOnDoubleClick = !val; break;
                     case "UseShellContextMenu": target.UseShellContextMenu = val; break;
+                    case "TwoLineShortcuts": target.TwoLineShortcuts = val; break;
                 }
                 ContainerManager.Instance.Save();
             }

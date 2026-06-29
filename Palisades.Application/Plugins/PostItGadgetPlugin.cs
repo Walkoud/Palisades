@@ -51,6 +51,7 @@ namespace Palisades.Plugins
         private string _textColor = "#000000";
         private double _fontSize = 14;
         private string _fontFamily = "Segoe UI";
+        private PluginGadgetItem? _gadgetItem;
 
         public class PostItSettings
         {
@@ -63,6 +64,14 @@ namespace Palisades.Plugins
 
         public PostItGadgetView()
         {
+            DataContextChanged += (s, e) =>
+            {
+                if (DataContext is PluginGadgetItem item)
+                {
+                    _gadgetItem = item;
+                }
+            };
+
             // Make outer Border container transparent and non-interfering
             Background = Brushes.Transparent;
             BorderThickness = new Thickness(0);
@@ -97,48 +106,14 @@ namespace Palisades.Plugins
             _richTextBox.PreviewMouseLeftButtonDown += RichTextBox_PreviewMouseLeftButtonDown;
             _richTextBox.LostFocus += RichTextBox_LostFocus;
             _richTextBox.TextChanged += RichTextBox_TextChanged;
+            Unloaded += (s, e) => SaveSettings();
 
-            // Apply premium black/dark checkbox styling implicitly
+            // CheckBox minimal styling - applied directly so FlowDocument XAML serializes cleanly
             var cbStyle = new Style(typeof(CheckBox));
-            var cbTemplate = new ControlTemplate(typeof(CheckBox));
-            var gridFactory = new FrameworkElementFactory(typeof(Grid));
-            gridFactory.SetValue(Grid.BackgroundProperty, Brushes.Transparent);
-
-            var cbBorderFactory = new FrameworkElementFactory(typeof(Border));
-            cbBorderFactory.Name = "BoxBorder";
-            cbBorderFactory.SetValue(Border.WidthProperty, 14.0);
-            cbBorderFactory.SetValue(Border.HeightProperty, 14.0);
-            cbBorderFactory.SetValue(Border.BorderThicknessProperty, new Thickness(1.5));
-            cbBorderFactory.SetValue(Border.BorderBrushProperty, Brushes.Black);
-            cbBorderFactory.SetValue(Border.BackgroundProperty, Brushes.Transparent);
-            cbBorderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(3));
-
-            var checkGlyphFactory = new FrameworkElementFactory(typeof(TextBlock));
-            checkGlyphFactory.Name = "CheckGlyph";
-            checkGlyphFactory.SetValue(TextBlock.TextProperty, "✓");
-            checkGlyphFactory.SetValue(TextBlock.FontWeightProperty, FontWeights.Bold);
-            checkGlyphFactory.SetValue(TextBlock.FontSizeProperty, 10.0);
-            checkGlyphFactory.SetValue(TextBlock.ForegroundProperty, Brushes.White);
-            checkGlyphFactory.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-            checkGlyphFactory.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
-            checkGlyphFactory.SetValue(TextBlock.VisibilityProperty, Visibility.Collapsed);
-            checkGlyphFactory.SetValue(TextBlock.MarginProperty, new Thickness(0, -1, 0, 0));
-
-            cbBorderFactory.AppendChild(checkGlyphFactory);
-            gridFactory.AppendChild(cbBorderFactory);
-            cbTemplate.VisualTree = gridFactory;
-
-            var checkedTrigger = new Trigger { Property = CheckBox.IsCheckedProperty, Value = true };
-            checkedTrigger.Setters.Add(new Setter(Border.BackgroundProperty, Brushes.Black, "BoxBorder"));
-            checkedTrigger.Setters.Add(new Setter(TextBlock.VisibilityProperty, Visibility.Visible, "CheckGlyph"));
-
-            var mouseOverTrigger = new Trigger { Property = CheckBox.IsMouseOverProperty, Value = true };
-            mouseOverTrigger.Setters.Add(new Setter(Border.BorderBrushProperty, Brushes.Black, "BoxBorder"));
-
-            cbTemplate.Triggers.Add(checkedTrigger);
-            cbTemplate.Triggers.Add(mouseOverTrigger);
-
-            cbStyle.Setters.Add(new Setter(CheckBox.TemplateProperty, cbTemplate));
+            cbStyle.Setters.Add(new Setter(CheckBox.MarginProperty, new Thickness(0, 1, 6, 0)));
+            cbStyle.Setters.Add(new Setter(CheckBox.VerticalAlignmentProperty, VerticalAlignment.Center));
+            cbStyle.Setters.Add(new Setter(CheckBox.HorizontalAlignmentProperty, HorizontalAlignment.Left));
+            cbStyle.Setters.Add(new Setter(CheckBox.FocusableProperty, false));
             _richTextBox.Resources.Add(typeof(CheckBox), cbStyle);
 
             // Handle checking/unchecking checkboxes
@@ -681,16 +656,24 @@ namespace Palisades.Plugins
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PostIt] ApplyCustomSettings failed: {ex.Message}");
+                App.Log(ex, "[PostIt] ApplyCustomSettings");
+            }
         }
 
         private string GetXamlText()
         {
-            var range = new TextRange(_richTextBox.Document.ContentStart, _richTextBox.Document.ContentEnd);
-            using (var ms = new MemoryStream())
+            try
             {
-                range.Save(ms, DataFormats.Xaml);
-                return Encoding.UTF8.GetString(ms.ToArray());
+                return System.Windows.Markup.XamlWriter.Save(_richTextBox.Document);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PostIt] GetXamlText failed: {ex.Message}");
+                App.Log(ex, "[PostIt] GetXamlText");
+                return "";
             }
         }
 
@@ -703,14 +686,36 @@ namespace Palisades.Plugins
             }
             try
             {
-                var range = new TextRange(_richTextBox.Document.ContentStart, _richTextBox.Document.ContentEnd);
-                using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(xamlText)))
+                if (xamlText.StartsWith("PKG:"))
                 {
-                    range.Load(ms, DataFormats.Xaml);
+                    var bytes = Convert.FromBase64String(xamlText.Substring(4));
+                    var range = new TextRange(_richTextBox.Document.ContentStart, _richTextBox.Document.ContentEnd);
+                    using (var ms = new MemoryStream(bytes))
+                    {
+                        range.Load(ms, DataFormats.XamlPackage);
+                    }
+                }
+                else if (xamlText.StartsWith("<FlowDocument"))
+                {
+                    using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(xamlText)))
+                    {
+                        var doc = (FlowDocument)System.Windows.Markup.XamlReader.Load(ms);
+                        _richTextBox.Document = doc;
+                    }
+                }
+                else
+                {
+                    var range = new TextRange(_richTextBox.Document.ContentStart, _richTextBox.Document.ContentEnd);
+                    using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(xamlText)))
+                    {
+                        range.Load(ms, DataFormats.Xaml);
+                    }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[PostIt] SetXamlText failed: {ex.Message}");
+                App.Log(ex, "[PostIt] SetXamlText");
                 _richTextBox.Document = new FlowDocument();
             }
         }
@@ -734,33 +739,50 @@ namespace Palisades.Plugins
 
         private void SaveSettings()
         {
-            var item = GetGadgetItem();
-            if (item != null)
+            try
             {
-                var settings = new PostItSettings
+                var item = GetGadgetItem();
+                if (item != null)
                 {
-                    XamlText = GetXamlText(),
-                    BackgroundColor = _backgroundColor,
-                    TextColor = _textColor,
-                    FontSize = _fontSize,
-                    FontFamily = _fontFamily
-                };
-                item.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
-                var overlay = Window.GetWindow(this) as DesktopOverlayWindow;
-                overlay?.SaveGadgetsToDisk();
+                    var settings = new PostItSettings
+                    {
+                        XamlText = GetXamlText(),
+                        BackgroundColor = _backgroundColor,
+                        TextColor = _textColor,
+                        FontSize = _fontSize,
+                        FontFamily = _fontFamily
+                    };
+                    item.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
+                    var overlay = Window.GetWindow(this) as DesktopOverlayWindow;
+                    overlay?.SaveGadgetsToDisk();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PostIt] SaveSettings failed: {ex.Message}");
+                App.Log(ex, "[PostIt] SaveSettings");
             }
         }
 
         private PluginGadgetItem? GetGadgetItem()
         {
+            if (_gadgetItem != null)
+                return _gadgetItem;
+
             if (DataContext is PluginGadgetItem item)
+            {
+                _gadgetItem = item;
                 return item;
+            }
 
             DependencyObject parent = VisualTreeHelper.GetParent(this);
             while (parent != null)
             {
                 if (parent is PluginGadgetWrapper wrapper)
-                    return wrapper.GadgetItem;
+                {
+                    _gadgetItem = wrapper.GadgetItem;
+                    return _gadgetItem;
+                }
                 parent = VisualTreeHelper.GetParent(parent);
             }
             return null;

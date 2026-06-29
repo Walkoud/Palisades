@@ -410,5 +410,12 @@ FodyWeavers.xsd
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio
 build_test/
 publish_output/
+PublishTest/
 *.zip
 *.exe
+
+# Claude
+.claude/
+
+# Task tracking
+task.md

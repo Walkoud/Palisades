@@ -32,10 +32,13 @@ namespace Palisades.Models
         public string TitleColor { get; set; } = "#FFFFFFFF";
         public string LabelsColor { get; set; } = "#FFFFFFFF";
         public string? GradientEndColor { get; set; }
+        public double GradientAngle { get; set; } = 0;
+        public bool HeaderGradientEnabled { get; set; } = true;
+        public bool BodyGradientEnabled { get; set; } = true;
         public int CornerRadius { get; set; } = 12;
         public int BodyOpacity { get; set; } = 100;
         public bool IsExpanded { get; set; } = true;
-        public double CollapsedHeight { get; set; } = 40;
+        public double CollapsedHeight { get; set; } = 52;
         public int SortOrder { get; set; }
         public bool IsVisible { get; set; } = true;
         /// <summary>True = double-click to open, False = single-click to open.</summary>
@@ -85,17 +88,36 @@ namespace Palisades.Models
         /// <summary>Show resize handles at edges and corners (default: true).</summary>
         public bool ShowResizeHandle { get; set; } = true;
 
+        /// <summary>Show Recycle Bin shortcut on desktop overlay (default: false).</summary>
+        public bool ShowRecycleBin { get; set; } = false;
+
         /// <summary>Header icon size (hamburger/chevron base grid size, 6-16).</summary>
         public int HeaderIconSize { get; set; } = 9;
 
         /// <summary>Shortcut icon grid size (24-64).</summary>
         public int ShortcutIconSize { get; set; } = 36;
 
+        /// <summary>Allow shortcut names to wrap into 2 lines (default: false).</summary>
+        public bool TwoLineShortcuts { get; set; } = false;
+
         /// <summary>Container-level theme preset name, null = inherit global.</summary>
         public string? ContainerThemeName { get; set; } = "Theme";
 
         /// <summary>Curtain animation speed in milliseconds (100-1000).</summary>
         public int AnimationSpeedMs { get; set; } = 400;
+
+        /// <summary>Enable curtain mode (vertical strip that opens left-to-right).</summary>
+        public bool IsCurtainMode { get; set; }
+        /// <summary>Header text rendering: "Vertical", "Stacked", or "Hidden".</summary>
+        public string CurtainHeaderMode { get; set; } = "Vertical";
+        /// <summary>Full open width in pixels when curtain is expanded.</summary>
+        public double CurtainOpenWidth { get; set; } = 300;
+        /// <summary>Full open height in pixels when curtain is expanded.</summary>
+        public double CurtainOpenHeight { get; set; } = 300;
+        /// <summary>Shortcut icon size in curtain mode (16-48).</summary>
+        public int CurtainShortcutIconSize { get; set; } = 50;
+        /// <summary>Curtain open direction: "LeftToRight" or "RightToLeft".</summary>
+        public string CurtainDirection { get; set; } = "LeftToRight";
 
         // Private Box (AES-256)
         /// <summary>SHA256 hash of the container password (empty = no password).</summary>

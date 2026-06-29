@@ -25,6 +25,32 @@ namespace Palisades.Views
             _viewModel.Containers.CollectionChanged += (_, _) => { };
             _viewModel.ThemeChanged += OnThemeChanged;
             _viewModel.DefaultsImported += OnDefaultsImported;
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(MainViewModel.SelectedContainer))
+                SyncGradientUI();
+        }
+
+        private void SyncGradientUI()
+        {
+            var c = _viewModel.SelectedContainer;
+            if (c == null) return;
+
+            GradSelDegree.Value = c.GradientAngle;
+            var headerColor = c.HeaderColor;
+            var headerHex = $"#{headerColor.A:X2}{headerColor.R:X2}{headerColor.G:X2}{headerColor.B:X2}";
+            _gradSelC1Hex = headerHex;
+            GradSelC1Preview.Background = new SolidColorBrush(headerColor);
+
+            if (c.GradientEndColor != null && ColorConverter.ConvertFromString(c.GradientEndColor) is Color endColor)
+            {
+                _gradSelC2Hex = c.GradientEndColor;
+                GradSelC2Preview.Background = new SolidColorBrush(endColor);
+            }
+            UpdateGradSelPreview();
         }
 
         private void OnThemeChanged()
@@ -54,6 +80,12 @@ namespace Palisades.Views
         private void Close_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        public void ShowContainerProperties(ContainerViewModel container)
+        {
+            _viewModel.SelectedContainer = container;
+            SwitchToTab("Containers");
         }
 
         private void ContainerCard_Click(object sender, MouseButtonEventArgs e)
@@ -96,6 +128,7 @@ namespace Palisades.Views
             DefaultsPanel.Visibility = tabName == "Defaults" ? Visibility.Visible : Visibility.Collapsed;
             DeskPanel.Visibility = tabName == "Desk" ? Visibility.Visible : Visibility.Collapsed;
             AppPanel.Visibility = tabName == "App" ? Visibility.Visible : Visibility.Collapsed;
+            if (tabName == "App") _ = _viewModel.FetchContributorsAsync();
             SnapshotsPanel.Visibility = tabName == "Snapshots" ? Visibility.Visible : Visibility.Collapsed;
             ThemesPanel.Visibility = tabName == "Themes" ? Visibility.Visible : Visibility.Collapsed;
             PluginsPanel.Visibility = tabName == "Plugins" ? Visibility.Visible : Visibility.Collapsed;
@@ -118,6 +151,271 @@ namespace Palisades.Views
             if (System.IO.Directory.Exists(folder))
             {
                 try { System.Diagnostics.Process.Start("explorer.exe", folder); } catch { }
+            }
+        }
+
+        private void CreateThemeFromContainer_Click(object sender, RoutedEventArgs e)
+        {
+            if (ThemeSourceContainerCombo.SelectedItem is not ContainerViewModel vm)
+            {
+                MessageBox.Show("Select a container first.", "Palisades", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var name = Microsoft.VisualBasic.Interaction.InputBox("Theme name:", "Create Theme", vm.Name + " Theme");
+            if (string.IsNullOrWhiteSpace(name)) return;
+            name = name.Trim();
+
+            string header = vm.HeaderColor.ToString();
+            string body = vm.BodyColor.ToString();
+            string title = vm.TitleColor.ToString();
+            string labels = vm.LabelsColor.ToString();
+
+            string gradEnd = vm.GradientEndColor ?? "";
+            string gradAngle = ((int)vm.GradientAngle).ToString();
+            string hdrGrad = vm.HeaderGradientEnabled ? "True" : "False";
+            string bdyGrad = vm.BodyGradientEnabled ? "True" : "False";
+            string idleOp = ((int)vm.IdleOpacityPercent).ToString();
+            string activeOp = ((int)vm.ActiveOpacityPercent).ToString();
+            string corner = vm.CornerRadius.ToString();
+            string showBorder = vm.ShowBorder ? "True" : "False";
+            string titleFontSize = vm.TitleFontSize.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+            string titleFontFamily = vm.TitleFontFamily ?? "";
+            string titleAlign = vm.TitleAlignment ?? "Left";
+            string titleHover = vm.TitleHoverEffect ? "True" : "False";
+            string viewMode = vm.ViewMode ?? "Normal";
+            string showTitle = vm.ShowTitle ? "True" : "False";
+            string iconSize = vm.ShortcutIconSize.ToString();
+            string headerIconSize = vm.HeaderIconSize.ToString();
+            string bodyOpacity = vm.BodyOpacity.ToString();
+            string twoLineShortcuts = vm.TwoLineShortcuts ? "True" : "False";
+
+            // Calculate gradient StartPoint/EndPoint from angle
+            double gradRad = double.Parse(gradAngle, System.Globalization.CultureInfo.InvariantCulture) * Math.PI / 180;
+            double cos = Math.Cos(gradRad), sin = Math.Sin(gradRad);
+            double sx = 0.5 - cos / 2, sy = 0.5 - sin / 2;
+            double epx = 0.5 + cos / 2, epy = 0.5 + sin / 2;
+            string icSx = sx.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+            string icSy = sy.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+            string icEx = epx.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+            string icEy = epy.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+
+            string bodyBrush;
+            if (bdyGrad == "True" && !string.IsNullOrEmpty(gradEnd))
+                bodyBrush = $"<LinearGradientBrush x:Key=\"ContainerBackgroundBrush\" StartPoint=\"{icSx},{icSy}\" EndPoint=\"{icEx},{icEy}\"><GradientStop Color=\"{body}\" Offset=\"0\"/><GradientStop Color=\"{gradEnd}\" Offset=\"1\"/></LinearGradientBrush>";
+            else
+                bodyBrush = $"<SolidColorBrush x:Key=\"ContainerBackgroundBrush\">{body}</SolidColorBrush>";
+
+            string headerBrush;
+            if (hdrGrad == "True" && !string.IsNullOrEmpty(gradEnd))
+                headerBrush = $"<LinearGradientBrush x:Key=\"ContainerHeaderBrush\" StartPoint=\"{icSx},{icSy}\" EndPoint=\"{icEx},{icEy}\"><GradientStop Color=\"{header}\" Offset=\"0\"/><GradientStop Color=\"{gradEnd}\" Offset=\"1\"/></LinearGradientBrush>";
+            else
+                headerBrush = $"<SolidColorBrush x:Key=\"ContainerHeaderBrush\">{header}</SolidColorBrush>";
+
+            string xaml = $@"<ResourceDictionary xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
+                    xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml"">
+    <!-- Colors -->
+    {bodyBrush}
+    {headerBrush}
+    <SolidColorBrush x:Key=""ContainerTitleForeground"">{title}</SolidColorBrush>
+    <SolidColorBrush x:Key=""ContainerLabelsForeground"">{labels}</SolidColorBrush>
+    <!-- Shape -->
+    <CornerRadius x:Key=""ContainerCornerRadius"">12</CornerRadius>
+    <Thickness x:Key=""ContainerBorderThickness"">1</Thickness>
+    <SolidColorBrush x:Key=""ContainerBorderBrush"">#25FFFFFF</SolidColorBrush>
+    <SolidColorBrush x:Key=""ContainerBorderBrushHover"">#45FFFFFF</SolidColorBrush>
+    <SolidColorBrush x:Key=""ContainerHeaderBrushHover"">#30303030</SolidColorBrush>
+    <!-- Container settings (stored as strings, parsed at apply time) -->
+    <x:String x:Key=""Container.HeaderColor"">{header}</x:String>
+    <x:String x:Key=""Container.BodyColor"">{body}</x:String>
+    <x:String x:Key=""Container.TitleColor"">{title}</x:String>
+    <x:String x:Key=""Container.LabelsColor"">{labels}</x:String>
+    <x:String x:Key=""Container.GradientEndColor"">{gradEnd}</x:String>
+    <x:String x:Key=""Container.GradientAngle"">{gradAngle}</x:String>
+    <x:String x:Key=""Container.HeaderGradientEnabled"">{hdrGrad}</x:String>
+    <x:String x:Key=""Container.BodyGradientEnabled"">{bdyGrad}</x:String>
+    <x:String x:Key=""Container.IdleOpacityPercent"">{idleOp}</x:String>
+    <x:String x:Key=""Container.ActiveOpacityPercent"">{activeOp}</x:String>
+    <x:String x:Key=""Container.CornerRadius"">{corner}</x:String>
+    <x:String x:Key=""Container.ShowBorder"">{showBorder}</x:String>
+    <x:String x:Key=""Container.TitleFontSize"">{titleFontSize}</x:String>
+    <x:String x:Key=""Container.TitleFontFamily"">{titleFontFamily}</x:String>
+    <x:String x:Key=""Container.TitleAlignment"">{titleAlign}</x:String>
+    <x:String x:Key=""Container.TitleHoverEffect"">{titleHover}</x:String>
+    <x:String x:Key=""Container.ViewMode"">{viewMode}</x:String>
+    <x:String x:Key=""Container.ShowTitle"">{showTitle}</x:String>
+    <x:String x:Key=""Container.ShortcutIconSize"">{iconSize}</x:String>
+    <x:String x:Key=""Container.TwoLineShortcuts"">{twoLineShortcuts}</x:String>
+    <x:String x:Key=""Container.HeaderIconSize"">{headerIconSize}</x:String>
+    <x:String x:Key=""Container.BodyOpacity"">{bodyOpacity}</x:String>
+</ResourceDictionary>";
+
+            try
+            {
+                string themesDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Themes");
+                System.IO.Directory.CreateDirectory(themesDir);
+                string path = System.IO.Path.Combine(themesDir, name + ".xaml");
+                System.IO.File.WriteAllText(path, xaml);
+                _viewModel.RefreshThemeNames();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to create theme: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private string? ReadThemeString(ResourceDictionary dict, string key)
+        {
+            try { return dict[key] as string; }
+            catch { return null; }
+        }
+
+        private void ApplyThemeToContainer(string themeName, ContainerViewModel target)
+        {
+            string themesDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Themes");
+            string xamlPath = System.IO.Path.Combine(themesDir, themeName + ".xaml");
+            if (!System.IO.File.Exists(xamlPath)) return;
+
+            try
+            {
+                var dict = new ResourceDictionary { Source = new Uri(xamlPath, UriKind.Absolute) };
+
+                void SetColor(string key, System.Action<Color> setter)
+                {
+                    var val = ReadThemeString(dict, key);
+                    if (val != null && ColorConverter.ConvertFromString(val) is Color c)
+                        setter(c);
+                }
+                void SetBool(string key, System.Action<bool> setter)
+                {
+                    var val = ReadThemeString(dict, key);
+                    if (val != null && bool.TryParse(val, out bool b))
+                        setter(b);
+                }
+                void SetInt(string key, System.Action<int> setter)
+                {
+                    var val = ReadThemeString(dict, key);
+                    if (val != null && int.TryParse(val, out int i))
+                        setter(i);
+                }
+                void SetDouble(string key, System.Action<double> setter)
+                {
+                    var val = ReadThemeString(dict, key);
+                    if (val != null && double.TryParse(val, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out double d))
+                        setter(d);
+                }
+
+                // Gradient info first — so colors below use correct gradient
+                var gradEnd = ReadThemeString(dict, "Container.GradientEndColor");
+                if (gradEnd != null) target.GradientEndColor = gradEnd;
+                SetDouble("Container.GradientAngle", v => target.GradientAngle = v);
+                SetBool("Container.HeaderGradientEnabled", v => target.HeaderGradientEnabled = v);
+                SetBool("Container.BodyGradientEnabled", v => target.BodyGradientEnabled = v);
+
+                // Colors second — triggers gradient brush via PropertyChanged
+                SetColor("Container.HeaderColor", c => target.HeaderColor = c);
+                SetColor("Container.BodyColor", c => target.BodyColor = c);
+                SetColor("Container.TitleColor", c => target.TitleColor = c);
+                SetColor("Container.LabelsColor", c => target.LabelsColor = c);
+                SetDouble("Container.IdleOpacityPercent", v => target.IdleOpacityPercent = v);
+                SetDouble("Container.ActiveOpacityPercent", v => target.ActiveOpacityPercent = v);
+                SetInt("Container.CornerRadius", v => target.CornerRadius = v);
+                SetBool("Container.ShowBorder", v => target.ShowBorder = v);
+                SetDouble("Container.TitleFontSize", v => target.TitleFontSize = v);
+
+                var fontFamily = ReadThemeString(dict, "Container.TitleFontFamily");
+                if (!string.IsNullOrEmpty(fontFamily)) target.TitleFontFamily = fontFamily;
+
+                var alignment = ReadThemeString(dict, "Container.TitleAlignment");
+                if (!string.IsNullOrEmpty(alignment)) target.TitleAlignment = alignment;
+
+                SetBool("Container.TitleHoverEffect", v => target.TitleHoverEffect = v);
+
+                var viewMode = ReadThemeString(dict, "Container.ViewMode");
+                if (!string.IsNullOrEmpty(viewMode)) target.ViewMode = viewMode;
+
+                SetBool("Container.ShowTitle", v => target.ShowTitle = v);
+                SetInt("Container.ShortcutIconSize", v => target.ShortcutIconSize = v);
+                SetBool("Container.TwoLineShortcuts", v => target.TwoLineShortcuts = v);
+                SetInt("Container.HeaderIconSize", v => target.HeaderIconSize = v);
+                SetInt("Container.BodyOpacity", v => target.BodyOpacity = v);
+
+                target.Save();
+            }
+            catch { }
+        }
+
+        private void DeleteTheme_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { Tag: string themeName })
+            {
+                // Don't allow deleting built-in presets
+                if (ThemeService.Presets.Any(p => p.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    MessageBox.Show("Cannot delete built-in themes.", "Palisades", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var result = MessageBox.Show($"Delete theme \"{themeName}\"?", "Delete Theme",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (result != MessageBoxResult.Yes) return;
+
+                string themesDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Themes");
+                string path = System.IO.Path.Combine(themesDir, themeName + ".xaml");
+                try
+                {
+                    if (System.IO.File.Exists(path))
+                        System.IO.File.Delete(path);
+                    _viewModel.RefreshThemeNames();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to delete theme: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void ApplySelectedThemeToContainer_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedTheme = _viewModel.SelectedThemeName;
+            if (string.IsNullOrEmpty(selectedTheme))
+            {
+                MessageBox.Show("Select a theme from the list first.", "Palisades", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (_viewModel.ApplyTargetContainer is not ContainerViewModel target)
+            {
+                MessageBox.Show("Select a target container first.", "Palisades", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // For custom (non-preset) themes, apply all VM properties
+            if (!ThemeService.Presets.Any(p => p.Name.Equals(selectedTheme, StringComparison.OrdinalIgnoreCase)))
+            {
+                ApplyThemeToContainer(selectedTheme, target);
+            }
+            else
+            {
+                // For presets, use the existing theme application
+                target.ContainerThemeName = selectedTheme;
+            }
+        }
+
+        private void ApplySpecificTheme_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedTheme = _viewModel.SelectedThemeName;
+            if (string.IsNullOrEmpty(selectedTheme) || _viewModel.ApplyTargetContainer is not ContainerViewModel target)
+                return;
+
+            // First set ContainerThemeName (loads resources)
+            target.ContainerThemeName = selectedTheme;
+
+            // For custom themes, also apply all VM properties
+            if (!ThemeService.Presets.Any(p => p.Name.Equals(selectedTheme, StringComparison.OrdinalIgnoreCase)))
+            {
+                ApplyThemeToContainer(selectedTheme, target);
             }
         }
 
@@ -162,6 +460,7 @@ namespace Palisades.Views
                     case "CornerRadius": target.CornerRadius = (int)val; break;
                     case "TitleFontSize": target.TitleFontSize = val; break;
                     case "HeaderIconSize": target.HeaderIconSize = (int)val; break;
+                    case "CollapsedHeight": target.CollapsedHeight = val; break;
                 }
                 ContainerManager.Instance.Save();
             }
@@ -185,6 +484,7 @@ namespace Palisades.Views
                     case "AutoHideOnEdge": target.AutoHideOnEdge = val; break;
                     case "OpenOnDoubleClick": target.OpenOnDoubleClick = !val; break;
                     case "UseShellContextMenu": target.UseShellContextMenu = val; break;
+                    case "TwoLineShortcuts": target.TwoLineShortcuts = val; break;
                 }
                 ContainerManager.Instance.Save();
             }
@@ -280,6 +580,22 @@ namespace Palisades.Views
             }
         }
 
+        private void HeaderCustomColorSwatch_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.SelectedContainer == null) return;
+            var hex = PickColorViaDialog(_viewModel.SelectedContainer.HeaderColor.ToString());
+            if (hex != null)
+                _viewModel.SelectedContainer.HeaderColor = (Color)ColorConverter.ConvertFromString(hex);
+        }
+
+        private void BodyCustomColorSwatch_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.SelectedContainer == null) return;
+            var hex = PickColorViaDialog(_viewModel.SelectedContainer.BodyColor.ToString());
+            if (hex != null)
+                _viewModel.SelectedContainer.BodyColor = (Color)ColorConverter.ConvertFromString(hex);
+        }
+
         // --- Gradient color fields ---
         private string _gradSelC1Hex = "#FF000000";
         private string _gradSelC2Hex = "#FF1A1A2E";
@@ -372,35 +688,55 @@ namespace Palisades.Views
             GradDefDegreeLabel.Text = $"{(int)e.NewValue}°";
         }
 
+        private void GradSelHeaderColor_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.SelectedContainer == null) return;
+            var hex = PickColorViaDialog(_viewModel.SelectedContainer.HeaderColor.ToString());
+            if (hex != null)
+            {
+                _viewModel.SelectedContainer.HeaderColor = (Color)ColorConverter.ConvertFromString(hex);
+                ((Border)sender).Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            }
+        }
+
+        private void GradSelBodyColor_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.SelectedContainer == null) return;
+            var hex = PickColorViaDialog(_viewModel.SelectedContainer.BodyColor.ToString());
+            if (hex != null)
+            {
+                _viewModel.SelectedContainer.BodyColor = (Color)ColorConverter.ConvertFromString(hex);
+                ((Border)sender).Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+            }
+        }
+
         private void GradientApply_Click(object sender, MouseButtonEventArgs e)
         {
             if (_viewModel.SelectedContainer == null) return;
 
-            var swap = GradSelDegree.Value > 180;
             var c1 = (Color)ColorConverter.ConvertFromString(_gradSelC1Hex);
             var c2 = (Color)ColorConverter.ConvertFromString(_gradSelC2Hex);
 
-            _viewModel.SelectedContainer.ApplyGradient(swap ? c2 : c1, swap ? c1 : c2);
+            _viewModel.SelectedContainer.ApplyGradient(c1, c2, GradSelDegree.Value);
         }
 
         private void DefaultGradientApply_Click(object sender, MouseButtonEventArgs e)
         {
             if (_viewModel.DefaultModel == null) return;
 
-            var swap = GradDefDegree.Value > 180;
-            var startHex = swap ? _gradDefC2Hex : _gradDefC1Hex;
-            var endHex = swap ? _gradDefC1Hex : _gradDefC2Hex;
-
-            _viewModel.DefaultModel.HeaderColor = startHex;
-            _viewModel.DefaultModel.BodyColor = startHex;
-            _viewModel.DefaultModel.GradientEndColor = endHex;
+            double angle = GradDefDegree.Value;
+            _viewModel.DefaultModel.GradientAngle = angle;
+            _viewModel.DefaultModel.HeaderColor = _gradDefC1Hex;
+            _viewModel.DefaultModel.BodyColor = _gradDefC1Hex;
+            _viewModel.DefaultModel.GradientEndColor = _gradDefC2Hex;
 
             if (LivePreviewToggle.IsChecked == true &&
                 PreviewContainerCombo.SelectedItem is ContainerViewModel target)
             {
                 target.ApplyGradient(
-                    (Color)ColorConverter.ConvertFromString(startHex),
-                    (Color)ColorConverter.ConvertFromString(endHex));
+                    (Color)ColorConverter.ConvertFromString(_gradDefC1Hex),
+                    (Color)ColorConverter.ConvertFromString(_gradDefC2Hex),
+                    angle);
                 ContainerManager.Instance.Save();
             }
         }

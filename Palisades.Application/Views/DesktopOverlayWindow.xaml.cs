@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
+
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,16 +31,20 @@ namespace Palisades.Views
         private readonly Dictionary<Guid, NoteControl> _noteControls = new();
         private readonly Dictionary<Guid, PluginGadgetWrapper> _gadgetControls = new();
         private readonly HashSet<ShortcutItem> _selectedIcons = new();
+        private readonly HashSet<Border> _selectionHighlighted = new(); // borders currently showing selection brush (rect select optimization)
+        private volatile int _selectedDeleteCount;
+        private Rect _lastSelRect = Rect.Empty; // last processed rect in HandleRectSelectMove
         private HwndSource? _hwndSource;
         private bool _windowReady;
         private IntPtr _overlayHwnd;
-        internal int OverlayOffsetX { get; private set; }
-        internal int OverlayOffsetY { get; private set; }
+        internal double OverlayOffsetX { get; private set; }
+        internal double OverlayOffsetY { get; private set; }
         private IntPtr _desktopHwnd;
 
         private bool _isDragging;
         private bool _isContainerDrag;
         private List<ShortcutItem>? _containerDragItems;
+        public List<ShortcutItem>? ContainerDragItems => _containerDragItems;
         private ContainerViewModel? _containerDragSource;
         private bool _isRectSelecting;
         private Point _mouseDownPoint;
@@ -63,15 +70,29 @@ namespace Palisades.Views
         private const int WM_RBUTTONDOWN = 0x0204;
         private const int WM_MOUSEMOVE = 0x0200;
 
-        private IntPtr _hookId = IntPtr.Zero;
+        private static IntPtr _hookId = IntPtr.Zero;
+        private static LowLevelMouseProcDelegate? _hookProcInstance;
         private LowLevelMouseProcDelegate? _hookProc;
+
+        private const int VK_DELETE = 0x2E;
+
+        // Global keyboard hook – runs on dedicated thread with own message pump
+        private delegate IntPtr LowLevelKeyboardProcDelegate(int nCode, IntPtr wParam, IntPtr lParam);
+        private static LowLevelKeyboardProcDelegate? _globalKbHookProc;  // static = never GC'd
+        private static volatile IntPtr _globalKbHookId = IntPtr.Zero;
+        private static DesktopOverlayWindow? _instance; // for static callback access
+        private volatile bool _overlayHasFocus;          // set in mouse hook, read in kb hook
+        private Thread? _keyboardHookThread;
+
+        private delegate IntPtr LowLevelMouseProcDelegate(int nCode, IntPtr wParam, IntPtr lParam);
+
         private bool _isContextMenuOpen;
         private ContextMenu? _currentContextMenu;
         private readonly System.Text.StringBuilder _classNameBuf = new(256);
         private DateTime _lastClickTime;
         private ShortcutItem? _lastClickItem;
 
-        private delegate IntPtr LowLevelMouseProcDelegate(int nCode, IntPtr wParam, IntPtr lParam);
+
 
         public event Action<double, double, double, double, SelectedContainerType>? CreateContainerRequested;
         public event Action<double, double, double, double, List<ShortcutItem>>? CreateContainerWithIconsRequested;
@@ -94,6 +115,7 @@ namespace Palisades.Views
             OverlayCanvas.Background = new SolidColorBrush(Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF));
             SourceInitialized += OnSourceInitialized;
             Loaded += OnLoaded;
+            PreviewKeyDown += Window_KeyDown;
             Unloaded += (_, _) =>
             {
                 _explorerCheckTimer?.Stop();
@@ -146,7 +168,7 @@ namespace Palisades.Views
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            PositionOverlay();
+            RepositionOverlay();
             ContainerManager.Instance.RefreshUnassignedShortcuts();
             RebuildDesktopIcons();
             ContainerManager.Instance.UnassignedShortcutsChanged += RebuildDesktopIcons;
@@ -156,6 +178,8 @@ namespace Palisades.Views
             noteSaveTimer.Start();
 
             InstallHook();
+            _instance = this;
+            StartGlobalKeyboardHookThread();
             this.ContextMenuOpening += (_, e) =>
             {
                 if (e.Source is not ContainerControl)
@@ -198,14 +222,92 @@ namespace Palisades.Views
             }
         }
 
-        private void RebuildDesktopIcons()
+        public void RebuildDesktopIcons()
         {
             foreach (var kvp in _iconElements)
                 OverlayCanvas.Children.Remove(kvp.Value);
             _iconElements.Clear();
 
+            var vm = _mainViewModel ?? DataContext as MainViewModel;
+            if (vm != null && vm.ShowRecycleBin)
+            {
+                var name = (TranslationService.Instance != null) 
+                    ? (TranslationService.Instance["RecycleBin_Name"] ?? "Recycle Bin") 
+                    : "Recycle Bin";
+
+                var rbItem = new ShortcutItem
+                {
+                    Name = name,
+                    TargetPath = "shell:::{645FF040-5081-101B-9F08-00AA002F954E}",
+                    IconPath = "shell:::{645FF040-5081-101B-9F08-00AA002F954E}",
+                    ShortcutPath = "shell:::{645FF040-5081-101B-9F08-00AA002F954E}"
+                };
+                AddIconElement(rbItem);
+            }
+
             foreach (var item in ContainerManager.Instance.UnassignedShortcuts)
                 AddIconElement(item);
+        }
+
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Delete)
+            {
+                if (FocusManager.GetFocusedElement(this) is TextBox)
+                    return;
+
+                DeleteSelectedOverlayIcons();
+            }
+        }
+
+        private void DeleteSelectedOverlayIcons()
+        {
+            if (_selectedIcons.Count == 0) return;
+
+            var itemsToDelete = _selectedIcons.Where(item => 
+                item.TargetPath != "shell:::{645FF040-5081-101B-9F08-00AA002F954E}").ToList();
+
+            if (itemsToDelete.Count == 0) return;
+
+            string confirmMsg = string.Format(
+                TranslationService.Instance["Dialog_DeleteOverlayConfirm"] ?? "Are you sure you want to send the selected {0} item(s) to the Recycle Bin?",
+                itemsToDelete.Count);
+            string confirmTitle = TranslationService.Instance["Dialog_DeleteOverlayTitle"] ?? "Delete Items";
+
+            var result = MessageBox.Show(confirmMsg, confirmTitle, MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes) return;
+
+            foreach (var item in itemsToDelete)
+            {
+                string? path = item.ShortcutPath ?? item.TargetPath;
+                if (!string.IsNullOrEmpty(path))
+                {
+                    try
+                    {
+                        if (File.Exists(path))
+                        {
+                            Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(path,
+                                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                        }
+                        else if (Directory.Exists(path))
+                        {
+                            Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(path,
+                                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        string errTitle = TranslationService.Instance["Dialog_Error"] ?? "Error";
+                        MessageBox.Show($"Error deleting {path}: {ex.Message}", errTitle, MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+
+            _selectedIcons.Clear();
+            _selectedDeleteCount = 0;
+            ContainerManager.Instance.RefreshUnassignedShortcuts();
         }
 
         private void AddIconElement(ShortcutItem item)
@@ -370,11 +472,31 @@ namespace Palisades.Views
                     switch (msg)
                     {
                         case WM_LBUTTONDOWN:
+                            if (_activeRenameTextBox != null)
+                            {
+                                try
+                                {
+                                    var screenTopLeft = _activeRenameTextBox.PointToScreen(new Point(0, 0));
+                                    var width = _activeRenameTextBox.ActualWidth;
+                                    var height = _activeRenameTextBox.ActualHeight;
+                                    double clickX = hookStruct.pt.X;
+                                    double clickY = hookStruct.pt.Y;
+                                    if (clickX < screenTopLeft.X || clickX > screenTopLeft.X + width ||
+                                        clickY < screenTopLeft.Y || clickY > screenTopLeft.Y + height)
+                                    {
+                                        _activeRenameCommitAction?.Invoke();
+                                    }
+                                }
+                                catch { _activeRenameCommitAction?.Invoke(); }
+                            }
                             if (!IsDesktopPoint(hookStruct.pt))
                             {
+                                _overlayHasFocus = false;
                                 CancelDragOrRectSelect();
                                 break;
                             }
+                            _overlayHasFocus = true;
+                            ActivateDesktopWindow();
                             if (overContainer || overNote || overGadget || IsOverDrawMenu(canvasPt))
                             {
                                 if (IsOverDrawMenu(canvasPt))
@@ -385,9 +507,22 @@ namespace Palisades.Views
                                 break;
                             }
                             if (hitItem != null && hitItem == _lastClickItem
-                                && (DateTime.Now - _lastClickTime).TotalMilliseconds < 200)
+                                && (DateTime.Now - _lastClickTime).TotalMilliseconds < 300)
                             {
                                 _lastClickItem = null;
+
+                                var border = GetElementForItem(hitItem);
+                                if (border != null)
+                                {
+                                    double top = Canvas.GetTop(border);
+                                    double relativeY = canvasPt.Y - top;
+                                    if (relativeY >= 50)
+                                    {
+                                        RenameIconInline(hitItem.ShortcutPath ?? hitItem.TargetPath ?? hitItem.Name);
+                                        return (IntPtr)1;
+                                    }
+                                }
+
                                 LaunchItem(hitItem);
                                 return (IntPtr)1;
                             }
@@ -397,8 +532,26 @@ namespace Palisades.Views
                             return (IntPtr)1;
 
                         case WM_RBUTTONDOWN:
+                            if (_activeRenameTextBox != null)
+                            {
+                                try
+                                {
+                                    var screenTopLeft = _activeRenameTextBox.PointToScreen(new Point(0, 0));
+                                    var width = _activeRenameTextBox.ActualWidth;
+                                    var height = _activeRenameTextBox.ActualHeight;
+                                    double clickX = hookStruct.pt.X;
+                                    double clickY = hookStruct.pt.Y;
+                                    if (clickX < screenTopLeft.X || clickX > screenTopLeft.X + width ||
+                                        clickY < screenTopLeft.Y || clickY > screenTopLeft.Y + height)
+                                    {
+                                        _activeRenameCommitAction?.Invoke();
+                                    }
+                                }
+                                catch { _activeRenameCommitAction?.Invoke(); }
+                            }
                             if (!IsDesktopPoint(hookStruct.pt))
                                 break;
+                            ActivateDesktopWindow();
                             if (overContainer || overNote || overGadget)
                             {
                                 CancelDragOrRectSelect();
@@ -410,6 +563,7 @@ namespace Palisades.Views
                         case WM_MOUSEMOVE:
                             if (_isContainerDrag || _isDragging)
                             {
+                                ContainerControl? activeCtrl = null;
                                 foreach (var kvp in _containerControls)
                                 {
                                     double left = Canvas.GetLeft(kvp.Value);
@@ -419,11 +573,20 @@ namespace Palisades.Views
                                     if (canvasPt.X >= left && canvasPt.X <= left + w &&
                                         canvasPt.Y >= top && canvasPt.Y <= top + h)
                                     {
-                                        if (_isContainerDrag)
-                                            kvp.Value.UpdateInsertionMarker(canvasPt);
-                                        else
-                                            kvp.Value.UpdateInsertionMarker(canvasPt);
+                                        activeCtrl = kvp.Value;
                                         break;
+                                    }
+                                }
+
+                                foreach (var kvp in _containerControls)
+                                {
+                                    if (kvp.Value == activeCtrl)
+                                    {
+                                        kvp.Value.UpdateInsertionMarker(canvasPt);
+                                    }
+                                    else
+                                    {
+                                        kvp.Value.ClearInsertionMarker();
                                     }
                                 }
                                 if (_isDragging)
@@ -466,7 +629,92 @@ namespace Palisades.Views
             return CallNextHookEx(_hookId, nCode, wParam, lParam);
         }
 
-        // === Hook helper methods ===
+
+
+        private void StartGlobalKeyboardHookThread()
+        {
+            _keyboardHookThread = new Thread(() =>
+            {
+                _globalKbHookProc = GlobalKeyboardHookCallback;
+                IntPtr kbFnPtr = Marshal.GetFunctionPointerForDelegate(_globalKbHookProc);
+                _globalKbHookId = SetWindowsHookExRaw(13, kbFnPtr, GetModuleHandle(null), 0);
+                Console.WriteLine($"[KbHookThread] hook={_globalKbHookId}, err={Marshal.GetLastWin32Error()}");
+                Console.Out.Flush();
+
+                // Dedicated message pump so Windows can deliver hook callbacks reliably
+                while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0) > 0)
+                {
+                    TranslateMessage(ref msg);
+                    DispatchMessage(ref msg);
+                }
+
+                if (_globalKbHookId != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(_globalKbHookId);
+                    _globalKbHookId = IntPtr.Zero;
+                }
+            });
+            _keyboardHookThread.Name = "PalisadesKbHook";
+            _keyboardHookThread.IsBackground = true;
+            _keyboardHookThread.Start();
+        }
+
+        private static IntPtr GlobalKeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && wParam.ToInt32() == 0x0100) // WM_KEYDOWN
+            {
+                try
+                {
+                    var kb = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+                    Console.WriteLine($"[KbHookThread] vk={kb.vkCode:X}");
+                    Console.Out.Flush();
+                    if (kb.vkCode == VK_DELETE)
+                    {
+                        var win = _instance;
+                        if (win != null && win._activeRenameTextBox == null)
+                        {
+                            // Volatile read ensures latest value from UI thread
+                            int selCount = win._selectedDeleteCount;
+                            Console.WriteLine($"[KbHookThread] Delete pressed, _selectedDeleteCount={selCount}");
+                            Console.Out.Flush();
+                            if (selCount > 0)
+                            {
+                                // Only trigger delete and swallow if the desktop or our overlay is the active foreground window
+                                IntPtr fg = GetForegroundWindow();
+                                if (fg != IntPtr.Zero)
+                                {
+                                    bool isDesktopOrOverlay = false;
+                                    if (fg == win._overlayHwnd)
+                                    {
+                                        isDesktopOrOverlay = true;
+                                    }
+                                    else
+                                    {
+                                        var buf = new System.Text.StringBuilder(256);
+                                        GetClassName(fg, buf, 256);
+                                        string cls = buf.ToString();
+                                        if (cls is "Progman" or "WorkerW")
+                                        {
+                                            isDesktopOrOverlay = true;
+                                        }
+                                    }
+
+                                    if (isDesktopOrOverlay)
+                                    {
+                                        Console.WriteLine("[KbHookThread] Triggering delete!");
+                                        Console.Out.Flush();
+                                        win.Dispatcher.BeginInvoke(new Action(() => win.DeleteSelectedOverlayIcons()));
+                                        return (IntPtr)1; // swallow
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+            return CallNextHookEx(_globalKbHookId, nCode, wParam, lParam);
+        }
 
         private void CancelDragOrRectSelect()
         {
@@ -503,6 +751,7 @@ namespace Palisades.Views
                         _selectedIcons.Remove(hitItem);
                     else
                         _selectedIcons.Add(hitItem);
+                    _selectedDeleteCount = _selectedIcons.Count;
                     UpdateSelectionVisual();
                     return;
                 }
@@ -530,6 +779,7 @@ namespace Palisades.Views
                             if (ordered[i].Tag is ShortcutItem si)
                                 _selectedIcons.Add(si);
                         }
+                        _selectedDeleteCount = _selectedIcons.Count;
                     }
                     UpdateSelectionVisual();
                     return;
@@ -538,24 +788,32 @@ namespace Palisades.Views
                 if (!_selectedIcons.Contains(hitItem))
                 {
                     _selectedIcons.Clear();
+                    _selectedDeleteCount = 1;
                     _selectedIcons.Add(hitItem);
                     UpdateSelectionVisual();
                 }
+                // Give Win32 keyboard focus to the overlay, then propagate to WPF
+                SetFocus(_overlayHwnd);
+                Dispatcher.BeginInvoke(new Action(() => Keyboard.Focus(this)), System.Windows.Threading.DispatcherPriority.Input);
                 _isDragging = true;
                 _mouseDownPoint = canvasPt;
                 return;
             }
 
             // Empty area → rectangle selection
+            ClearOverlayIconSelection();
+            ClearAllContainerSelections();
+            _lastSelRect = Rect.Empty;
             _isRectSelecting = true;
             _mouseDownPoint = canvasPt;
             _selectRect = new Rectangle
             {
-                Stroke = new SolidColorBrush(Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
-                StrokeThickness = 1,
-                Fill = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)),
+                Stroke = new SolidColorBrush(Color.FromArgb(0xD0, 0x00, 0x78, 0xD7)),
+                StrokeThickness = 1.5,
+                Fill = new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0x78, 0xD7)),
                 StrokeDashArray = new DoubleCollection { 4, 2 }
             };
+            Panel.SetZIndex(_selectRect, 99999);
             Canvas.SetLeft(_selectRect, canvasPt.X);
             Canvas.SetTop(_selectRect, canvasPt.Y);
             _selectRect.Width = 0;
@@ -583,6 +841,7 @@ namespace Palisades.Views
                 if (!_selectedIcons.Contains(hitItem))
                 {
                     _selectedIcons.Clear();
+                    _selectedDeleteCount = 1;
                     _selectedIcons.Add(hitItem);
                     UpdateSelectionVisual();
                 }
@@ -598,9 +857,12 @@ namespace Palisades.Views
                     _overlayHwnd, menuPath, (int)screenX, (int)screenY);
                 _isContextMenuOpen = false;
                 ContainerManager.Instance.SyncDeletedShortcuts();
+                ContainerManager.Instance.RefreshUnassignedShortcuts();
                 return;
             }
 
+            ClearOverlayIconSelection();
+            ClearAllContainerSelections();
             ShowDesktopContextMenu(canvasPt);
         }
 
@@ -645,6 +907,7 @@ namespace Palisades.Views
                 {
                     var itemsToMove = _selectedIcons.ToList();
                     _selectedIcons.Clear();
+                    _selectedDeleteCount = 0;
                     ContainerManager.Instance.MoveAllToContainer(itemsToMove, vm.Model);
                     return;
                 }
@@ -672,29 +935,20 @@ namespace Palisades.Views
             double y = Math.Min(_mouseDownPoint.Y, canvasPt.Y);
             double w = Math.Abs(canvasPt.X - _mouseDownPoint.X);
             double h = Math.Abs(canvasPt.Y - _mouseDownPoint.Y);
+
+            // Skip update if rect barely changed (sub-pixel jitter, tiny movements)
+            if (Math.Abs(x - _lastSelRect.X) < 3 && Math.Abs(y - _lastSelRect.Y) < 3 &&
+                Math.Abs(w - _lastSelRect.Width) < 3 && Math.Abs(h - _lastSelRect.Height) < 3)
+                return;
+
+            _lastSelRect = new Rect(x, y, w, h);
+
+            // Only update selection rectangle visual – don't touch icon backgrounds during drag.
+            // Updating all icon backgrounds on every mouse move causes massive GPU re-render.
             Canvas.SetLeft(_selectRect, x);
             Canvas.SetTop(_selectRect, y);
             _selectRect.Width = w;
             _selectRect.Height = h;
-
-            if (w > 5 || h > 5)
-            {
-                var previewRect = new Rect(x, y, w, h);
-                foreach (var kvp in _iconElements)
-                {
-                    double lx = Canvas.GetLeft(kvp.Value);
-                    double ly = Canvas.GetTop(kvp.Value);
-                    var itemRect = new Rect(lx, ly, kvp.Value.Width, kvp.Value.Height);
-                    kvp.Value.Background = previewRect.IntersectsWith(itemRect)
-                        ? _selectionBrush
-                        : _invisibleBrush;
-                }
-            }
-            else
-            {
-                foreach (var kvp in _iconElements)
-                    kvp.Value.Background = _invisibleBrush;
-            }
         }
 
         private void HandleRectSelectEnd(Point canvasPt)
@@ -713,7 +967,9 @@ namespace Palisades.Views
                 {
                     OverlayCanvas.Children.Remove(_selectRect);
                     _selectRect = null;
+                    _selectionHighlighted.Clear();
                     _selectedIcons.Clear();
+                    _selectedDeleteCount = 0;
                     UpdateSelectionVisual();
                     return;
                 }
@@ -727,7 +983,15 @@ namespace Palisades.Views
                     if (selRect.IntersectsWith(itemRect) && kvp.Value.Tag is ShortcutItem si)
                         _selectedIcons.Add(si);
                 }
+                _selectionHighlighted.Clear();
                 UpdateSelectionVisual();
+
+                if (_selectedIcons.Count > 0)
+                {
+                    Thread.MemoryBarrier(); // flush write so background hook thread sees current state
+                    _overlayHasFocus = true;
+                    SetFocus(_overlayHwnd);
+                }
 
                 if (_selectedIcons.Count == 0 && w >= 50 && h >= 50)
                 {
@@ -1088,7 +1352,10 @@ namespace Palisades.Views
                 var list = GetGadgets();
                 PluginService.Instance.SaveGadgets(list);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                App.Log(ex, "SaveGadgetsToDisk");
+            }
         }
 
         public void RebuildGadgets()
@@ -1154,13 +1421,30 @@ namespace Palisades.Views
                 }
             }
 
-            OverlayOffsetX = minX;
-            OverlayOffsetY = minY;
+            double dpiX = 1.0;
+            double dpiY = 1.0;
+            try
+            {
+                var dpiInfo = VisualTreeHelper.GetDpi(this);
+                dpiX = dpiInfo.DpiScaleX > 0 ? dpiInfo.DpiScaleX : 1.0;
+                dpiY = dpiInfo.DpiScaleY > 0 ? dpiInfo.DpiScaleY : 1.0;
+            }
+            catch
+            {
+                dpiX = _dpiScaleX;
+                dpiY = _dpiScaleY;
+            }
 
-            Left = minX;
-            Top = minY;
-            Width = maxX - minX;
-            Height = maxY - minY;
+            _dpiScaleX = dpiX;
+            _dpiScaleY = dpiY;
+
+            OverlayOffsetX = minX / dpiX;
+            OverlayOffsetY = minY / dpiY;
+
+            Left = minX / dpiX;
+            Top = minY / dpiY;
+            Width = (maxX - minX) / dpiX;
+            Height = (maxY - minY) / dpiY;
         }
 
         private void OnSourceInitialized(object? sender, EventArgs e)
@@ -1250,8 +1534,22 @@ namespace Palisades.Views
             const int SC_MINIMIZE = 0xF020;
             const int SC_SHOWDESKTOP = 0xF070;
             const int WM_HOTKEY = 0x0312;
+            const int WM_KEYDOWN = 0x0100;
+            const int WM_SYSKEYDOWN = 0x0104;
             switch (msg)
             {
+                case WM_KEYDOWN:
+                case WM_SYSKEYDOWN:
+                {
+                    int vk = wParam.ToInt32();
+                    if (vk == VK_DELETE && _activeRenameTextBox == null && _selectedIcons.Count > 0)
+                    {
+                        Dispatcher.BeginInvoke(new Action(() => DeleteSelectedOverlayIcons()));
+                        handled = true;
+                    }
+                    break;
+                }
+
                 case WM_HOTKEY:
                 {
                     int id = wParam.ToInt32();
@@ -1391,23 +1689,225 @@ namespace Palisades.Views
             return null;
         }
 
+        private TextBox? _activeRenameTextBox;
+        private Action? _activeRenameCommitAction;
+        private bool _activationEnabled;
+
+        private void EnableWindowActivation()
+        {
+            try
+            {
+                if (_overlayHwnd == IntPtr.Zero) return;
+                const int GWL_EXSTYLE = -20;
+                const int WS_EX_NOACTIVATE = 0x08000000;
+                int exStyle = GetWindowLong(_overlayHwnd, GWL_EXSTYLE);
+                if ((exStyle & WS_EX_NOACTIVATE) != 0)
+                {
+                    SetWindowLong(_overlayHwnd, GWL_EXSTYLE, exStyle & ~WS_EX_NOACTIVATE);
+                    _activationEnabled = true;
+                }
+            }
+            catch { }
+        }
+
+        private void DisableWindowActivation()
+        {
+            if (!_activationEnabled) return;
+            try
+            {
+                if (_overlayHwnd == IntPtr.Zero) return;
+                const int GWL_EXSTYLE = -20;
+                const int WS_EX_NOACTIVATE = 0x08000000;
+                int exStyle = GetWindowLong(_overlayHwnd, GWL_EXSTYLE);
+                SetWindowLong(_overlayHwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE);
+                _activationEnabled = false;
+            }
+            catch { }
+        }
+
+        private void RenameIconInline(string filePath)
+        {
+            if (!_iconElements.TryGetValue(filePath, out var border))
+                return;
+
+            if (border.Child is not StackPanel stack || stack.Children.Count < 2)
+                return;
+
+            var item = border.Tag as ShortcutItem;
+            if (item == null) return;
+
+            var oldLabel = stack.Children[1] as TextBlock;
+            if (oldLabel == null) return;
+
+            // Create TextBox
+            var textBox = new TextBox
+            {
+                Text = item.DisplayName,
+                FontSize = 11,
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x2D)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
+                BorderThickness = new Thickness(1),
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                MinWidth = 70,
+                MaxWidth = 76,
+                Padding = new Thickness(2),
+                Margin = new Thickness(0, 2, 0, 0),
+                CaretBrush = Brushes.White
+            };
+
+            // Replace TextBlock with TextBox
+            stack.Children.RemoveAt(1);
+            stack.Children.Add(textBox);
+
+            EnableWindowActivation();
+
+            textBox.Focus();
+            textBox.SelectAll();
+
+            bool isFinished = false;
+
+            Action finishEdit = () =>
+            {
+                if (isFinished) return;
+                isFinished = true;
+
+                _activeRenameTextBox = null;
+                _activeRenameCommitAction = null;
+
+                DisableWindowActivation();
+
+                string newName = textBox.Text.Trim();
+                if (!string.IsNullOrEmpty(newName) && newName != item.DisplayName)
+                {
+                    try
+                    {
+                        string parentDir = System.IO.Path.GetDirectoryName(filePath)!;
+                        string finalNewName = newName;
+                        if (File.Exists(filePath))
+                        {
+                            string ext = System.IO.Path.GetExtension(filePath);
+                            if (!newName.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                                finalNewName = newName + ext;
+                        }
+
+                        string newPath = System.IO.Path.Combine(parentDir, finalNewName);
+                        if (newPath != filePath)
+                        {
+                            if (Directory.Exists(filePath))
+                            {
+                                Directory.Move(filePath, newPath);
+                            }
+                            else if (File.Exists(filePath))
+                            {
+                                File.Move(filePath, newPath);
+                            }
+
+                            // Re-position pos key in ContainerManager
+                            var oldKey = item.ShortcutPath ?? item.TargetPath ?? item.Name;
+                            var oldPos = ContainerManager.Instance.GetDesktopIconPosition(oldKey);
+                            if (oldPos.HasValue)
+                            {
+                                ContainerManager.Instance.ClearDesktopIconPositions(oldKey);
+                                ContainerManager.Instance.SetDesktopIconPosition(newPath, oldPos.Value.X, oldPos.Value.Y);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error renaming: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+
+                ContainerManager.Instance.RefreshUnassignedShortcuts();
+            };
+
+            _activeRenameTextBox = textBox;
+            _activeRenameCommitAction = finishEdit;
+
+            textBox.KeyDown += (s, e) =>
+            {
+                if (e.Key == Key.Enter)
+                {
+                    e.Handled = true;
+                    finishEdit();
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    e.Handled = true;
+                    isFinished = true;
+                    _activeRenameTextBox = null;
+                    _activeRenameCommitAction = null;
+                    DisableWindowActivation();
+                    RebuildDesktopIcons();
+                }
+            };
+
+            textBox.LostFocus += (s, e) =>
+            {
+                finishEdit();
+            };
+        }
+
         private void ShowDesktopContextMenu(Point canvasPt)
         {
             double sx = (Left + canvasPt.X) * _dpiScaleX;
             double sy = (Top + canvasPt.Y) * _dpiScaleY;
             _isContextMenuOpen = true;
             string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+
+            var filesBefore = Directory.Exists(desktopPath)
+                ? Directory.GetFileSystemEntries(desktopPath)
+                : Array.Empty<string>();
+
             ContainerControl.ShellContextMenu.ShowMenu(
                 _overlayHwnd, desktopPath, (int)sx, (int)sy, true);
             _isContextMenuOpen = false;
+
+            var filesAfter = Directory.Exists(desktopPath)
+                ? Directory.GetFileSystemEntries(desktopPath)
+                : Array.Empty<string>();
+
+            var newFiles = filesAfter.Except(filesBefore, StringComparer.OrdinalIgnoreCase).ToList();
+            if (newFiles.Count > 0)
+            {
+                string newFilePath = newFiles[0];
+
+                double posX = canvasPt.X - 40;
+                double posY = canvasPt.Y - 45;
+                if (posX < 10) posX = 10;
+                if (posY < 10) posY = 10;
+                if (posX > Width - 90) posX = Width - 90;
+                if (posY > Height - 100) posY = Height - 100;
+
+                ContainerManager.Instance.SetDesktopIconPosition(newFilePath, posX, posY);
+            }
+
+            ContainerManager.Instance.RefreshUnassignedShortcuts();
+
+            if (newFiles.Count > 0)
+            {
+                string newFilePath = newFiles[0];
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    RenameIconInline(newFilePath);
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
         }
 
         private void InstallHook()
         {
-            if (_hookId != IntPtr.Zero) return;
-            _hookProc = LowLevelMouseProc;
-            _hookId = SetWindowsHookEx(WH_MOUSE_LL, _hookProc,
-                Marshal.GetHINSTANCE(typeof(DesktopOverlayWindow).Module), 0);
+            if (_hookId == IntPtr.Zero)
+            {
+                _hookProc = LowLevelMouseProc;
+                _hookProcInstance = _hookProc;
+                IntPtr hMod = GetModuleHandle(null);
+                _hookId = SetWindowsHookEx(WH_MOUSE_LL, _hookProc, hMod, 0);
+                int mouseErr = Marshal.GetLastWin32Error();
+                Console.WriteLine($"[InstallHook] Mouse Hook Result={_hookId}, Error={mouseErr}");
+                Console.Out.Flush();
+            }
         }
 
         private void UninstallHook()
@@ -1418,6 +1918,7 @@ namespace Palisades.Views
                 _hookId = IntPtr.Zero;
             }
             _hookProc = null;
+            _hookProcInstance = null;
         }
 
         public void RepositionOverlay()
@@ -1492,6 +1993,34 @@ namespace Palisades.Views
                 AddContainer(vm);
         }
 
+        public void ClearOverlayIconSelection()
+        {
+            try
+            {
+                _selectionHighlighted.Clear();
+                _selectedIcons?.Clear();
+                _selectedDeleteCount = 0;
+                UpdateSelectionVisual();
+            }
+            catch { }
+        }
+
+        public void ClearAllContainerSelections()
+        {
+            try
+            {
+                foreach (var cc in _containerControls.Values)
+                {
+                    try { cc?.ClearSelection(); } catch { }
+                }
+                foreach (var cw in _containerWindows.Values)
+                {
+                    try { cw?.ClearSelection(); } catch { }
+                }
+            }
+            catch { }
+        }
+
         public void SetAllVisible(bool visible)
         {
             foreach (var ctrl in _containerControls.Values)
@@ -1523,6 +2052,36 @@ namespace Palisades.Views
         }
 
         [StructLayout(LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode;
+            public uint scanCode;
+            public uint flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSG
+        {
+            public IntPtr hwnd;
+            public int message;
+            public IntPtr wParam;
+            public IntPtr lParam;
+            public uint time;
+            public POINT pt;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+        [DllImport("user32.dll")]
+        private static extern bool TranslateMessage(ref MSG lpMsg);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr DispatchMessage(ref MSG lpMsg);
+
+        [StructLayout(LayoutKind.Sequential)]
         private struct WINDOWPOS
         {
             public IntPtr hwnd;
@@ -1539,6 +2098,7 @@ namespace Palisades.Views
 
         [DllImport("user32.dll")]
         private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr FindWindow(string lpClassName, string? lpWindowName);
@@ -1559,6 +2119,21 @@ namespace Palisades.Views
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProcDelegate lpfn, IntPtr hmod, uint dwThreadId);
 
+        [DllImport("user32.dll", EntryPoint = "SetWindowsHookEx", SetLastError = true)]
+        private static extern IntPtr SetWindowsHookExRaw(int idHook, IntPtr lpfn, IntPtr hmod, uint dwThreadId);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool UnhookWindowsHookEx(IntPtr hhk);
 
@@ -1576,6 +2151,21 @@ namespace Palisades.Views
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetFocus(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        private void ActivateDesktopWindow()
+        {
+            IntPtr progman = FindWindow("Progman", null);
+            if (progman != IntPtr.Zero)
+            {
+                SetForegroundWindow(progman);
+            }
+        }
 
         private bool IsDesktopPoint(POINT screenPt)
         {
@@ -1609,7 +2199,7 @@ namespace Palisades.Views
             }
             _registeredHotkeys.Clear();
 
-            // 2. Scan and register hotkeys
+            // 2. Scan and register user-defined shortcut hotkeys
             foreach (var container in ContainerManager.Instance.Containers)
             {
                 foreach (var item in container.Shortcuts)
@@ -1628,10 +2218,6 @@ namespace Palisades.Views
                     }
                 }
             }
-
-            // 3. Scan active plugin gadgets (placeholder)
-            try { }
-            catch { }
         }
 
         private static (uint modifiers, uint key) ParseHotkeyString(string hotkeyStr)
@@ -1703,6 +2289,16 @@ namespace Palisades.Views
 
         protected override void OnClosed(EventArgs e)
         {
+            try
+            {
+                SaveNotesToDisk();
+                SaveGadgetsToDisk();
+            }
+            catch (Exception ex)
+            {
+                App.Log(ex, "OnClosed_Saving");
+            }
+
             base.OnClosed(e);
 
             if (_overlayHwnd != IntPtr.Zero)
@@ -1872,6 +2468,7 @@ namespace Palisades.Views
             {
                 foreach (var item in items) LaunchItem(item);
                 _selectedIcons.Clear();
+                _selectedDeleteCount = 0;
                 UpdateSelectionVisual();
             };
             stack.Children.Add(btnOpen);
@@ -1883,7 +2480,7 @@ namespace Palisades.Views
                 double cy = mousePos.Y - OverlayOffsetY;
                 CreateContainerWithIconsRequested?.Invoke(cx, cy, 300, 200, items);
                 _selectedIcons.Clear();
-                UpdateSelectionVisual();
+                _selectedDeleteCount = 0;
             };
             stack.Children.Add(btnContainer);
 
@@ -1898,8 +2495,6 @@ namespace Palisades.Views
             _drawMenuPopup.MouseLeave += (_, _) =>
             {
                 CancelDrawMenu();
-                _selectedIcons.Clear();
-                UpdateSelectionVisual();
             };
 
             OverlayCanvas.Children.Add(_drawMenuPopup);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using GongSolutions.Wpf.DragDrop;
 using Palisades.Models;
 using Palisades.Services;
@@ -14,7 +15,7 @@ namespace Palisades.Views.Controls
     {
         public void DragOver(IDropInfo dropInfo)
         {
-            if (dropInfo.Data is ShortcutItem || dropInfo.Data is IList<ShortcutItem>)
+            if (dropInfo.Data is ShortcutItem || dropInfo.Data is System.Collections.IEnumerable)
             {
                 dropInfo.DropTargetAdorner = DropTargetAdorners.Insert;
                 dropInfo.Effects = DragDropEffects.Move;
@@ -23,118 +24,131 @@ namespace Palisades.Views.Controls
 
         public void Drop(IDropInfo dropInfo)
         {
-            if (dropInfo.Data is ShortcutItem source)
+            try
             {
-                DropSingleWithMulti(source, dropInfo);
-            }
-            else if (dropInfo.Data is List<ShortcutItem> sources && sources.Count > 0)
-            {
-                var visualTarget = dropInfo.VisualTarget as FrameworkElement;
-                if (visualTarget?.DataContext is not ContainerViewModel vm) return;
-                DropMultiple(sources, dropInfo, vm);
-            }
-        }
+                // 1. Get visual target ContainerViewModel
+                var itemsControl = dropInfo.VisualTarget as ItemsControl;
+                if (itemsControl?.DataContext is not ContainerViewModel targetVM) return;
 
-        private void DropSingleWithMulti(ShortcutItem source, IDropInfo dropInfo)
-        {
-            var visualTarget = dropInfo.VisualTarget as FrameworkElement;
-            if (visualTarget?.DataContext is not ContainerViewModel targetVM) return;
+                // 2. Extract all dragged ShortcutItems
+                var draggedItems = ExtractDraggedItems(dropInfo);
+                if (draggedItems.Count == 0) return;
 
-            // Check if item was part of multi-selection in source container
-            var srcVM = FindContainerForShortcut(source);
-            if (srcVM != null && srcVM.SelectedShortcuts.Count > 1
-                && srcVM.SelectedShortcuts.Contains(source))
-            {
-                var allSelected = srcVM.SelectedShortcuts.ToList();
-                DropMultiple(allSelected, dropInfo, targetVM);
-                return;
-            }
+                var list = targetVM.Shortcuts;
 
-            // Single item drop
-            var list = targetVM.Shortcuts;
-            int oldIdx = list.IndexOf(source);
-
-            if (oldIdx >= 0)
-            {
-                if (srcVM != null && srcVM != targetVM)
-                    srcVM.Shortcuts.Remove(source);
-                if (!list.Contains(source))
-                    list.Add(source);
-            }
-            else if (srcVM != null)
-            {
-                srcVM.Shortcuts.Remove(source);
-                list.Add(source);
-            }
-            else
-            {
-                ContainerManager.Instance.MoveToContainer(source, targetVM.Model);
-                return;
-            }
-
-            InsertAtTarget(source, dropInfo, list);
-            targetVM.Save();
-        }
-
-        private void DropMultiple(List<ShortcutItem> sources, IDropInfo dropInfo, ContainerViewModel targetVM)
-        {
-            var list = targetVM.Shortcuts;
-
-            foreach (var source in sources)
-            {
-                int oldIdx = list.IndexOf(source);
-                if (oldIdx >= 0)
+                // 3. Determine the target index in the underlying collection
+                int targetIdx;
+                if (dropInfo.TargetItem is ShortcutItem targetItem)
                 {
-                    var srcVM = FindContainerForShortcut(source);
-                    if (srcVM != null && srcVM != targetVM)
-                        srcVM.Shortcuts.Remove(source);
+                    targetIdx = list.IndexOf(targetItem);
                 }
                 else
                 {
-                    var srcVM = FindContainerForShortcut(source);
-                    if (srcVM != null)
-                        srcVM.Shortcuts.Remove(source);
-                    else
-                        ContainerManager.Instance.MoveToContainer(source, targetVM.Model);
+                    targetIdx = dropInfo.InsertIndex;
                 }
-            }
 
-            var targetItem = dropInfo.TargetItem as ShortcutItem;
-            int targetIdx = targetItem != null ? list.IndexOf(targetItem) : list.Count;
-            if (targetIdx < 0) targetIdx = list.Count;
+                if (targetIdx < 0) targetIdx = 0;
+                if (targetIdx > list.Count) targetIdx = list.Count;
 
-            for (int i = 0; i < sources.Count; i++)
-            {
-                int curIdx = list.IndexOf(sources[i]);
-                if (curIdx >= 0)
+                // Keep track of all containers that need to be saved
+                var modifiedVMs = new HashSet<ContainerViewModel>();
+                modifiedVMs.Add(targetVM);
+
+                // 4. Check if we are moving within the same container
+                var firstSource = draggedItems[0];
+                var srcVM = FindContainerForShortcut(firstSource);
+
+                if (srcVM == targetVM)
                 {
-                    int insertAt = targetIdx + i;
-                    if (curIdx < insertAt)
-                        list.Move(curIdx, Math.Min(insertAt, list.Count - 1));
-                    else
-                        list.Move(curIdx, insertAt);
-                }
-            }
+                    // Move within the same container
+                    foreach (var item in draggedItems)
+                    {
+                        int currentIdx = list.IndexOf(item);
+                        if (currentIdx >= 0)
+                        {
+                            int newIdx = targetIdx;
 
-            targetVM.Save();
+                            // Adjust target index if moving forward and using InsertIndex fallback
+                            if (dropInfo.TargetItem is not ShortcutItem && currentIdx < targetIdx)
+                            {
+                                newIdx--;
+                            }
+
+                            if (newIdx >= 0 && newIdx < list.Count && newIdx != currentIdx)
+                            {
+                                list.Move(currentIdx, newIdx);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Move from a different container or unassigned
+                    foreach (var item in draggedItems)
+                    {
+                        var itemSrcVM = FindContainerForShortcut(item);
+                        if (itemSrcVM != null)
+                        {
+                            itemSrcVM.Shortcuts.Remove(item);
+                            modifiedVMs.Add(itemSrcVM);
+                        }
+                        else
+                        {
+                            if (ContainerManager.Instance.UnassignedShortcuts.Contains(item))
+                            {
+                                ContainerManager.Instance.UnassignedShortcuts.Remove(item);
+                            }
+                        }
+
+                        int insertAt = targetIdx;
+                        if (insertAt < 0) insertAt = 0;
+                        if (insertAt > list.Count) insertAt = list.Count;
+
+                        list.Insert(insertAt, item);
+                    }
+                }
+
+                // 5. Save all modified viewmodels & refresh unassigned
+                foreach (var vm in modifiedVMs)
+                {
+                    vm.Save();
+                }
+
+                ContainerManager.Instance.RefreshUnassignedShortcuts();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in drop handler: {ex.Message}");
+            }
         }
 
-        private static void InsertAtTarget(ShortcutItem source, IDropInfo dropInfo, ObservableCollection<ShortcutItem> list)
+        private static List<ShortcutItem> ExtractDraggedItems(IDropInfo dropInfo)
         {
-            if (dropInfo.TargetItem is ShortcutItem targetItem)
+            var draggedItems = new List<ShortcutItem>();
+            if (dropInfo.Data is ShortcutItem single)
             {
-                int targetIdx = list.IndexOf(targetItem);
-                if (targetIdx < 0) targetIdx = 0;
-
-                int currentIdx = list.IndexOf(source);
-                if (currentIdx >= 0)
+                // Check if item was part of multi-selection in source container
+                var srcVM = FindContainerForShortcut(single);
+                if (srcVM != null && srcVM.SelectedShortcuts.Count > 1 && srcVM.SelectedShortcuts.Contains(single))
                 {
-                    if (currentIdx > targetIdx)
-                        list.Move(currentIdx, targetIdx);
-                    else
-                        list.Move(currentIdx, targetIdx + 1);
+                    draggedItems.AddRange(srcVM.SelectedShortcuts);
+                }
+                else
+                {
+                    draggedItems.Add(single);
                 }
             }
+            else if (dropInfo.Data is System.Collections.IEnumerable enumerable)
+            {
+                foreach (var item in enumerable)
+                {
+                    if (item is ShortcutItem s)
+                    {
+                        draggedItems.Add(s);
+                    }
+                }
+            }
+            return draggedItems;
         }
 
         public static ContainerViewModel? FindContainerForShortcut(ShortcutItem shortcut)

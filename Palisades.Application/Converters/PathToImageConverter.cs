@@ -24,6 +24,34 @@ namespace Palisades.Converters
             if (value is not string path || string.IsNullOrEmpty(path))
                 return null;
 
+            if (path.Equals("shell:::{645FF040-5081-101B-9F08-00AA002F954E}", StringComparison.OrdinalIgnoreCase))
+            {
+                string cacheKeyRb = $"recycle_bin:arrow={ShowArrow}";
+                if (_cache.TryGetValue(cacheKeyRb, out var cachedRb))
+                    return cachedRb;
+
+                try
+                {
+                    IntPtr hIconLarge = IntPtr.Zero;
+                    IntPtr hIconSmall = IntPtr.Zero;
+                    int hrRb = SHDefExtractIcon("shell32.dll", 31, 0, out hIconLarge, out hIconSmall, 256);
+                    if (hrRb == 0 && hIconLarge != IntPtr.Zero)
+                    {
+                        var baseSource = RenderIconToBitmapSource(hIconLarge, 48);
+                        DestroyIcon(hIconLarge);
+                        if (hIconSmall != IntPtr.Zero) DestroyIcon(hIconSmall);
+
+                        if (baseSource != null)
+                        {
+                            baseSource.Freeze();
+                            _cache[cacheKeyRb] = baseSource;
+                            return baseSource;
+                        }
+                    }
+                }
+                catch { }
+            }
+
             string shortcutFlag = parameter as string;
             bool isShortcut = IsShortcut(path) || IsShortcut(shortcutFlag);
 
@@ -188,6 +216,9 @@ namespace Palisades.Converters
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool DestroyIcon(IntPtr hIcon);
+
+        [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+        private static extern int SHDefExtractIcon(string pszIconFile, int iIndex, uint uFlags, out IntPtr phiconLarge, out IntPtr phiconSmall, uint nIconSize);
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetDC(IntPtr hWnd);

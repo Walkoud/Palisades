@@ -167,14 +167,22 @@ namespace Palisades.Services
             target.OpenOnDoubleClick = source.OpenOnDoubleClick;
             target.UseShellContextMenu = source.UseShellContextMenu;
             target.ShowShortcutArrow = source.ShowShortcutArrow;
+            target.ShowRecycleBin = source.ShowRecycleBin;
             target.HeaderIconSize = source.HeaderIconSize;
             target.ShortcutIconSize = source.ShortcutIconSize;
+            target.TwoLineShortcuts = source.TwoLineShortcuts;
             target.TitleHoverEffect = source.TitleHoverEffect;
             target.AnimationSpeedMs = source.AnimationSpeedMs;
             target.FilterEnabled = source.FilterEnabled;
             target.FilterType = source.FilterType;
             target.FilterPattern = source.FilterPattern;
             target.PrivateBoxAutoLockSeconds = source.PrivateBoxAutoLockSeconds;
+            target.IsCurtainMode = source.IsCurtainMode;
+            target.CurtainHeaderMode = source.CurtainHeaderMode;
+            target.CurtainOpenWidth = source.CurtainOpenWidth;
+            target.CurtainOpenHeight = source.CurtainOpenHeight;
+            target.CurtainShortcutIconSize = source.CurtainShortcutIconSize;
+            target.CurtainDirection = source.CurtainDirection;
             target.IsLocked = source.IsLocked;
             target.CollapsedHeight = source.CollapsedHeight;
             target.AutoHideOnEdge = source.AutoHideOnEdge;
@@ -212,8 +220,21 @@ namespace Palisades.Services
         {
             try
             {
+                // Curtain containers: save open height (48.0 + CurtainOpenHeight)
+                // instead of closed height, so restart restores expanded size.
+                var restoreList = new List<(ContainerModel model, double origHeight)>();
+                foreach (var c in _containers)
+                {
+                    if (c.IsCurtainMode && c.Height <= 48.0)
+                    {
+                        restoreList.Add((c, c.Height));
+                        c.Height = 48.0 + c.CurtainOpenHeight;
+                    }
+                }
                 var json = JsonConvert.SerializeObject(_containers, Formatting.Indented);
                 File.WriteAllText(_savePath, json);
+                foreach (var (model, origHeight) in restoreList)
+                    model.Height = origHeight;
             }
             catch { }
         }
@@ -256,6 +277,85 @@ namespace Palisades.Services
             Save();
             ContainersChanged?.Invoke();
             return container;
+        }
+
+        public ContainerModel DuplicateContainer(ContainerModel source)
+        {
+            var (fx, fy) = FindFreePosition();
+            var dup = new ContainerModel
+            {
+                Name = source.Name + " (copy)",
+                X = fx,
+                Y = fy,
+                Width = source.Width,
+                Height = source.Height,
+                Opacity = source.Opacity,
+                IdleOpacity = source.IdleOpacity,
+                ActiveOpacity = source.ActiveOpacity,
+                AutoHide = source.AutoHide,
+                AutoHideDelayMs = source.AutoHideDelayMs,
+                IsLocked = source.IsLocked,
+                ShowTitle = source.ShowTitle,
+                FilterPattern = source.FilterPattern,
+                FilterEnabled = source.FilterEnabled,
+                FilterType = source.FilterType,
+                FolderPortalPath = source.FolderPortalPath,
+                HeaderColor = source.HeaderColor,
+                BodyColor = source.BodyColor,
+                TitleColor = source.TitleColor,
+                LabelsColor = source.LabelsColor,
+                GradientEndColor = source.GradientEndColor,
+                GradientAngle = source.GradientAngle,
+                HeaderGradientEnabled = source.HeaderGradientEnabled,
+                BodyGradientEnabled = source.BodyGradientEnabled,
+                CornerRadius = source.CornerRadius,
+                BodyOpacity = source.BodyOpacity,
+                IsExpanded = source.IsExpanded,
+                CollapsedHeight = source.CollapsedHeight,
+                SortOrder = _containers.Count,
+                IsVisible = source.IsVisible,
+                OpenOnDoubleClick = source.OpenOnDoubleClick,
+                FullHeight = source.FullHeight,
+                TitleFontFamily = source.TitleFontFamily,
+                TitleFontSize = source.TitleFontSize,
+                TitleAlignment = source.TitleAlignment,
+                ShowBorder = source.ShowBorder,
+                RoundedCorners = source.RoundedCorners,
+                AutoHideOnEdge = source.AutoHideOnEdge,
+                UseShellContextMenu = source.UseShellContextMenu,
+                TitleHoverEffect = source.TitleHoverEffect,
+                IsSvgButtonContainer = source.IsSvgButtonContainer,
+                IsCurtainMode = source.IsCurtainMode,
+                CurtainHeaderMode = source.CurtainHeaderMode,
+                CurtainOpenWidth = source.CurtainOpenWidth,
+                CurtainOpenHeight = source.CurtainOpenHeight,
+                CurtainShortcutIconSize = source.CurtainShortcutIconSize,
+                CurtainDirection = source.CurtainDirection,
+                HideAddSvgButton = source.HideAddSvgButton,
+                SvgImageSize = source.SvgImageSize,
+                SvgButtonSize = source.SvgButtonSize,
+                SvgButtonShowBg = source.SvgButtonShowBg,
+                ShowCounter = source.ShowCounter,
+                KeepOriginalsAfterSort = source.KeepOriginalsAfterSort,
+                IsAutoSortManaged = source.IsAutoSortManaged,
+                IsAutoSortEnabled = source.IsAutoSortEnabled,
+                AutoSortTargetIdentifier = source.AutoSortTargetIdentifier,
+                AutoSnapshotEnabled = source.AutoSnapshotEnabled,
+                ShowShortcutArrow = source.ShowShortcutArrow,
+                ShowRecycleBin = source.ShowRecycleBin,
+                ShowResizeHandle = source.ShowResizeHandle,
+                HeaderIconSize = source.HeaderIconSize,
+                ShortcutIconSize = source.ShortcutIconSize,
+                TwoLineShortcuts = source.TwoLineShortcuts,
+                ContainerThemeName = source.ContainerThemeName,
+                AnimationSpeedMs = source.AnimationSpeedMs,
+                ViewMode = source.ViewMode,
+            };
+
+            _containers.Add(dup);
+            Save();
+            ContainersChanged?.Invoke();
+            return dup;
         }
 
         private (double x, double y) FindFreePosition()
@@ -618,7 +718,7 @@ namespace Palisades.Services
         }
 
         /// <summary>
-        /// Enumerate all desktop items: .lnk files, .url files, and real directories.
+        /// Enumerate all desktop items: all files and directories (except hidden/system ones).
         /// </summary>
         private static List<string> GetDesktopItems()
         {
@@ -626,19 +726,38 @@ namespace Palisades.Services
             string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             try
             {
-                foreach (var f in Directory.GetFiles(desktopPath, "*.lnk"))
-                    items.Add(f);
-                foreach (var f in Directory.GetFiles(desktopPath, "*.url"))
-                    items.Add(f);
-                foreach (var d in Directory.GetDirectories(desktopPath))
-                    items.Add(d);
+                if (Directory.Exists(desktopPath))
+                {
+                    foreach (var f in Directory.GetFiles(desktopPath))
+                    {
+                        try
+                        {
+                            var attr = File.GetAttributes(f);
+                            if (attr.HasFlag(FileAttributes.Hidden) || attr.HasFlag(FileAttributes.System))
+                                continue;
+                        }
+                        catch { }
+                        items.Add(f);
+                    }
+                    foreach (var d in Directory.GetDirectories(desktopPath))
+                    {
+                        try
+                        {
+                            var attr = File.GetAttributes(d);
+                            if (attr.HasFlag(FileAttributes.Hidden) || attr.HasFlag(FileAttributes.System))
+                                continue;
+                        }
+                        catch { }
+                        items.Add(d);
+                    }
+                }
             }
             catch { }
             return items;
         }
 
         /// <summary>
-        /// Try to create a ShortcutItem from a desktop item (.lnk, .url, or real directory).
+        /// Try to create a ShortcutItem from a desktop item (.lnk, .url, directory, or standard file).
         /// </summary>
         private static ShortcutItem? CreateItemFromDesktopPath(string path)
         {
@@ -648,8 +767,9 @@ namespace Palisades.Services
                     return ShortcutItem.FromLnk(path);
                 if (path.EndsWith(".url", StringComparison.OrdinalIgnoreCase))
                     return ShortcutItem.FromUrl(path);
-                // Real directory
-                if (File.GetAttributes(path).HasFlag(FileAttributes.Directory))
+
+                bool isDir = File.GetAttributes(path).HasFlag(FileAttributes.Directory);
+                if (isDir)
                 {
                     var dir = new DirectoryInfo(path);
                     return new ShortcutItem
@@ -659,6 +779,18 @@ namespace Palisades.Services
                         IconPath = dir.FullName,
                         ShortcutPath = dir.FullName,
                         WorkingDirectory = dir.Parent?.FullName ?? ""
+                    };
+                }
+                else
+                {
+                    var file = new FileInfo(path);
+                    return new ShortcutItem
+                    {
+                        Name = Path.GetFileNameWithoutExtension(file.Name),
+                        TargetPath = file.FullName,
+                        IconPath = file.FullName,
+                        ShortcutPath = file.FullName,
+                        WorkingDirectory = file.DirectoryName ?? ""
                     };
                 }
             }

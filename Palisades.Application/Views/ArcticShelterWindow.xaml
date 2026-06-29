@@ -416,11 +416,7 @@
                                                     <SolidColorBrush Color="{Binding HeaderColor}" Opacity="0.5" />
                                                 </Border.BorderBrush>
                                                 <Border.Background>
-                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                        <GradientStop Color="{Binding HeaderColor}" Offset="0"/>
-                                                        <GradientStop Color="{Binding BodyColor}" Offset="0.3"/>
-                                                        <GradientStop Color="{Binding BodyColor}" Offset="1"/>
-                                                    </LinearGradientBrush>
+                                                    <Binding Path="PreviewBackgroundBrush" />
                                                 </Border.Background>
                                                 <Border.Effect>
                                                     <DropShadowEffect Color="{Binding HeaderColor}" BlurRadius="16" ShadowDepth="0" Opacity="0.25"/>
@@ -1206,6 +1202,52 @@
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SelectButtonToEdit]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <CheckBox IsChecked="{Binding SelectedContainer.AutoHide}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoHideInactive]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <CheckBox IsChecked="{Binding SelectedContainer.IsCurtainMode}" FontSize="12" Margin="0,0,0,8" Content="Curtain Mode" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <StackPanel Margin="0,0,0,8" Visibility="{Binding SelectedContainer.IsCurtainActive, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Header Style" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1" SelectedValue="{Binding SelectedContainer.CurtainHeaderMode}" SelectedValuePath="Content" Background="{DynamicResource GuiBackgroundMainBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" FontSize="12">
+                                            <ComboBoxItem Content="Vertical" />
+                                            <ComboBoxItem Content="Stacked" />
+                                            <ComboBoxItem Content="Hidden" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Direction" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                        <ComboBox Grid.Column="1" SelectedValue="{Binding SelectedContainer.CurtainDirection}" SelectedValuePath="Content" Background="{DynamicResource GuiBackgroundMainBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" FontSize="12">
+                                            <ComboBoxItem Content="LeftToRight" />
+                                            <ComboBoxItem Content="RightToLeft" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Open Width" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="100" Maximum="800" Value="{Binding SelectedContainer.CurtainOpenWidth, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.CurtainOpenWidth, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="30" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Icon Size" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                        <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="16" Maximum="64" Value="{Binding SelectedContainer.CurtainShortcutIconSize, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.CurtainShortcutIconSize, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                    </Grid>
+                                </StackPanel>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="120" />
@@ -1216,6 +1258,16 @@
                                     <TextBox Grid.Column="1" Text="{Binding SelectedContainer.AutoHideDelayMs, UpdateSourceTrigger=PropertyChanged}" Width="70" BorderBrush="{DynamicResource GuiBorderBrush}" Padding="6,3" FontSize="12" HorizontalAlignment="Left" />
                                 </Grid>
                                 <CheckBox IsChecked="{Binding SelectedContainer.IsLocked}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_LockPosition]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="30" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_CollapsedHeight]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="20" Maximum="200" Value="{Binding SelectedContainer.CollapsedHeight, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.CollapsedHeight, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
                                 <CheckBox IsChecked="{Binding SelectedContainer.AutoHideOnEdge}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoHideOnEdge]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 <CheckBox IsChecked="{Binding SelectedContainer.OpenOnDoubleClick, Converter={StaticResource InvertBool}}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SingleClickToOpen]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 <CheckBox IsChecked="{Binding SelectedContainer.UseShellContextMenu}" FontSize="12" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_UseShellContextMenu]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
@@ -1257,6 +1309,7 @@
                                     <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="100" Maximum="1000" SmallChange="50" LargeChange="200" Value="{Binding SelectedContainer.AnimationSpeedMs, Mode=TwoWay}" />
                                     <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AnimationSpeedMs, StringFormat={}{0:F0}ms}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
                                 </Grid>
+                                <CheckBox IsChecked="{Binding SelectedContainer.TwoLineShortcuts}" FontSize="12" Margin="0,6,0,0" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_TwoLineShortcuts]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
 
                                 <Separator Background="{DynamicResource GuiBorderBrush}" Margin="0,10" />
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoSortCategories]}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,8" />
@@ -1303,7 +1356,7 @@
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Colors]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_HeaderBackground]}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,6" FontSize="12" />
-                                <UniformGrid Columns="10" Height="24" Margin="0,0,0,12">
+                                <UniformGrid Columns="11" Height="24" Margin="0,0,0,12">
                                     <Border Background="#000000" Tag="#FF000000" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
                                     <Border Background="#1E3A5F" Tag="#FF1E3A5F" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
                                     <Border Background="#3A1E5F" Tag="#FF3A1E5F" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
@@ -1314,9 +1367,12 @@
                                     <Border Background="#1E4A5F" Tag="#FF1E4A5F" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
                                     <Border Background="#151515" Tag="#FF151515" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
                                     <Border Background="#1A1A2E" Tag="#FF1A1A2E" MouseDown="HeaderColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#333333" Tag="CUSTOM" MouseDown="HeaderCustomColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1">
+                                        <TextBlock Text="+" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16" FontWeight="Bold" />
+                                    </Border>
                                 </UniformGrid>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_BodyBackground]}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,6" FontSize="12" />
-                                <UniformGrid Columns="10" Height="24">
+                                <UniformGrid Columns="11" Height="24">
                                     <Border Background="#000000" Tag="#FF000000" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
                                     <Border Background="#1E3A5F" Tag="#FF1E3A5F" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
                                     <Border Background="#3A1E5F" Tag="#FF3A1E5F" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
@@ -1327,6 +1383,9 @@
                                     <Border Background="#1E4A5F" Tag="#FF1E4A5F" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
                                     <Border Background="#151515" Tag="#FF151515" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
                                     <Border Background="#1A1A2E" Tag="#FF1A1A2E" MouseDown="BodyColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#333333" Tag="CUSTOM" MouseDown="BodyCustomColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1">
+                                        <TextBlock Text="+" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16" FontWeight="Bold" />
+                                    </Border>
                                 </UniformGrid>
 
                                 <TextBlock Text="Gradient" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,12,0,6" FontSize="12" />
@@ -1353,6 +1412,8 @@
                                         <TextBlock Text="Apply" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold"/>
                                     </Border>
                                 </Grid>
+                                <CheckBox Margin="0,6,0,0" IsChecked="{Binding SelectedContainer.HeaderGradientEnabled}" FontSize="12" Content="Header gradient" Foreground="{DynamicResource GuiTextForegroundBrush}" />
+                                <CheckBox Margin="0,4,0,0" IsChecked="{Binding SelectedContainer.BodyGradientEnabled}" FontSize="12" Content="Body gradient" Foreground="{DynamicResource GuiTextForegroundBrush}" />
                             </StackPanel>
                         </Border>
 
@@ -1413,11 +1474,26 @@
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_BackupAdministration]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,10" />
                                 <WrapPanel>
-                                    <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NewButton]}" Command="{Binding SelectedContainer.RecenterCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Cursor="Hand" Margin="0,0,8,8"/>
+                                    <Button Content="Recenter" Command="{Binding SelectedContainer.RecenterCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Cursor="Hand" Margin="0,0,8,8"/>
                                     <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_StandardContainer]}" Command="{Binding SelectedContainer.ResizeToIconMultiplesCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Cursor="Hand" Margin="0,0,8,8"/>
                                     <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SvgContainer]}" Command="{Binding ApplyOptionsToAllCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" Margin="0,0,8,8"/>
                                     <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_FolderPortal]}" Command="{Binding SelectedContainer.DeleteCommand}" Padding="12,6" Background="#2C1A1A" BorderBrush="#3C2222" Foreground="#FCA5A5" Cursor="Hand"/>
                                 </WrapPanel>
+                                <TextBlock Text="Debug Info (Selected Container):" FontSize="12" FontWeight="SemiBold" Foreground="#888" Margin="0,12,0,6" />
+                                <UniformGrid Columns="2" Rows="6" Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding SelectedContainer.X, StringFormat={}X: {0:F1}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.Y, StringFormat={}Y: {0:F1}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.Width, StringFormat={}Width: {0:F1}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.Height, StringFormat={}Height: {0:F1}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.ClipWidth, StringFormat={}ClipWidth: {0:F1}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.ClipHeight, StringFormat={}ClipHeight: {0:F1}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.CurtainOpenWidth, StringFormat={}CurtainOpenWidth: {0:F1}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.CurtainOpenHeight, StringFormat={}CurtainOpenHeight: {0:F1}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.CurtainDirection, StringFormat={}Direction: {0}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.IsCurtainMode, StringFormat={}IsCurtainMode: {0}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.IsHovered, StringFormat={}IsHovered: {0}}" Foreground="#AAA" FontSize="11" />
+                                    <TextBlock Text="{Binding SelectedContainer.IsDragging, StringFormat={}IsDragging: {0}}" Foreground="#AAA" FontSize="11" />
+                                </UniformGrid>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -1585,10 +1661,21 @@
                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_HideDelayMs]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
                                     <TextBox Grid.Column="1" Text="{Binding DefaultModel.AutoHideDelayMs, UpdateSourceTrigger=PropertyChanged}" Tag="AutoHideDelayMs" TextChanged="DefaultTextBox_Changed" Width="70" BorderBrush="{DynamicResource GuiBorderBrush}" Padding="6,3" FontSize="12" HorizontalAlignment="Left" />
                                 </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="30" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_CollapsedHeight]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="20" Maximum="200" Value="{Binding DefaultModel.CollapsedHeight, Mode=TwoWay}" Tag="CollapsedHeight" ValueChanged="DefaultSlider_ValueChanged" />
+                                    <TextBlock Grid.Column="2" Text="{Binding DefaultModel.CollapsedHeight, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
                                 <CheckBox IsChecked="{Binding DefaultModel.IsLocked}" Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed" Tag="IsLocked" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_LockPosition]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 <CheckBox IsChecked="{Binding DefaultModel.AutoHideOnEdge}" Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed" Tag="AutoHideOnEdge" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoHideOnEdge]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 <CheckBox IsChecked="{Binding DefaultModel.OpenOnDoubleClick, Converter={StaticResource InvertBool}}" Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed" Tag="OpenOnDoubleClick" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SingleClickToOpen]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 <CheckBox IsChecked="{Binding DefaultModel.UseShellContextMenu}" Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed" Tag="UseShellContextMenu" FontSize="12" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_UseShellContextMenu]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <CheckBox IsChecked="{Binding DefaultModel.TwoLineShortcuts}" Checked="DefaultCheckBox_Changed" Unchecked="DefaultCheckBox_Changed" Tag="TwoLineShortcuts" FontSize="12" Margin="0,8,0,0" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_TwoLineShortcuts]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                             </StackPanel>
                         </Border>
 
@@ -1703,6 +1790,14 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowShortcutArrows]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding ShowDesktopShortcutArrow}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowRecycleBin]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <CheckBox Grid.Column="1" IsChecked="{Binding ShowRecycleBin}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
@@ -1905,6 +2000,37 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+
+                        <!-- Contributors Card -->
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Contributors" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,12" />
+                                <ItemsControl ItemsSource="{Binding Contributors}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel MaxWidth="500" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Width="80" Margin="0,0,8,8" Padding="6" Background="{DynamicResource GuiBackgroundMainBrush}" CornerRadius="6" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1">
+                                                <StackPanel>
+                                                    <Border Width="48" Height="48" CornerRadius="24" BorderThickness="1" BorderBrush="{DynamicResource GuiBorderBrush}" HorizontalAlignment="Center">
+                                                        <Image Source="{Binding AvatarUrl}" Width="48" Height="48" Stretch="UniformToFill">
+                                                            <Image.Clip>
+                                                                <EllipseGeometry RadiusX="24" RadiusY="24" Center="24,24" />
+                                                            </Image.Clip>
+                                                        </Image>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Login}" FontSize="10" Foreground="{DynamicResource GuiTextForegroundBrush}" TextAlignment="Center" Margin="0,4,0,0" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
 
                     <!-- ===== SNAPSHOTS PANEL ===== -->
@@ -1978,8 +2104,15 @@
                                     <ListBox ItemsSource="{Binding ThemeNames}" SelectedItem="{Binding SelectedThemeName}" Background="Transparent" BorderThickness="0" Margin="0,0,16,0">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,4" MinWidth="200">
-                                                    <TextBlock Text="{Binding}" FontSize="14" FontWeight="Medium" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" />
+                                                <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="0" Margin="0,4" MinWidth="200" Height="34">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding}" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" Margin="12,0" />
+                                                        <Button Grid.Column="1" Tag="{Binding}" Click="DeleteTheme_Click" Content="✕" Width="24" Height="24" FontSize="10" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center" Background="Transparent" BorderThickness="0" Foreground="#FCA5A5" Cursor="Hand" ToolTip="Delete theme" />
+                                                    </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
@@ -2038,8 +2171,21 @@
                                                  <ColumnDefinition Width="Auto" />
                                              </Grid.ColumnDefinitions>
                                              <ComboBox ItemsSource="{Binding Containers}" SelectedItem="{Binding ApplyTargetContainer}" DisplayMemberPath="Name" Background="{DynamicResource GuiBackgroundMainBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" FontSize="12" Height="26" VerticalAlignment="Center" />
-                                             <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NewButton]}" Command="{Binding ApplyThemeToSpecificContainerCommand}" Padding="10,4" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" Height="26" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                             <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NewButton]}" Click="ApplySpecificTheme_Click" Padding="10,4" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" Height="26" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                          </Grid>
+
+                                         <!-- Create Theme from Container -->
+                                         <TextBlock Text="Create theme from container" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,20,0,12" />
+                                         <TextBlock Text="Pick a container to save its colors as a reusable theme." Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                         <Grid Width="260" HorizontalAlignment="Left">
+                                             <Grid.ColumnDefinitions>
+                                                 <ColumnDefinition Width="*" />
+                                                 <ColumnDefinition Width="Auto" />
+                                             </Grid.ColumnDefinitions>
+                                             <ComboBox x:Name="ThemeSourceContainerCombo" ItemsSource="{Binding Containers}" DisplayMemberPath="Name" Background="{DynamicResource GuiBackgroundMainBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" FontSize="12" Height="26" VerticalAlignment="Center" />
+                                             <Button Grid.Column="1" Content="Create" Click="CreateThemeFromContainer_Click" Padding="10,4" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" Height="26" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                         </Grid>
+                                         <Button Content="Apply selected theme to container" Click="ApplySelectedThemeToContainer_Click" Padding="10,4" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" HorizontalAlignment="Left" Margin="0,6,0,0"/>
                                      </StackPanel>
                                 </Grid>
                             </StackPanel>

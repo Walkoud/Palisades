@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="documentation/medias/preview_containers_gadgets.png" width="850" alt="Palisades desktop"/>
+  <img src="documentation/medias/palisade_github.jpg" width="850" alt="Palisades"/>
 </p>
 
 Palisades declutter your Windows desktop. Drop icons into organized containers, add live gadgets, and customize everything — no more hunting through a sea of shortcuts.
@@ -34,6 +34,13 @@ Palisades declutter your Windows desktop. Drop icons into organized containers, 
 
 **Auto-organize** — Sort shortcuts into containers automatically by type: programs, documents, images, music, archives, links, folders.
 
+**Curtain mode** — Transform a container into a sliding panel docked to the edge of your screen. On hover, it slides open; move away and it slides shut — keeping your desktop clean while keeping shortcuts one hover away.
+
+<p align="center">
+  <img src="documentation/medias/curtain-preview-left.gif" width="400" alt="Curtain mode left"/>
+  <img src="documentation/medias/curtain-preview-buttom.gif" width="400" alt="Curtain mode bottom"/>
+</p>
+
 **Plugins** — Plugin manager to enable/disable and configure gadgets and extensions.
 
 **Filters** — Show only what you need. Filter a container by file type or custom search.
@@ -41,6 +48,10 @@ Palisades declutter your Windows desktop. Drop icons into organized containers, 
 **Start with Windows** — Option to launch automatically on boot, runs discreetly in the system tray.
 
 **Open source** — MIT license. Fork, modify, contribute.
+
+<p align="center">
+  <img src="documentation/medias/preview_containers_gadgets.png" width="850" alt="Palisades desktop"/>
+</p>
 
 ## Quick start
 

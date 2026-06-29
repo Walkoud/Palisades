@@ -452,6 +452,26 @@ namespace Palisades.Views
             catch { }
         }
 
+        public void ClearSelection()
+        {
+            try
+            {
+                if (_vm != null)
+                    _vm.SelectedShortcut = null;
+            }
+            catch { }
+        }
+
+        private void ContainerBody_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                var overlay = System.Windows.Application.Current.Windows.OfType<DesktopOverlayWindow>().FirstOrDefault();
+                overlay?.ClearAllContainerSelections();
+                overlay?.ClearOverlayIconSelection();
+            }
+        }
+
         // Right-click on a shortcut → show the Windows original context menu
         private void Shortcut_OnMouseDown(object sender, MouseButtonEventArgs e)
         {

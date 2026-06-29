@@ -35,6 +35,8 @@ namespace Palisades.Views.Controls
         private Point? _clickPendingPoint;
         private readonly HashSet<ShortcutItem> _selectedShortcuts = new();
         private bool _isRectSelecting;
+        private bool _isApplyingTheme;
+        private bool _themeHasCustomBrush;
         private System.Windows.Shapes.Rectangle? _selectionRect;
         private System.Windows.Shapes.Rectangle? _insertionMarker;
         private Point _selectionStartPoint;
@@ -50,6 +52,20 @@ namespace Palisades.Views.Controls
                 InitializeComponent();
                 _vm = viewModel;
                 DataContext = viewModel;
+
+                // Set curtain/normal layout visibility explicitly (not via binding)
+                UpdateCurtainModeVisibility();
+                viewModel.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(ContainerViewModel.IsCurtainActive))
+                    {
+                        UpdateCurtainModeVisibility();
+                        if (viewModel.IsCurtainMode)
+                        {
+                            DockCurtainToScreenEdge();
+                        }
+                    }
+                };
 
                 viewModel.Shortcuts.CollectionChanged += (_, _) =>
                 {
@@ -79,7 +95,49 @@ namespace Palisades.Views.Controls
                     }
 
                     if (e.PropertyName == nameof(ContainerViewModel.ClipHeight))
+                    {
                         UpdateClip();
+                        if (viewModel.IsCurtainMode && !_isDragging && _parentCanvas != null)
+                        {
+                            // Find screen based on center
+                            double currentLeft = Canvas.GetLeft(this);
+                            if (double.IsNaN(currentLeft)) currentLeft = viewModel.X - OverlayOffsetX;
+                            double currentTop = Canvas.GetTop(this);
+                            if (double.IsNaN(currentTop)) currentTop = viewModel.Y - OverlayOffsetY;
+
+                            var dpiInfo = VisualTreeHelper.GetDpi(this);
+                            double dpiX = dpiInfo.DpiScaleX > 0 ? dpiInfo.DpiScaleX : 1.0;
+                            double dpiY = dpiInfo.DpiScaleY > 0 ? dpiInfo.DpiScaleY : 1.0;
+
+                            double width = viewModel.Width;
+                            double centerX = currentLeft + width / 2 + OverlayOffsetX;
+                            double centerY = currentTop + viewModel.Height / 2 + OverlayOffsetY;
+                            var physicalX = (int)(centerX * dpiX);
+                            var physicalY = (int)(centerY * dpiY);
+                            var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(physicalX, physicalY));
+
+                            double screenBottom = screen.WorkingArea.Bottom / dpiY;
+                            double dockedTop = (screenBottom - OverlayOffsetY) - viewModel.ClipHeight;
+                            Canvas.SetTop(this, dockedTop);
+
+                            // Sync VM position so it is saved
+                            viewModel.Y = dockedTop + OverlayOffsetY;
+                        }
+                    }
+
+                    if (e.PropertyName == nameof(ContainerViewModel.ClipWidth))
+                        UpdateCurtainClip();
+
+                    if (e.PropertyName == nameof(ContainerViewModel.IsCurtainInverted))
+                        UpdateCurtainDirectionLayout();
+
+                    if (e.PropertyName == nameof(ContainerViewModel.X))
+                    {
+                        // Sync Canvas.Left for RTL width animation (anchors right edge).
+                        // Safe: drag suppresses width animation via IsDragging flag.
+                        if (!_vm.IsDragging && _parentCanvas != null)
+                            Canvas.SetLeft(this, _vm.X - OverlayOffsetX);
+                    }
 
                     if (e.PropertyName == nameof(ContainerViewModel.CornerRadius))
                         UpdateClip();
@@ -91,11 +149,28 @@ namespace Palisades.Views.Controls
                         UpdateContainerTheme();
 
                     // Re-apply theme when BodyOpacity changes so background opacity is updated
-                    if (e.PropertyName == nameof(ContainerViewModel.BodyOpacity))
+                    // Guard: ApplyThemePropertiesFromDict sets BodyOpacity, must not re-enter
+                    if (e.PropertyName == nameof(ContainerViewModel.BodyOpacity) && !_isApplyingTheme)
                         UpdateContainerTheme();
 
-                    if (e.PropertyName == nameof(ContainerViewModel.HeaderColor))
-                        Resources["ContainerHeaderBrush"] = new SolidColorBrush(viewModel.HeaderColor);
+                    if (e.PropertyName is nameof(ContainerViewModel.HeaderColor) or nameof(ContainerViewModel.GradientEndColor) or nameof(ContainerViewModel.GradientAngle) or nameof(ContainerViewModel.HeaderGradientEnabled))
+                        UpdateHeaderBrush(viewModel);
+
+                    if (e.PropertyName == nameof(ContainerViewModel.BodyGradientEnabled) && viewModel.BodyColorWithOpacity is Color bodyStart)
+                    {
+                        if (viewModel.BodyGradientEnabled && viewModel.IsGradient && viewModel.GradientEndColor != null &&
+                            ColorConverter.ConvertFromString(viewModel.GradientEndColor) is Color bodyEndRaw)
+                        {
+                            var bodyEnd = Color.FromArgb(bodyStart.A, bodyEndRaw.R, bodyEndRaw.G, bodyEndRaw.B);
+                            double rad = viewModel.GradientAngle * Math.PI / 180;
+                            double cos = Math.Cos(rad), sin = Math.Sin(rad);
+                            Resources["ContainerBackgroundBrush"] = new LinearGradientBrush(bodyStart, bodyEnd, new Point(0.5 - cos / 2, 0.5 - sin / 2), new Point(0.5 + cos / 2, 0.5 + sin / 2));
+                        }
+                        else
+                        {
+                            Resources["ContainerBackgroundBrush"] = new SolidColorBrush(bodyStart);
+                        }
+                    }
 
                     if (e.PropertyName == nameof(ContainerViewModel.TitleColor))
                         Resources["ContainerTitleForeground"] = new SolidColorBrush(viewModel.TitleColor);
@@ -107,11 +182,15 @@ namespace Palisades.Views.Controls
                     {
                         if (viewModel.BodyColorWithOpacity is Color startColor)
                         {
-                            if (viewModel.IsGradient && viewModel.GradientEndColor != null &&
+                            if (viewModel.BodyGradientEnabled && viewModel.IsGradient && viewModel.GradientEndColor != null &&
                                 ColorConverter.ConvertFromString(viewModel.GradientEndColor) is Color endRaw)
                             {
                                 var endColor = Color.FromArgb(startColor.A, endRaw.R, endRaw.G, endRaw.B);
-                                Resources["ContainerBackgroundBrush"] = new LinearGradientBrush(startColor, endColor, new Point(0, 0), new Point(0, 1));
+                                double rad = viewModel.GradientAngle * Math.PI / 180;
+                                double cos = Math.Cos(rad), sin = Math.Sin(rad);
+                                var startPt = new Point(0.5 - cos / 2, 0.5 - sin / 2);
+                                var endPt = new Point(0.5 + cos / 2, 0.5 + sin / 2);
+                                Resources["ContainerBackgroundBrush"] = new LinearGradientBrush(startColor, endColor, startPt, endPt);
                             }
                             else
                             {
@@ -122,6 +201,7 @@ namespace Palisades.Views.Controls
                 };
 
                 viewModel.RequestCreateShortcut += OnRequestCreateShortcut;
+                viewModel.RequestDockCurtain += DockCurtainToScreenEdge;
 
                 Loaded += OnLoaded;
             }
@@ -134,9 +214,32 @@ namespace Palisades.Views.Controls
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             _parentCanvas = VisualTreeHelper.GetParent(this) as Canvas;
+            UpdateCurtainModeVisibility();
             UpdateOpacity();
             UpdateClip();
             UpdateContainerTheme();
+            // Only override brushes on load if theme doesn't provide its own
+            // (hand-crafted themes use ImageBrush, DrawingBrush — must not be overridden)
+            if (!_themeHasCustomBrush)
+            {
+                // Re-apply gradient/solid brushes after theme
+                UpdateHeaderBrush(_vm);
+                if (_vm.BodyColorWithOpacity is Color bodyStart)
+                {
+                    if (_vm.BodyGradientEnabled && _vm.IsGradient && _vm.GradientEndColor != null &&
+                        ColorConverter.ConvertFromString(_vm.GradientEndColor) is Color bodyEndRaw)
+                    {
+                        var bodyEnd = Color.FromArgb(bodyStart.A, bodyEndRaw.R, bodyEndRaw.G, bodyEndRaw.B);
+                        double rad = _vm.GradientAngle * Math.PI / 180;
+                        double cos = Math.Cos(rad), sin = Math.Sin(rad);
+                        Resources["ContainerBackgroundBrush"] = new LinearGradientBrush(bodyStart, bodyEnd, new Point(0.5 - cos / 2, 0.5 - sin / 2), new Point(0.5 + cos / 2, 0.5 + sin / 2));
+                    }
+                    else
+                    {
+                        Resources["ContainerBackgroundBrush"] = new SolidColorBrush(bodyStart);
+                    }
+                }
+            }
 
             // Sync position from ViewModel
             if (_parentCanvas != null)
@@ -145,11 +248,17 @@ namespace Palisades.Views.Controls
                 Canvas.SetTop(this, _vm.Y - OverlayOffsetY);
             }
 
+            // Curtain mode: apply direction layout + dock to screen edge
+            if (_vm.IsCurtainMode)
+            {
+                DockCurtainToScreenEdge();
+            }
+
             // Set up dynamic filter for shortcuts
             if (Resources["ShortcutsView"] is System.Windows.Data.CollectionViewSource cvs && cvs.View != null)
                 cvs.View.Filter = FilterShortcut;
 
-                    // Set initial chevron rotation if visually collapsed on load
+            // Set initial chevron rotation if visually collapsed on load
             if (_vm.IsVisuallyCollapsed && ChevronPath?.RenderTransform is RotateTransform rt)
                 rt.Angle = 180;
         }
@@ -225,13 +334,184 @@ namespace Palisades.Views.Controls
             return isExclude ? !match : match;
         }
 
+        private void UpdateCurtainModeVisibility()
+        {
+            if (_vm.IsCurtainMode)
+            {
+                if (_vm.CurtainDirection == "BottomToTop")
+                {
+                    NormalLayoutRoot.Visibility = Visibility.Visible;
+                    CurtainLayoutRoot.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    NormalLayoutRoot.Visibility = Visibility.Collapsed;
+                    CurtainLayoutRoot.Visibility = Visibility.Visible;
+                    UpdateCurtainDirectionLayout();
+                }
+            }
+            else
+            {
+                NormalLayoutRoot.Visibility = Visibility.Visible;
+                CurtainLayoutRoot.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void UpdateCurtainDirectionLayout()
+        {
+            if (!_vm.IsCurtainMode || _vm.CurtainDirection == "BottomToTop") return;
+
+            if (_vm.CurtainDirection == "LeftToRight")
+            {
+                CurtainLayoutRoot.ColumnDefinitions[0].Width = new GridLength(34);
+                CurtainLayoutRoot.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+                Grid.SetColumn(CurtainStripPanel, 0);
+                Grid.SetColumn(CurtainContentElement, 1);
+            }
+            else
+            {
+                CurtainLayoutRoot.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+                CurtainLayoutRoot.ColumnDefinitions[1].Width = new GridLength(34);
+                Grid.SetColumn(CurtainStripPanel, 1);
+                Grid.SetColumn(CurtainContentElement, 0);
+            }
+        }
+
+        private void AutoDetectCurtainDirection()
+        {
+            // Not needed for vertical curtain mode
+        }
+
+        private void DockCurtainToScreenEdge()
+        {
+            if (!_vm.IsCurtainMode || _parentCanvas == null) return;
+
+            double currentLeft = Canvas.GetLeft(this);
+            if (double.IsNaN(currentLeft)) currentLeft = _vm.X - OverlayOffsetX;
+            double currentTop = Canvas.GetTop(this);
+            if (double.IsNaN(currentTop)) currentTop = _vm.Y - OverlayOffsetY;
+
+            double width = _vm.Width;
+            double height = _vm.Height;
+
+            var dpiInfo = VisualTreeHelper.GetDpi(this);
+            double dpiX = dpiInfo.DpiScaleX > 0 ? dpiInfo.DpiScaleX : 1.0;
+            double dpiY = dpiInfo.DpiScaleY > 0 ? dpiInfo.DpiScaleY : 1.0;
+
+            // Find screen based on center
+            double centerX = currentLeft + width / 2 + OverlayOffsetX;
+            double centerY = currentTop + height / 2 + OverlayOffsetY;
+            var physicalX = (int)(centerX * dpiX);
+            var physicalY = (int)(centerY * dpiY);
+            var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(physicalX, physicalY));
+
+            double screenLeft = screen.WorkingArea.Left / dpiX;
+            double screenRight = screen.WorkingArea.Right / dpiX;
+            double screenBottom = screen.WorkingArea.Bottom / dpiY;
+            double screenTop = screen.WorkingArea.Top / dpiY;
+
+            // Find closest edge between Left, Right, Bottom
+            double distLeft = Math.Abs(centerX - screenLeft);
+            double distRight = Math.Abs(screenRight - centerX);
+            double distBottom = Math.Abs(screenBottom - centerY);
+
+            string bestDirection = "BottomToTop";
+            double minDist = distBottom;
+
+            if (distLeft < minDist)
+            {
+                minDist = distLeft;
+                bestDirection = "LeftToRight";
+            }
+            if (distRight < minDist)
+            {
+                minDist = distRight;
+                bestDirection = "RightToLeft";
+            }
+
+            _vm.ApplyCurtainDirectionNoSave(bestDirection);
+
+            double dockedLeft = currentLeft;
+            double dockedTop = currentTop;
+
+            if (bestDirection == "BottomToTop")
+            {
+                dockedTop = (screenBottom - OverlayOffsetY) - _vm.ClipHeight;
+                dockedLeft = Math.Clamp(currentLeft, screenLeft - OverlayOffsetX, screenRight - OverlayOffsetX - width);
+            }
+            else if (bestDirection == "LeftToRight")
+            {
+                dockedLeft = screenLeft - OverlayOffsetX;
+                dockedTop = Math.Clamp(currentTop, screenTop - OverlayOffsetY, screenBottom - OverlayOffsetY - height);
+            }
+            else // RightToLeft
+            {
+                dockedLeft = screenRight - OverlayOffsetX - _vm.ClipWidth;
+                dockedTop = Math.Clamp(currentTop, screenTop - OverlayOffsetY, screenBottom - OverlayOffsetY - height);
+            }
+
+            Canvas.SetLeft(this, dockedLeft);
+            Canvas.SetTop(this, dockedTop);
+
+            _vm.X = dockedLeft + OverlayOffsetX;
+            _vm.Y = dockedTop + OverlayOffsetY;
+            _vm.Save();
+
+            // Refresh visibility after direction change
+            UpdateCurtainModeVisibility();
+            UpdateClip();
+        }
+
         private void UpdateOpacity()
         {
             Opacity = _vm.CurrentOpacity;
         }
 
+        private void UpdateCurtainClip()
+        {
+            CurtainLayoutRoot.Clip = null;
+            if (CurtainContentElement != null)
+                CurtainContentElement.Clip = null;
+
+            // BottomToTop: height naturally constrains content, no clip needed
+            if (_vm.CurtainDirection == "BottomToTop")
+            {
+                MainBorder.Clip = null;
+                return;
+            }
+
+            double clipW = _vm.ClipWidth;
+            double cr = _vm.CornerRadius;
+            double w = MainBorder.ActualWidth;
+            double h = MainBorder.ActualHeight;
+
+            if (w <= 0 || h <= 0)
+            {
+                MainBorder.Clip = null;
+                return;
+            }
+
+            if (_vm.CurtainDirection == "LeftToRight")
+            {
+                double targetW = Math.Max(0, clipW - 14);
+                MainBorder.Clip = new RectangleGeometry(new Rect(0, 0, targetW, h), cr, cr);
+            }
+            else if (_vm.CurtainDirection == "RightToLeft")
+            {
+                double targetW = Math.Max(0, clipW - 14);
+                double offset = Math.Max(0, w - targetW);
+                MainBorder.Clip = new RectangleGeometry(new Rect(offset, 0, targetW, h), cr, cr);
+            }
+            else
+            {
+                MainBorder.Clip = null;
+            }
+        }
+
         private void UpdateClip()
         {
+            if (_vm.IsCurtainMode) { UpdateCurtainClip(); return; }
+            CurtainLayoutRoot.Clip = null;
             double cr = _vm.CornerRadius;
             if (cr <= 0)
             {
@@ -259,9 +539,13 @@ namespace Palisades.Views.Controls
         private void UpdateContainerTheme()
         {
             var themeName = _vm.ContainerThemeName;
+            _themeHasCustomBrush = false;
             this.Resources.MergedDictionaries.Clear();
+            // Clear direct resource entries from previous theme that would shadow merged dict
+            this.Resources.Remove("ContainerBackgroundBrush");
+            this.Resources.Remove("ContainerHeaderBrush");
 
-            if (string.IsNullOrEmpty(themeName) || themeName == "Theme" || themeName == "Custom")
+            if (string.IsNullOrEmpty(themeName) || themeName == "Global" || themeName == "Custom")
                 return;
 
             var preset = ThemeService.Presets.FirstOrDefault(p => p.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase));
@@ -296,6 +580,14 @@ namespace Palisades.Views.Controls
                     dict["ContainerHeaderBrushHover"] = new SolidColorBrush(Color.FromRgb(0x30, 0x30, 0x30));
                 }
                 this.Resources.MergedDictionaries.Add(dict);
+
+                // Reset gradient state from any previously applied custom theme
+                _isApplyingTheme = true;
+                _vm.BodyGradientEnabled = false;
+                _vm.HeaderGradientEnabled = false;
+                _isApplyingTheme = false;
+
+                UpdateHeaderBrush(_vm);
             }
             else
             {
@@ -306,10 +598,112 @@ namespace Palisades.Views.Controls
                     try
                     {
                         var dict = new ResourceDictionary { Source = new Uri(xamlPath, UriKind.Absolute) };
+                        _themeHasCustomBrush = dict.Contains("ContainerBackgroundBrush");
                         this.Resources.MergedDictionaries.Add(dict);
+
+                        // Apply VM properties from x:String entries in the theme file
+                        _isApplyingTheme = true;
+                        try { ApplyThemePropertiesFromDict(dict); }
+                        finally { _isApplyingTheme = false; }
+
+                        // Only override header brush if theme doesn't define its own
+                        // (hand-crafted themes use ImageBrush, DrawingBrush etc.)
+                        if (!dict.Contains("ContainerHeaderBrush"))
+                            UpdateHeaderBrush(_vm);
                     }
                     catch { }
                 }
+            }
+        }
+
+        private void ApplyThemePropertiesFromDict(ResourceDictionary dict)
+        {
+            string? ReadStr(string key)
+            {
+                try { return dict[key] as string; }
+                catch { return null; }
+            }
+
+            void SetColor(string key, Action<Color> setter)
+            {
+                var val = ReadStr(key);
+                if (val != null && ColorConverter.ConvertFromString(val) is Color c)
+                    setter(c);
+            }
+            void SetBool(string key, Action<bool> setter)
+            {
+                var val = ReadStr(key);
+                if (val != null && bool.TryParse(val, out bool b))
+                    setter(b);
+            }
+            void SetInt(string key, Action<int> setter)
+            {
+                var val = ReadStr(key);
+                if (val != null && int.TryParse(val, out int i))
+                    setter(i);
+            }
+            void SetDouble(string key, Action<double> setter)
+            {
+                var val = ReadStr(key);
+                if (val != null && double.TryParse(val,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out double d))
+                    setter(d);
+            }
+
+            // Gradient first
+            var gradEnd = ReadStr("Container.GradientEndColor");
+            if (gradEnd != null) _vm.GradientEndColor = gradEnd;
+            SetDouble("Container.GradientAngle", v => _vm.GradientAngle = v);
+            SetBool("Container.HeaderGradientEnabled", v => _vm.HeaderGradientEnabled = v);
+            SetBool("Container.BodyGradientEnabled", v => _vm.BodyGradientEnabled = v);
+
+            // Colors
+            SetColor("Container.HeaderColor", c => _vm.HeaderColor = c);
+            SetColor("Container.BodyColor", c => _vm.BodyColor = c);
+            SetColor("Container.TitleColor", c => _vm.TitleColor = c);
+            SetColor("Container.LabelsColor", c => _vm.LabelsColor = c);
+
+            // Numeric/visual properties
+            SetDouble("Container.IdleOpacityPercent", v => _vm.IdleOpacityPercent = v);
+            SetDouble("Container.ActiveOpacityPercent", v => _vm.ActiveOpacityPercent = v);
+            SetInt("Container.CornerRadius", v => _vm.CornerRadius = v);
+            SetBool("Container.ShowBorder", v => _vm.ShowBorder = v);
+            SetDouble("Container.TitleFontSize", v => _vm.TitleFontSize = v);
+
+            var fontFamily = ReadStr("Container.TitleFontFamily");
+            if (!string.IsNullOrEmpty(fontFamily)) _vm.TitleFontFamily = fontFamily;
+            var alignment = ReadStr("Container.TitleAlignment");
+            if (!string.IsNullOrEmpty(alignment)) _vm.TitleAlignment = alignment;
+            SetBool("Container.TitleHoverEffect", v => _vm.TitleHoverEffect = v);
+
+            var viewMode = ReadStr("Container.ViewMode");
+            if (!string.IsNullOrEmpty(viewMode)) _vm.ViewMode = viewMode;
+            SetBool("Container.ShowTitle", v => _vm.ShowTitle = v);
+            SetInt("Container.ShortcutIconSize", v => _vm.ShortcutIconSize = v);
+            SetBool("Container.TwoLineShortcuts", v => _vm.TwoLineShortcuts = v);
+            SetInt("Container.HeaderIconSize", v => _vm.HeaderIconSize = v);
+            SetInt("Container.BodyOpacity", v => _vm.BodyOpacity = v);
+
+            _vm.Save();
+        }
+
+        private void UpdateHeaderBrush(ContainerViewModel vm)
+        {
+            if (vm.HeaderGradientEnabled && vm.IsGradient && vm.GradientEndColor != null &&
+                ColorConverter.ConvertFromString(vm.GradientEndColor) is Color endRaw)
+            {
+                var startColor = vm.HeaderColor;
+                var endColor = Color.FromArgb(startColor.A, endRaw.R, endRaw.G, endRaw.B);
+                double rad = vm.GradientAngle * Math.PI / 180;
+                double cos = Math.Cos(rad), sin = Math.Sin(rad);
+                var startPt = new Point(0.5 - cos / 2, 0.5 - sin / 2);
+                var endPt = new Point(0.5 + cos / 2, 0.5 + sin / 2);
+                Resources["ContainerHeaderBrush"] = new LinearGradientBrush(startColor, endColor, startPt, endPt);
+            }
+            else
+            {
+                Resources["ContainerHeaderBrush"] = new SolidColorBrush(vm.HeaderColor);
             }
         }
 
@@ -319,9 +713,36 @@ namespace Palisades.Views.Controls
         {
             if (_vm.IsLocked || _parentCanvas == null) return;
             _isDragging = true;
+            _vm.IsHovered = true;
+            if (_vm.IsCurtainMode)
+            {
+                if (_vm.CurtainDirection == "BottomToTop")
+                {
+                    _vm.StopHeightAnimation();
+                    _vm.SetCurtainOpenHeightDirectly();
+                }
+                else
+                {
+                    _vm.StopWidthAnimation();
+                    _vm.SetCurtainOpenWidthDirectly();
+                }
+            }
+            else
+            {
+                _vm.StopHeightAnimation();
+            }
+            _vm.IsDragging = true;
+
             _dragStartCanvas = e.GetPosition(_parentCanvas);
+            
             _dragStartLeft = Canvas.GetLeft(this);
+            if (double.IsNaN(_dragStartLeft))
+                _dragStartLeft = _vm.X - OverlayOffsetX;
+
             _dragStartTop = Canvas.GetTop(this);
+            if (double.IsNaN(_dragStartTop))
+                _dragStartTop = _vm.Y - OverlayOffsetY;
+
             _dragTransform = new TranslateTransform(0, 0);
             RenderTransform = _dragTransform;
             // Cache visual tree as bitmap during drag — avoids re-rendering effects per frame
@@ -365,7 +786,22 @@ namespace Palisades.Views.Controls
                 // Apply snap to proposed absolute position, then convert back to transform
                 double proposedLeft = _dragStartLeft + rawX;
                 double proposedTop = _dragStartTop + rawY;
-                var (snapX, snapY) = ApplySnap(proposedLeft, proposedTop, Width, Height);
+
+                double snapX = proposedLeft;
+                double snapY = proposedTop;
+
+                bool altPressed = Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.RightAlt);
+                if (altPressed)
+                {
+                    ClearSnap();
+                }
+                else
+                {
+                    var snapResult = ApplySnap(proposedLeft, proposedTop, _vm.Width, _vm.Height);
+                    snapX = snapResult.Item1;
+                    snapY = snapResult.Item2;
+                }
+
                 _dragTransform.X = snapX - _dragStartLeft;
                 _dragTransform.Y = snapY - _dragStartTop;
                 e.Handled = true;
@@ -382,6 +818,7 @@ namespace Palisades.Views.Controls
             if (_isDragging)
             {
                 _isDragging = false;
+                _vm.IsDragging = false;
                 ClearSnap();
                 Mouse.Capture(null);
 
@@ -394,8 +831,8 @@ namespace Palisades.Views.Controls
                     RenderTransform = null;
                     _dragTransform = null;
 
-                    finalX = Math.Clamp(finalX, -Width + 40, _parentCanvas!.RenderSize.Width + 500);
-                    finalY = Math.Clamp(finalY, -Height + 40, _parentCanvas.RenderSize.Height + 500);
+                    finalX = Math.Clamp(finalX, -_vm.Width + 40, _parentCanvas!.RenderSize.Width - 40);
+                    finalY = Math.Clamp(finalY, -_vm.Height + 40, _parentCanvas.RenderSize.Height - 40);
 
                     Canvas.SetLeft(this, finalX);
                     Canvas.SetTop(this, finalY);
@@ -410,72 +847,113 @@ namespace Palisades.Views.Controls
                     ShadowDepth = 3,
                     Direction = 270
                 };
-                _vm.X = Canvas.GetLeft(this) + OverlayOffsetX;
-                _vm.Y = Canvas.GetTop(this) + OverlayOffsetY;
-                _vm.Save();
 
-                // Check for merge with another container
-                var overlay = Window.GetWindow(this) as DesktopOverlayWindow;
-                if (overlay != null)
+                bool altPressed = Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.RightAlt);
+                if (_vm.IsCurtainMode)
                 {
-                    var canvasPt = new Point(
-                        Canvas.GetLeft(this) + Width / 2,
-                        Canvas.GetTop(this) + Height / 2);
-                    var other = overlay.FindContainerAt(canvasPt, _vm.Identifier);
-                    if (other != null)
+                    if (altPressed)
                     {
-                        var result = System.Windows.MessageBox.Show(
-                            $"Fusionner \"{_vm.Name}\" dans \"{other.Name}\" ?",
-                            "Fusion", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                        if (result == MessageBoxResult.Yes)
+                        // Disable curtain mode, place freely at current drop position
+                        _vm.IsCurtainMode = false;
+                        _vm.X = Canvas.GetLeft(this) + OverlayOffsetX;
+                        _vm.Y = Canvas.GetTop(this) + OverlayOffsetY;
+                        _vm.Save();
+                    }
+                    else
+                    {
+                        DockCurtainToScreenEdge();
+
+                        // Re-evaluate hover state based on cursor position relative to the container
+                        _vm.IsHovered = IsMouseOver;
+
+                        // Set open height/width instantly (no animation) to avoid coordinate drift
+                        if (_vm.IsHovered)
                         {
-                            foreach (var item in _vm.Shortcuts.ToList())
+                            if (_vm.CurtainDirection == "BottomToTop")
+                                _vm.SetCurtainOpenHeightDirectly();
+                            else
+                                _vm.SetCurtainOpenWidthDirectly();
+                        }
+                    }
+                }
+                else
+                {
+                    _vm.X = Canvas.GetLeft(this) + OverlayOffsetX;
+                    _vm.Y = Canvas.GetTop(this) + OverlayOffsetY;
+                    _vm.Save();
+
+                    // Check for merge with another container
+                    var overlay = Window.GetWindow(this) as DesktopOverlayWindow;
+                    if (overlay != null)
+                    {
+                        var canvasPt = new Point(
+                            Canvas.GetLeft(this) + _vm.Width / 2,
+                            Canvas.GetTop(this) + _vm.Height / 2);
+                        var other = overlay.FindContainerAt(canvasPt, _vm.Identifier);
+                        if (other != null)
+                        {
+                            var result = System.Windows.MessageBox.Show(
+                                $"Fusionner \"{_vm.Name}\" dans \"{other.Name}\" ?",
+                                "Fusion", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                            if (result == MessageBoxResult.Yes)
                             {
-                                if (!other.Shortcuts.Any(s =>
-                                    s.TargetPath == item.TargetPath && s.Name == item.Name))
-                                    other.Shortcuts.Add(item);
+                                foreach (var item in _vm.Shortcuts.ToList())
+                                {
+                                    if (!other.Shortcuts.Any(s =>
+                                        s.TargetPath == item.TargetPath && s.Name == item.Name))
+                                        other.Shortcuts.Add(item);
+                                }
+                                other.Save();
+                                overlay.RemoveContainer(_vm.Identifier);
+                                ContainerManager.Instance.DeleteContainer(_vm.Identifier);
                             }
-                            other.Save();
-                            overlay.RemoveContainer(_vm.Identifier);
-                            ContainerManager.Instance.DeleteContainer(_vm.Identifier);
                         }
                     }
-                }
 
-                // Auto-hide on edge if enabled
-                if (_vm.AutoHideOnEdge)
-                {
-                    double left = Canvas.GetLeft(this) + OverlayOffsetX;
-                    double top = Canvas.GetTop(this) + OverlayOffsetY;
-                    double right = left + Width;
-                    double bottom = top + Height;
-                    const int edgeThreshold = 15;
-
-                    foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+                    // Auto-hide on edge if enabled
+                    if (_vm.AutoHideOnEdge)
                     {
-                        var sb = screen.Bounds;
-                        if (left <= sb.Left + edgeThreshold || right >= sb.Right - edgeThreshold ||
-                            top <= sb.Top + edgeThreshold || bottom >= sb.Bottom - edgeThreshold)
+                        double left = Canvas.GetLeft(this) + OverlayOffsetX;
+                        double top = Canvas.GetTop(this) + OverlayOffsetY;
+                        double right = left + _vm.Width;
+                        double bottom = top + _vm.Height;
+                        const int edgeThreshold = 15;
+
+                        var dpiInfo = VisualTreeHelper.GetDpi(this);
+                        double dpiX = dpiInfo.DpiScaleX > 0 ? dpiInfo.DpiScaleX : 1.0;
+                        double dpiY = dpiInfo.DpiScaleY > 0 ? dpiInfo.DpiScaleY : 1.0;
+
+                        foreach (var screen in System.Windows.Forms.Screen.AllScreens)
                         {
-                            _vm.AutoHide = true;
-                            _vm.IsHovered = false;
-                            break;
+                            double sLeft = screen.WorkingArea.Left / dpiX;
+                            double sRight = screen.WorkingArea.Right / dpiX;
+                            double sTop = screen.WorkingArea.Top / dpiY;
+                            double sBottom = screen.WorkingArea.Bottom / dpiY;
+
+                            if (left <= sLeft + edgeThreshold || right >= sRight - edgeThreshold ||
+                                top <= sTop + edgeThreshold || bottom >= sBottom - edgeThreshold)
+                            {
+                                _vm.AutoHide = true;
+                                _vm.IsHovered = false;
+                                break;
+                            }
                         }
                     }
+
+                    // Collision resolution
+                    try
+                    {
+                        ContainerManager.Instance.ResolveCollisions(_vm.Model);
+                        var model = ContainerManager.Instance.GetContainer(_vm.Identifier);
+                        if (model != null && _parentCanvas != null)
+                        {
+                            Canvas.SetLeft(this, model.X - OverlayOffsetX);
+                            Canvas.SetTop(this, model.Y - OverlayOffsetY);
+                        }
+                    }
+                    catch { }
                 }
 
-                // Collision resolution
-                try
-                {
-                    ContainerManager.Instance.ResolveCollisions(_vm.Model);
-                    var model = ContainerManager.Instance.GetContainer(_vm.Identifier);
-                    if (model != null && _parentCanvas != null)
-                    {
-                        Canvas.SetLeft(this, model.X - OverlayOffsetX);
-                        Canvas.SetTop(this, model.Y - OverlayOffsetY);
-                    }
-                }
-                catch { }
                 e.Handled = true;
             }
             else if (_isResizing)
@@ -485,6 +963,8 @@ namespace Palisades.Views.Controls
 
                 _vm.Width = Width;
                 _vm.Height = Height;
+                _vm.IsDragging = false;
+                _vm.NotifyResizeEnded();
 
                 try
                 {
@@ -532,14 +1012,17 @@ namespace Palisades.Views.Controls
             double cx = currentLeft + width / 2;
             double cy = currentTop + height / 2;
 
+            var dpiInfo = VisualTreeHelper.GetDpi(this);
+            double dpiX = dpiInfo.DpiScaleX > 0 ? dpiInfo.DpiScaleX : 1.0;
+            double dpiY = dpiInfo.DpiScaleY > 0 ? dpiInfo.DpiScaleY : 1.0;
+
             // Screen-edge snapping — snap to any monitor edge
             foreach (var screen in System.Windows.Forms.Screen.AllScreens)
             {
-                var sb = screen.Bounds;
-                double sl = sb.Left - OverlayOffsetX;
-                double sr = sb.Right - OverlayOffsetX;
-                double st = sb.Top - OverlayOffsetY;
-                double sbot = sb.Bottom - OverlayOffsetY;
+                double sl = (screen.WorkingArea.Left / dpiX) - OverlayOffsetX;
+                double sr = (screen.WorkingArea.Right / dpiX) - OverlayOffsetX;
+                double st = (screen.WorkingArea.Top / dpiY) - OverlayOffsetY;
+                double sbot = (screen.WorkingArea.Bottom / dpiY) - OverlayOffsetY;
 
                 // Horizontal snap to screen edge — needs vertical overlap
                 if (currentTop < sbot && b > st)
@@ -663,11 +1146,16 @@ namespace Palisades.Views.Controls
             _vm.NotifyResizeStarted();
 
             _isResizing = true;
+            _vm.IsDragging = true;
             _resizeStartPoint = e.GetPosition(this);
             _resizeStartCanvasPoint = _parentCanvas != null ? e.GetPosition(_parentCanvas) : default;
-            _resizeStartRect = new Rect(
-                Canvas.GetLeft(this), Canvas.GetTop(this),
-                Width, Height);
+
+            double left = Canvas.GetLeft(this);
+            if (double.IsNaN(left)) left = _vm.X - OverlayOffsetX;
+            double top = Canvas.GetTop(this);
+            if (double.IsNaN(top)) top = _vm.Y - OverlayOffsetY;
+
+            _resizeStartRect = new Rect(left, top, _vm.Width, _vm.Height);
 
             if (sender == ResizeLeft) _resizeDirection = "Left";
             else if (sender == ResizeRight) _resizeDirection = "Right";
@@ -694,11 +1182,12 @@ namespace Palisades.Views.Controls
             _isResizing = false;
             Mouse.Capture(null);
 
-            _vm.Width = Width;
-            _vm.Height = Height;
-
+            // Width and Height of the ViewModel are already continuously updated in ResizeUpdate
             try { ContainerManager.Instance.ResolveCollisions(_vm.Model); }
             catch { }
+
+            _vm.IsDragging = false;
+            _vm.NotifyResizeEnded();
             e.Handled = true;
         }
 
@@ -715,7 +1204,8 @@ namespace Palisades.Views.Controls
                 double newW = _resizeStartRect.Width;
                 double newH = _resizeStartRect.Height;
 
-                const double minW = 200, minH = 100;
+                double minW = _vm.IsCurtainMode ? _vm.CurtainStripWidth : 200;
+                const double minH = 100;
 
                 if (_resizeDirection.Contains("Left"))
                 {
@@ -763,9 +1253,6 @@ namespace Palisades.Views.Controls
                     Canvas.SetLeft(this, newLeft);
                     Canvas.SetTop(this, newTop);
                 }
-                Width = newW;
-                Height = newH;
-
                 _vm.Width = newW;
                 _vm.Height = newH;
                 _vm.ClipHeight = newH;
@@ -815,18 +1302,25 @@ namespace Palisades.Views.Controls
 
         private void ItemsArea_Drop(object sender, DragEventArgs e)
         {
+            var draggedItems = new List<ShortcutItem>();
             if (e.Data.GetData(typeof(ShortcutItem)) is ShortcutItem item)
             {
-                DropShortcutInContainer(item, e);
+                draggedItems.Add(item);
             }
-            else if (e.Data.GetData(typeof(List<ShortcutItem>)) is List<ShortcutItem> items && items.Count > 0)
+            else if (e.Data.GetData(typeof(List<ShortcutItem>)) is List<ShortcutItem> items)
             {
-                foreach (var it in items)
-                    DropShortcutInContainer(it, e);
+                draggedItems.AddRange(items);
+            }
+
+            if (draggedItems.Count == 0) return;
+
+            foreach (var it in draggedItems)
+            {
+                DropShortcutInContainer(it, e, draggedItems);
             }
         }
 
-        private void DropShortcutInContainer(ShortcutItem item, DragEventArgs e)
+        private void DropShortcutInContainer(ShortcutItem item, DragEventArgs e, List<ShortcutItem> draggedItems)
         {
             var list = _vm.Shortcuts;
             var srcVM = ShortcutReorderHandler.FindContainerForShortcut(item);
@@ -834,20 +1328,23 @@ namespace Palisades.Views.Controls
             if (srcVM == _vm)
             {
                 // Reorder within same container
-                int targetIdx = GetDropIndex(e);
+                int targetIdx = GetDropIndex(e, draggedItems);
                 int curIdx = list.IndexOf(item);
                 if (curIdx >= 0 && targetIdx >= 0 && curIdx != targetIdx)
                 {
+                    int newIdx = targetIdx;
                     if (curIdx < targetIdx)
-                        list.Move(curIdx, Math.Min(targetIdx, list.Count - 1));
-                    else
-                        list.Move(curIdx, targetIdx);
+                        newIdx--;
+
+                    newIdx = Math.Clamp(newIdx, 0, list.Count - 1);
+                    if (curIdx != newIdx)
+                        list.Move(curIdx, newIdx);
                 }
             }
             else if (srcVM != null)
             {
                 srcVM.Shortcuts.Remove(item);
-                int targetIdx = GetDropIndex(e);
+                int targetIdx = GetDropIndex(e, draggedItems);
                 if (!list.Contains(item))
                 {
                     if (targetIdx >= 0 && targetIdx <= list.Count)
@@ -868,46 +1365,66 @@ namespace Palisades.Views.Controls
         {
             if (ShortcutsControl == null || _vm.Shortcuts.Count == 0) return;
 
-            var overlayWindow = Window.GetWindow(this);
-            if (overlayWindow == null) return;
-
-            var transform = overlayWindow.TransformToDescendant(ShortcutsControl);
-            Point localPt = transform.Transform(canvasPt);
-
-            int bestIdx = _vm.Shortcuts.Count;
-            double bestDist = double.MaxValue;
-
-            for (int i = 0; i < _vm.Shortcuts.Count; i++)
+            try
             {
-                var container = ShortcutsControl.ItemContainerGenerator.ContainerFromItem(_vm.Shortcuts[i]) as FrameworkElement;
-                if (container == null) continue;
+                var overlayWindow = Window.GetWindow(this);
+                if (overlayWindow == null) return;
 
-                var tr = container.TransformToAncestor(ShortcutsControl);
-                var rectInControl = tr.TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
-                Point center = new Point(rectInControl.X + rectInControl.Width / 2, rectInControl.Y + rectInControl.Height / 2);
-                double dist = Math.Sqrt(Math.Pow(localPt.X - center.X, 2) + Math.Pow(localPt.Y - center.Y, 2));
+                var transform = overlayWindow.TransformToVisual(ShortcutsControl);
+                Point localPt = transform.Transform(canvasPt);
 
-                if (dist < bestDist)
+                double bestDist = double.MaxValue;
+                int bestIdx = -1;
+
+                // Collect remaining items to exclude dragged items from geometry calculations
+                var remainingItems = new List<(ShortcutItem Item, int OriginalIndex)>();
+                for (int i = 0; i < _vm.Shortcuts.Count; i++)
                 {
-                    bestDist = dist;
-                    bestIdx = localPt.X > center.X ? i + 1 : i;
+                    var item = _vm.Shortcuts[i];
+                    if (items.Contains(item)) continue;
+                    remainingItems.Add((item, i));
                 }
-            }
 
-            var itemsToReorder = items.Where(i => _vm.Shortcuts.Contains(i)).ToList();
-            foreach (var item in itemsToReorder)
+                if (remainingItems.Count == 0) return;
+
+                for (int i = 0; i < remainingItems.Count; i++)
+                {
+                    var container = ShortcutsControl.ItemContainerGenerator.ContainerFromItem(remainingItems[i].Item) as FrameworkElement;
+                    if (container == null) continue;
+
+                    var tr = container.TransformToVisual(ShortcutsControl);
+                    var rectInControl = tr.TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+                    Point center = new Point(rectInControl.X + rectInControl.Width / 2, rectInControl.Y + rectInControl.Height / 2);
+                    double dist = Math.Sqrt(Math.Pow(localPt.X - center.X, 2) + Math.Pow(localPt.Y - center.Y, 2));
+
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestIdx = localPt.X > center.X ? remainingItems[i].OriginalIndex + 1 : remainingItems[i].OriginalIndex;
+                    }
+                }
+
+                if (bestIdx == -1) return;
+
+                var itemsToReorder = items.Where(i => _vm.Shortcuts.Contains(i)).ToList();
+                foreach (var item in itemsToReorder)
+                {
+                    int oldIdx = _vm.Shortcuts.IndexOf(item);
+                    if (oldIdx < 0) continue;
+
+                    int newIdx = bestIdx;
+                    if (oldIdx < newIdx) newIdx--;
+                    newIdx = Math.Clamp(newIdx, 0, _vm.Shortcuts.Count - 1);
+
+                    if (oldIdx != newIdx)
+                        _vm.Shortcuts.Move(oldIdx, newIdx);
+                }
+                _vm.Save();
+            }
+            catch (Exception ex)
             {
-                int oldIdx = _vm.Shortcuts.IndexOf(item);
-                if (oldIdx < 0) continue;
-
-                int newIdx = bestIdx;
-                if (oldIdx < newIdx) newIdx--;
-                newIdx = Math.Clamp(newIdx, 0, _vm.Shortcuts.Count - 1);
-
-                if (oldIdx != newIdx)
-                    _vm.Shortcuts.Move(oldIdx, newIdx);
+                System.Diagnostics.Debug.WriteLine($"Reorder error: {ex}");
             }
-            _vm.Save();
         }
 
         public void UpdateInsertionMarker(Point canvasPt)
@@ -928,40 +1445,142 @@ namespace Palisades.Views.Controls
                 SelectionCanvas.Children.Add(_insertionMarker);
             }
 
-            var overlayWindow = Window.GetWindow(this);
-            if (overlayWindow == null) return;
-            var transform = overlayWindow.TransformToDescendant(ShortcutsControl);
-            Point localPt = transform.Transform(canvasPt);
-
-            double bestDist = double.MaxValue;
-            Rect targetRect = Rect.Empty;
-            bool insertAfter = false;
-
-            for (int i = 0; i < _vm.Shortcuts.Count; i++)
+            try
             {
-                var container = ShortcutsControl.ItemContainerGenerator.ContainerFromItem(_vm.Shortcuts[i]) as FrameworkElement;
-                if (container == null) continue;
+                var overlayWindow = Window.GetWindow(this) as DesktopOverlayWindow;
+                if (overlayWindow == null) return;
+                var transform = overlayWindow.TransformToVisual(SelectionCanvas);
+                Point localPt = transform.Transform(canvasPt);
 
-                var tr = container.TransformToAncestor(ShortcutsControl);
-                var rectInControl = tr.TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
-                Point center = new Point(rectInControl.X + rectInControl.Width / 2, rectInControl.Y + rectInControl.Height / 2);
-                double dist = Math.Sqrt(Math.Pow(localPt.X - center.X, 2) + Math.Pow(localPt.Y - center.Y, 2));
+                var draggedItems = overlayWindow.ContainerDragItems ?? new List<ShortcutItem>();
 
-                if (dist < bestDist)
+                // 1. Collect all visual containers of remaining items relative to SelectionCanvas
+                var items = new List<(ShortcutItem Item, Rect Bounds)>();
+                for (int i = 0; i < _vm.Shortcuts.Count; i++)
                 {
-                    bestDist = dist;
-                    targetRect = rectInControl;
-                    insertAfter = localPt.X > center.X;
-                }
-            }
+                    var item = _vm.Shortcuts[i];
+                    if (draggedItems.Contains(item)) continue;
 
-            if (!targetRect.IsEmpty)
-            {
-                double markerX = insertAfter ? targetRect.Right + 2 : targetRect.Left - 4;
+                    var container = ShortcutsControl.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement;
+                    if (container != null && container.IsVisible)
+                    {
+                        var tr = container.TransformToVisual(SelectionCanvas);
+                        var rectInControl = tr.TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+                        items.Add((item, rectInControl));
+                    }
+                }
+
+                if (items.Count == 0) return;
+
+                // 2. Identify unique rows (group by Top coordinate within a tolerance of 15px)
+                var rows = new List<List<(ShortcutItem Item, Rect Bounds)>>();
+                foreach (var item in items.OrderBy(x => x.Bounds.Top).ThenBy(x => x.Bounds.Left))
+                {
+                    bool added = false;
+                    foreach (var row in rows)
+                    {
+                        double avgTop = row.Average(r => r.Bounds.Top);
+                        if (Math.Abs(item.Bounds.Top - avgTop) < 15.0)
+                        {
+                            row.Add(item);
+                            added = true;
+                            break;
+                        }
+                    }
+                    if (!added)
+                    {
+                        rows.Add(new List<(ShortcutItem Item, Rect Bounds)> { item });
+                    }
+                }
+
+                // 3. Find the row closest to the mouse Y coordinate
+                List<(ShortcutItem Item, Rect Bounds)> closestRow = rows[0];
+                double minRowDistance = double.MaxValue;
+                foreach (var row in rows)
+                {
+                    double rowTop = row.Min(r => r.Bounds.Top);
+                    double rowBottom = row.Max(r => r.Bounds.Bottom);
+                    
+                    double distance = 0;
+                    if (localPt.Y < rowTop)
+                        distance = rowTop - localPt.Y;
+                    else if (localPt.Y > rowBottom)
+                        distance = localPt.Y - rowBottom;
+                    else
+                        distance = 0;
+
+                    if (distance < minRowDistance)
+                    {
+                        minRowDistance = distance;
+                        closestRow = row;
+                    }
+                }
+
+                // Sort row items horizontally
+                var sortedRowItems = closestRow.OrderBy(r => r.Bounds.Left).ToList();
+
+                // 4. Find the closest item in this row
+                int closestIdxInRow = 0;
+                double minXDist = double.MaxValue;
+                for (int i = 0; i < sortedRowItems.Count; i++)
+                {
+                    var item = sortedRowItems[i];
+                    double centerX = item.Bounds.Left + item.Bounds.Width / 2.0;
+                    double dist = Math.Abs(localPt.X - centerX);
+                    if (dist < minXDist)
+                    {
+                        minXDist = dist;
+                        closestIdxInRow = i;
+                    }
+                }
+
+                var targetItem = sortedRowItems[closestIdxInRow];
+                double targetCenterX = targetItem.Bounds.Left + targetItem.Bounds.Width / 2.0;
+                bool insertAfter = localPt.X > targetCenterX;
+
+                double markerX;
+                if (insertAfter)
+                {
+                    // Draw after targetItem. Check if there's a next item in the same row.
+                    if (closestIdxInRow < sortedRowItems.Count - 1)
+                    {
+                        var nextItem = sortedRowItems[closestIdxInRow + 1];
+                        markerX = (targetItem.Bounds.Right + nextItem.Bounds.Left) / 2.0;
+                    }
+                    else
+                    {
+                        markerX = targetItem.Bounds.Right + 4;
+                    }
+                }
+                else
+                {
+                    // Draw before targetItem. Check if there's a previous item in the same row.
+                    if (closestIdxInRow > 0)
+                    {
+                        var prevItem = sortedRowItems[closestIdxInRow - 1];
+                        markerX = (prevItem.Bounds.Right + targetItem.Bounds.Left) / 2.0;
+                    }
+                    else
+                    {
+                        markerX = targetItem.Bounds.Left - 4;
+                    }
+                }
+
+                // Adjust X to center the 2px-wide marker line around markerX
+                markerX -= 1;
+
+                // Clamp markerX to prevent clipping on the far left
+                if (markerX < 2)
+                    markerX = 2;
+
                 Canvas.SetLeft(_insertionMarker, markerX);
-                Canvas.SetTop(_insertionMarker, targetRect.Top);
-                _insertionMarker.Height = targetRect.Height;
+                Canvas.SetTop(_insertionMarker, targetItem.Bounds.Top);
+                _insertionMarker.Height = targetItem.Bounds.Height;
                 _insertionMarker.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateInsertionMarker error: {ex}");
             }
         }
 
@@ -974,36 +1593,56 @@ namespace Palisades.Views.Controls
             }
         }
 
-        private int GetDropIndex(DragEventArgs e)
+        private int GetDropIndex(DragEventArgs e, List<ShortcutItem> draggedItems)
         {
             var grid = ContentScrollViewer?.Content as Grid;
             if (grid == null) return -1;
 
-            var dropPt = e.GetPosition(grid);
-            double bestDist = double.MaxValue;
-            int bestIdx = -1;
-
-            for (int i = 0; i < _vm.Shortcuts.Count; i++)
+            try
             {
-                var container = ShortcutsControl?.ItemContainerGenerator.ContainerFromItem(_vm.Shortcuts[i]);
-                if (container == null) continue;
+                var dropPt = e.GetPosition(grid);
+                double bestDist = double.MaxValue;
+                int bestIdx = -1;
 
-                var border = FindVisualChild<Border>(container, b => b.DataContext is ShortcutItem);
-                if (border == null) continue;
-
-                var transform = border.TransformToAncestor(grid);
-                var bounds = transform.TransformBounds(new Rect(0, 0, border.ActualWidth, border.ActualHeight));
-                double center = bounds.Top + bounds.Height / 2;
-
-                double dist = Math.Abs(dropPt.Y - center);
-                if (dist < bestDist)
+                // Collect remaining items
+                var remainingItems = new List<(ShortcutItem Item, int OriginalIndex)>();
+                for (int i = 0; i < _vm.Shortcuts.Count; i++)
                 {
-                    bestDist = dist;
-                    bestIdx = dropPt.Y > center ? i + 1 : i;
+                    var item = _vm.Shortcuts[i];
+                    if (draggedItems.Contains(item)) continue;
+                    remainingItems.Add((item, i));
                 }
-            }
 
-            return bestIdx;
+                if (remainingItems.Count == 0) return 0;
+
+                for (int i = 0; i < remainingItems.Count; i++)
+                {
+                    var container = ShortcutsControl?.ItemContainerGenerator.ContainerFromItem(remainingItems[i].Item);
+                    if (container == null) continue;
+
+                    var border = FindVisualChild<Border>(container, b => b.DataContext is ShortcutItem);
+                    if (border == null) continue;
+
+                    var transform = border.TransformToVisual(grid);
+                    var bounds = transform.TransformBounds(new Rect(0, 0, border.ActualWidth, border.ActualHeight));
+                    Point center = new Point(bounds.X + bounds.Width / 2, bounds.Top + bounds.Height / 2);
+
+                    double dist = Math.Sqrt(Math.Pow(dropPt.X - center.X, 2) + Math.Pow(dropPt.Y - center.Y, 2));
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestIdx = dropPt.X > center.X ? remainingItems[i].OriginalIndex + 1 : remainingItems[i].OriginalIndex;
+                    }
+                }
+
+                if (bestIdx == -1) return 0;
+                return bestIdx;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GetDropIndex error: {ex}");
+                return 0;
+            }
         }
 
         private void MainBorder_Drop(object sender, DragEventArgs e)
@@ -1182,8 +1821,13 @@ namespace Palisades.Views.Controls
                 double threshold = Math.Max(SystemParameters.MinimumHorizontalDragDistance, 4);
                 if (Math.Abs(dx) > threshold || Math.Abs(dy) > threshold)
                 {
-                    _clickPendingItem = null;
                     var items = _vm.SelectedShortcuts.ToList();
+                    if (items.Count == 0 && _clickPendingItem != null)
+                    {
+                        items = new List<ShortcutItem> { _clickPendingItem };
+                    }
+                    _clickPendingItem = null;
+
                     if (items.Count == 0)
                         items = _vm.Shortcuts.Take(1).ToList();
                     if (items.Count > 0)
@@ -1239,22 +1883,58 @@ namespace Palisades.Views.Controls
 
         private void UpdateSelectionVisual()
         {
-            var grid = ContentScrollViewer?.Content as Grid;
-            if (grid == null) return;
-
-            foreach (var item in _vm.Shortcuts)
+            try
             {
-                var container = ShortcutsControl?.ItemContainerGenerator.ContainerFromItem(item);
-                if (container == null) continue;
+                var grid = ContentScrollViewer?.Content as Grid;
+                if (grid == null) return;
 
-                var border = FindVisualChild<Border>(container, b => b.DataContext is ShortcutItem);
-                if (border != null)
+                if (_vm?.Shortcuts == null) return;
+
+                foreach (var item in _vm.Shortcuts)
                 {
-                    bool sel = _selectedShortcuts.Contains(item);
-                    border.Background = sel
-                        ? new SolidColorBrush(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF))
-                        : Brushes.Transparent;
+                    if (item == null) continue;
+                    var container = ShortcutsControl?.ItemContainerGenerator.ContainerFromItem(item);
+                    if (container == null) continue;
+
+                    var border = FindVisualChild<Border>(container, b => b.DataContext is ShortcutItem);
+                    if (border != null)
+                    {
+                        bool sel = _selectedShortcuts != null && _selectedShortcuts.Contains(item);
+                        border.Background = sel
+                            ? new SolidColorBrush(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF))
+                            : Brushes.Transparent;
+                    }
                 }
+            }
+            catch { }
+        }
+
+        public void ClearSelection()
+        {
+            try
+            {
+                _selectedShortcuts?.Clear();
+                _vm?.SelectedShortcuts?.Clear();
+                if (_vm != null)
+                    _vm.SelectedShortcut = null;
+                UpdateSelectionVisual();
+            }
+            catch { }
+        }
+
+        private void ContainerBody_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                if (e.OriginalSource is DependencyObject source)
+                {
+                    if (FindVisualParent<Border>(source, b => b.DataContext is ShortcutItem) != null)
+                        return;
+                }
+
+                var overlay = System.Windows.Application.Current.Windows.OfType<DesktopOverlayWindow>().FirstOrDefault();
+                overlay?.ClearAllContainerSelections();
+                overlay?.ClearOverlayIconSelection();
             }
         }
 
@@ -2196,6 +2876,9 @@ namespace Palisades.Views.Controls
                             try
                             {
                                 var ctxMenu = (IContextMenu)Marshal.GetObjectForIUnknown(ctxMenuObj);
+                                _activeContextMenu2 = ctxMenu as IContextMenu2;
+                                _activeContextMenu3 = ctxMenu as IContextMenu3;
+
                                 IntPtr hMenu = CreatePopupMenu();
                                 if (hMenu == IntPtr.Zero) return null;
 
@@ -2220,7 +2903,7 @@ namespace Palisades.Views.Controls
                                             FlushMenuThemes();
                                             int trueVal = 1;
                                             DwmSetWindowAttribute(hwnd, 20, ref trueVal, sizeof(int));
-                                            if (menuOwner != IntPtr.Zero)
+                                            if (menuOwner != IntPtr.Zero && menuOwner != hwnd)
                                             {
                                                 DwmSetWindowAttribute(menuOwner, 20, ref trueVal, sizeof(int));
                                             }
@@ -2240,9 +2923,23 @@ namespace Palisades.Views.Controls
                                     }
                                     catch { /* hook may fail due to security policies */ }
 
-                                    SetForegroundWindow(menuOwner);
-                                    int cmd = TrackPopupMenuEx(hMenu, flags, x, y, menuOwner, IntPtr.Zero);
-                                    PostMessage(menuOwner, 0x0000, IntPtr.Zero, IntPtr.Zero);
+                                    if (ownerHwnd != IntPtr.Zero)
+                                    {
+                                        SetForegroundWindow(ownerHwnd);
+                                    }
+                                    else
+                                    {
+                                        SetForegroundWindow(hwnd);
+                                    }
+                                    int cmd = TrackPopupMenuEx(hMenu, flags, x, y, hwnd, IntPtr.Zero);
+                                    if (ownerHwnd != IntPtr.Zero)
+                                    {
+                                        PostMessage(ownerHwnd, 0x0000, IntPtr.Zero, IntPtr.Zero);
+                                    }
+                                    else
+                                    {
+                                        PostMessage(hwnd, 0x0000, IntPtr.Zero, IntPtr.Zero);
+                                    }
 
                                     if (_mouseHookHandle != IntPtr.Zero)
                                         UnhookWindowsHookEx(_mouseHookHandle);
@@ -2278,6 +2975,8 @@ namespace Palisades.Views.Controls
                                 }
                                 finally
                                 {
+                                    _activeContextMenu2 = null;
+                                    _activeContextMenu3 = null;
                                     DestroyMenu(hMenu);
                                 }
                             }
@@ -2310,9 +3009,41 @@ namespace Palisades.Views.Controls
                 {
                     EndMenu();
                     handled = true;
+                    return IntPtr.Zero;
                 }
+
+                const int WM_INITMENUPOPUP = 0x0117;
+                const int WM_DRAWITEM = 0x002B;
+                const int WM_MEASUREITEM = 0x002C;
+                const int WM_MENUCHAR = 0x0120;
+
+                if (_activeContextMenu3 != null && msg == WM_MENUCHAR)
+                {
+                    IntPtr lResult;
+                    int hr = _activeContextMenu3.HandleMenuMsg2((uint)msg, wParam, lParam, out lResult);
+                    if (hr >= 0)
+                    {
+                        handled = true;
+                        return lResult;
+                    }
+                }
+
+                if (_activeContextMenu2 != null &&
+                    (msg == WM_INITMENUPOPUP || msg == WM_DRAWITEM || msg == WM_MEASUREITEM))
+                {
+                    int hr = _activeContextMenu2.HandleMenuMsg((uint)msg, wParam, lParam);
+                    if (hr >= 0)
+                    {
+                        handled = true;
+                        return IntPtr.Zero;
+                    }
+                }
+
                 return IntPtr.Zero;
             }
+
+            private static IContextMenu2? _activeContextMenu2;
+            private static IContextMenu3? _activeContextMenu3;
 
             // Low-level mouse hook to detect clicks on the overlay (WS_EX_NOACTIVATE/TRANSPARENT)
             private static IntPtr _mouseHookHandle = IntPtr.Zero;
@@ -2431,6 +3162,25 @@ namespace Palisades.Views.Controls
                 [PreserveSig] int QueryContextMenu(IntPtr hmenu, uint iMenu, uint idCmdFirst, uint idCmdLast, uint uFlags);
                 [PreserveSig] int InvokeCommand(ref CMINVOKECOMMANDINFOEX pici);
                 [PreserveSig] int GetCommandString(IntPtr pCmd, uint uType, [MarshalAs(UnmanagedType.LPArray)] [Out] int[] pReserved, [MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder? pszName, int cchMax);
+            }
+
+            [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("000214F4-0000-0000-C000-000000000046")]
+            private interface IContextMenu2
+            {
+                [PreserveSig] int QueryContextMenu(IntPtr hmenu, uint iMenu, uint idCmdFirst, uint idCmdLast, uint uFlags);
+                [PreserveSig] int InvokeCommand(ref CMINVOKECOMMANDINFOEX pici);
+                [PreserveSig] int GetCommandString(IntPtr pCmd, uint uType, [MarshalAs(UnmanagedType.LPArray)][Out] int[] pReserved, [MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder? pszName, int cchMax);
+                [PreserveSig] int HandleMenuMsg(uint uMsg, IntPtr wParam, IntPtr lParam);
+            }
+
+            [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("3473E6F5-C5D5-11D1-A76F-00C04FC2F6C1")]
+            private interface IContextMenu3
+            {
+                [PreserveSig] int QueryContextMenu(IntPtr hmenu, uint iMenu, uint idCmdFirst, uint idCmdLast, uint uFlags);
+                [PreserveSig] int InvokeCommand(ref CMINVOKECOMMANDINFOEX pici);
+                [PreserveSig] int GetCommandString(IntPtr pCmd, uint uType, [MarshalAs(UnmanagedType.LPArray)][Out] int[] pReserved, [MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder? pszName, int cchMax);
+                [PreserveSig] int HandleMenuMsg(uint uMsg, IntPtr wParam, IntPtr lParam);
+                [PreserveSig] int HandleMenuMsg2(uint uMsg, IntPtr wParam, IntPtr lParam, out IntPtr plResult);
             }
 
             [StructLayout(LayoutKind.Sequential)]

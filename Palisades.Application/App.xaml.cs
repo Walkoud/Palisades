@@ -135,6 +135,7 @@ namespace Palisades
             try
             {
                 SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+                SystemEvents.SessionSwitch += OnSessionSwitch;
             }
             catch { /* May fail in some security contexts */ }
 
@@ -202,6 +203,24 @@ namespace Palisades
             // Show tray notification
             _trayService?.ShowNotification("Palisades", TranslationService.Instance["App_StartupNotification"]);
 
+            // Edit Properties → open ArcticShelter with container selected
+            if (_mainViewModel != null)
+            {
+                _mainViewModel.RequestEditContainer += vm =>
+                {
+                    if (vm != null)
+                    {
+                        SafeDispatch(() =>
+                        {
+                            _mainViewModel.SelectedContainer = vm;
+                            ShowMainWindow();
+                            if (_arcticWindow != null)
+                                _arcticWindow.ShowContainerProperties(vm);
+                        });
+                    }
+                };
+            }
+
             StartAutoBackup();
         }
 
@@ -268,11 +287,8 @@ namespace Palisades
             ThemeService.Instance.ApplyPresetToContainer(container);
             var containerVm = new ContainerViewModel(container);
             containerVm.RequestClose += () => _mainViewModel?.DeleteContainer(containerVm);
-            containerVm.RequestEdit += () =>
-            {
-                if (_mainViewModel != null)
-                    _mainViewModel.SelectedContainer = containerVm;
-            };
+            containerVm.RequestEdit += () => _mainViewModel?.InvokeRequestEditContainer(containerVm);
+            containerVm.RequestDuplicate += () => _mainViewModel?.DuplicateContainer(containerVm);
             _mainViewModel?.Containers.Add(containerVm);
             _overlayWindow?.AddContainer(containerVm);
         }
@@ -371,12 +387,8 @@ namespace Palisades
                 ThemeService.Instance.ApplyPresetToContainer(container);
                 var vm = new ContainerViewModel(container);
                 vm.RequestClose += () => _mainViewModel?.DeleteContainer(vm);
-                vm.RequestEdit += () =>
-                {
-                    if (_mainViewModel != null)
-                        _mainViewModel.SelectedContainer = vm;
-                };
-
+                vm.RequestEdit += () => _mainViewModel?.InvokeRequestEditContainer(vm);
+                vm.RequestDuplicate += () => _mainViewModel?.DuplicateContainer(vm);
                 _mainViewModel?.Containers.Add(vm);
                 _overlayWindow?.AddContainer(vm);
                 ShowMainWindow();
@@ -411,11 +423,8 @@ namespace Palisades
                         ThemeService.Instance.ApplyPresetToContainer(container);
                         var vm = new ContainerViewModel(container);
                         vm.RequestClose += () => _mainViewModel?.DeleteContainer(vm);
-                        vm.RequestEdit += () =>
-                        {
-                            if (_mainViewModel != null)
-                                _mainViewModel.SelectedContainer = vm;
-                        };
+                        vm.RequestEdit += () => _mainViewModel?.InvokeRequestEditContainer(vm);
+                        vm.RequestDuplicate += () => _mainViewModel?.DuplicateContainer(vm);
                         _mainViewModel?.Containers.Add(vm);
                         _overlayWindow?.AddContainer(vm);
                     }
@@ -433,11 +442,8 @@ namespace Palisades
                         ThemeService.Instance.ApplyPresetToContainer(container);
                         var vm = new ContainerViewModel(container);
                         vm.RequestClose += () => _mainViewModel?.DeleteContainer(vm);
-                        vm.RequestEdit += () =>
-                        {
-                            if (_mainViewModel != null)
-                                _mainViewModel.SelectedContainer = vm;
-                        };
+                        vm.RequestEdit += () => _mainViewModel?.InvokeRequestEditContainer(vm);
+                        vm.RequestDuplicate += () => _mainViewModel?.DuplicateContainer(vm);
                         _mainViewModel?.Containers.Add(vm);
                         _overlayWindow?.AddContainer(vm);
                     }
@@ -472,11 +478,8 @@ namespace Palisades
                             _mainViewModel?.DeleteContainer(vm);
                             StopFolderWatcher(container.Identifier);
                         };
-                        vm.RequestEdit += () =>
-                        {
-                            if (_mainViewModel != null)
-                                _mainViewModel.SelectedContainer = vm;
-                        };
+                        vm.RequestEdit += () => _mainViewModel?.InvokeRequestEditContainer(vm);
+                        vm.RequestDuplicate += () => _mainViewModel?.DuplicateContainer(vm);
                         vm.FolderPortalPathChanged += _ => OnFolderPortalChangeRequested(vm);
 
                         _mainViewModel?.Containers.Add(vm);
@@ -509,11 +512,8 @@ namespace Palisades
                     ThemeService.Instance.ApplyPresetToContainer(container);
                     var vm = new ContainerViewModel(container);
                     vm.RequestClose += () => _mainViewModel?.DeleteContainer(vm);
-                    vm.RequestEdit += () =>
-                    {
-                        if (_mainViewModel != null)
-                            _mainViewModel.SelectedContainer = vm;
-                    };
+                    vm.RequestEdit += () => _mainViewModel?.InvokeRequestEditContainer(vm);
+                    vm.RequestDuplicate += () => _mainViewModel?.DuplicateContainer(vm);
 
                     _mainViewModel?.Containers.Add(vm);
                     _overlayWindow?.AddContainer(vm);
@@ -569,11 +569,8 @@ namespace Palisades
                         _mainViewModel?.DeleteContainer(vm);
                         StopFolderWatcher(container.Identifier);
                     };
-                    vm.RequestEdit += () =>
-                    {
-                        if (_mainViewModel != null)
-                            _mainViewModel.SelectedContainer = vm;
-                    };
+                    vm.RequestEdit += () => _mainViewModel?.InvokeRequestEditContainer(vm);
+                    vm.RequestDuplicate += () => _mainViewModel?.DuplicateContainer(vm);
                     vm.FolderPortalPathChanged += _ => OnFolderPortalChangeRequested(vm);
 
                     _mainViewModel?.Containers.Add(vm);
@@ -818,8 +815,22 @@ namespace Palisades
                     var primary = System.Windows.Forms.Screen.PrimaryScreen;
                     if (primary == null) return;
 
-                    double cx = primary.WorkingArea.Left + (primary.WorkingArea.Width - vm.Width) / 2;
-                    double cy = primary.WorkingArea.Top + (primary.WorkingArea.Height - vm.Height) / 2;
+                    double dpiX = 1.0;
+                    double dpiY = 1.0;
+                    if (_overlayWindow != null)
+                    {
+                        var dpiInfo = System.Windows.Media.VisualTreeHelper.GetDpi(_overlayWindow);
+                        dpiX = dpiInfo.DpiScaleX > 0 ? dpiInfo.DpiScaleX : 1.0;
+                        dpiY = dpiInfo.DpiScaleY > 0 ? dpiInfo.DpiScaleY : 1.0;
+                    }
+
+                    double screenLeft = primary.WorkingArea.Left / dpiX;
+                    double screenWidth = primary.WorkingArea.Width / dpiX;
+                    double screenTop = primary.WorkingArea.Top / dpiY;
+                    double screenHeight = primary.WorkingArea.Height / dpiY;
+
+                    double cx = screenLeft + (screenWidth - vm.Width) / 2;
+                    double cy = screenTop + (screenHeight - vm.Height) / 2;
 
                     vm.X = cx;
                     vm.Y = cy;
@@ -846,9 +857,18 @@ namespace Palisades
             {
                 try
                 {
-                    // Save positions for the old screen config
                     string oldSig = _lastScreenSignature;
-                    ContainerManager.Instance.SavePositionsForScreen(oldSig);
+                    string newSig = ContainerManager.GetScreenSignature();
+
+                    // Only save/restore when screen signature actually changes.
+                    // Without this guard, RDP at same resolution would overwrite saved
+                    // original positions with RDP-moved positions — containers never restore.
+                    if (oldSig != newSig)
+                    {
+                        ContainerManager.Instance.SavePositionsForScreen(oldSig);
+                        _lastScreenSignature = newSig;
+                        ContainerManager.Instance.RestorePositionsForScreen(newSig);
+                    }
 
                     // Create auto-snapshot (if enabled)
                     var def = ContainerManager.Instance.LoadDefaults();
@@ -861,11 +881,6 @@ namespace Palisades
                         SnapshotManager.Instance.CreateSnapshot(autoName, "Auto");
                     }
 
-                    // Try to restore positions for the new screen config
-                    string newSig = ContainerManager.GetScreenSignature();
-                    _lastScreenSignature = newSig;
-                    ContainerManager.Instance.RestorePositionsForScreen(newSig);
-
                     // Reposition overlay + rebuild containers with new positions
                     if (_overlayWindow != null && _mainViewModel != null)
                     {
@@ -875,6 +890,37 @@ namespace Palisades
                 }
                 catch { }
             });
+        }
+
+        private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
+        {
+            // Session reconnected after RDP — re-evaluate display and restore positions.
+            // Acts as safety net when DisplaySettingsChanged fires with same signature.
+            if (e.Reason is SessionSwitchReason.SessionUnlock
+                or SessionSwitchReason.ConsoleConnect
+                or SessionSwitchReason.RemoteDisconnect)
+            {
+                SafeDispatch(() =>
+                {
+                    try
+                    {
+                        string newSig = ContainerManager.GetScreenSignature();
+                        if (_lastScreenSignature != newSig)
+                        {
+                            ContainerManager.Instance.SavePositionsForScreen(_lastScreenSignature);
+                            _lastScreenSignature = newSig;
+                            ContainerManager.Instance.RestorePositionsForScreen(newSig);
+                        }
+
+                        if (_overlayWindow != null && _mainViewModel != null)
+                        {
+                            _overlayWindow.RepositionOverlay();
+                            _overlayWindow.RebuildContainers(_mainViewModel.Containers);
+                        }
+                    }
+                    catch { }
+                });
+            }
         }
 
         private static void LogError(Exception ex)
@@ -887,6 +933,33 @@ namespace Palisades
                 Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
                 File.AppendAllText(logPath,
                     $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}\n\n");
+            }
+            catch { }
+        }
+
+        public static void Log(string message)
+        {
+            try
+            {
+                string logPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Palisades", "debug.log");
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n");
+            }
+            catch { }
+        }
+
+        public static void Log(Exception ex, string context = "")
+        {
+            try
+            {
+                string logPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Palisades", "debug.log");
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                string prefix = string.IsNullOrEmpty(context) ? "" : $"[{context}] ";
+                File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR: {prefix}{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}\n\n");
             }
             catch { }
         }

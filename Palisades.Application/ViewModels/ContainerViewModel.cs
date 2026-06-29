@@ -26,14 +26,20 @@ namespace Palisades.ViewModels
         private double _fullHeight;
         private bool _suppressSave;
 
-        private const double MIN_AUTO_HIDE_HEIGHT = 52.0;
         private double _clipHeight;
+        private double _clipWidth;
         private int _savedCornerRadius = 12;
 
         public double ClipHeight
         {
             get => _clipHeight;
             set { _clipHeight = value; OnPropertyChanged(); }
+        }
+
+        public double ClipWidth
+        {
+            get => _clipWidth;
+            set { _clipWidth = value; OnPropertyChanged(); }
         }
 
         public ContainerModel Model => _model;
@@ -60,7 +66,20 @@ namespace Palisades.ViewModels
         public double Width
         {
             get => _model.Width;
-            set { _model.Width = Math.Max(200, value); OnPropertyChanged(); Save(); }
+            set
+            {
+                double min = (IsCurtainMode && CurtainDirection != "BottomToTop") ? CurtainStripWidth : 200;
+                _model.Width = Math.Max(min, value);
+                OnPropertyChanged();
+                if (!_isAnimatingWidth)
+                    ClipWidth = _model.Width;
+                if (IsCurtainMode && CurtainDirection != "BottomToTop" && _model.Width > CurtainStripWidth)
+                {
+                    _model.CurtainOpenWidth = _model.Width - CurtainStripWidth;
+                    OnPropertyChanged(nameof(CurtainOpenWidth));
+                }
+                Save();
+            }
         }
 
         public double Height
@@ -68,7 +87,8 @@ namespace Palisades.ViewModels
             get => _model.Height;
             set
             {
-                _model.Height = Math.Max(0, value);
+                double min = (IsCurtainMode && CurtainDirection == "BottomToTop") ? CurtainClosedHeight : 150;
+                _model.Height = Math.Max(min, value);
                 OnPropertyChanged();
                 if (!_isAnimatingHeight)
                     ClipHeight = _model.Height;
@@ -76,6 +96,11 @@ namespace Palisades.ViewModels
                 {
                     _fullHeight = value;
                     _model.FullHeight = value;
+                }
+                if (IsCurtainMode && CurtainDirection == "BottomToTop" && _model.Height > CurtainClosedHeight)
+                {
+                    _model.CurtainOpenHeight = _model.Height - CurtainClosedHeight;
+                    OnPropertyChanged(nameof(CurtainOpenHeight));
                 }
                 if (!_suppressSave)
                     Save();
@@ -135,8 +160,8 @@ namespace Palisades.ViewModels
                 if (value)
                 {
                     EnsureTimer();
-                    if (!_isHovered && Height > MIN_AUTO_HIDE_HEIGHT)
-                        StartHeightAnimation(MIN_AUTO_HIDE_HEIGHT, HideDurMs);
+                    if (!_isHovered && Height > CollapsedHeight)
+                        StartHeightAnimation(CollapsedHeight, HideDurMs);
                 }
                 else
                 {
@@ -150,6 +175,23 @@ namespace Palisades.ViewModels
         {
             get => _model.AutoHideDelayMs;
             set { _model.AutoHideDelayMs = Math.Clamp(value, 100, 5000); OnPropertyChanged(); Save(); }
+        }
+
+        public double CollapsedHeight
+        {
+            get => Math.Max(20, _model.CollapsedHeight);
+            set
+            {
+                _model.CollapsedHeight = Math.Clamp(value, 20, 300);
+                OnPropertyChanged();
+                Save();
+                // Live preview: if auto-hide collapsed, re-animate to new height
+                if (_model.AutoHide && !_isHovered)
+                {
+                    StopHeightAnimation();
+                    StartHeightAnimation(CollapsedHeight, HideDurMs);
+                }
+            }
         }
 
         public bool IsLocked
@@ -234,6 +276,7 @@ namespace Palisades.ViewModels
                 _model.BodyColor = value.ToString();
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(BodyColorWithOpacity));
+                OnPropertyChanged(nameof(PreviewBackgroundBrush));
                 Save();
             }
         }
@@ -258,15 +301,54 @@ namespace Palisades.ViewModels
                 _model.GradientEndColor = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsGradient));
+                OnPropertyChanged(nameof(PreviewBackgroundBrush));
+                OnPropertyChanged(nameof(BodyColorWithOpacity));
                 Save();
             }
         }
 
-        public void ApplyGradient(Color startColor, Color endColor)
+        public double GradientAngle
+        {
+            get => _model.GradientAngle;
+            set
+            {
+                _model.GradientAngle = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PreviewBackgroundBrush));
+                OnPropertyChanged(nameof(BodyColorWithOpacity));
+                Save();
+            }
+        }
+
+        public bool HeaderGradientEnabled
+        {
+            get => _model.HeaderGradientEnabled;
+            set
+            {
+                _model.HeaderGradientEnabled = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public bool BodyGradientEnabled
+        {
+            get => _model.BodyGradientEnabled;
+            set
+            {
+                _model.BodyGradientEnabled = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PreviewBackgroundBrush));
+                Save();
+            }
+        }
+
+        public void ApplyGradient(Color startColor, Color endColor, double angle = 0)
         {
             HeaderColor = startColor;
-            BodyColor = startColor;
             GradientEndColor = endColor.ToString();
+            GradientAngle = angle;
+            BodyColor = startColor;  // last — BodyColor fires BodyColorWithOpacity which reads GradientEndColor
         }
 
         public Color TitleColor
@@ -369,7 +451,126 @@ namespace Palisades.ViewModels
             }
         }
 
-        public bool IsNormalContainer => !_model.IsSvgButtonContainer;
+        public bool IsNormalContainer => !_model.IsSvgButtonContainer && (!_model.IsCurtainMode || CurtainDirection == "BottomToTop");
+
+        public bool IsCurtainMode
+        {
+            get => _model.IsCurtainMode;
+            set
+            {
+                _model.IsCurtainMode = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsNormalContainer));
+                if (value)
+                {
+                    _suppressSave = true;
+                    // Set default curtain icon size on activation
+                    if (_model.CurtainShortcutIconSize < 50)
+                    {
+                        _model.CurtainShortcutIconSize = 50;
+                        OnPropertyChanged(nameof(CurtainShortcutIconSize));
+                    }
+
+                    // First trigger view docking to identify CurtainDirection and position
+                    RequestDockCurtain?.Invoke();
+
+                    // Now adjust dimensions based on the determined direction
+                    if (CurtainDirection == "BottomToTop")
+                    {
+                        _model.CurtainOpenHeight = _model.Height;
+                        OnPropertyChanged(nameof(CurtainOpenHeight));
+                        _model.Height = CurtainClosedHeight;
+                        OnPropertyChanged(nameof(Height));
+                        _clipHeight = CurtainClosedHeight;
+                        OnPropertyChanged(nameof(ClipHeight));
+                    }
+                    else
+                    {
+                        _model.CurtainOpenWidth = _model.Width;
+                        OnPropertyChanged(nameof(CurtainOpenWidth));
+                        _model.Width = CurtainStripWidth;
+                        OnPropertyChanged(nameof(Width));
+                        _clipWidth = CurtainStripWidth;
+                        OnPropertyChanged(nameof(ClipWidth));
+                    }
+                    _suppressSave = false;
+                }
+                else
+                {
+                    _suppressSave = true;
+                    if (CurtainDirection == "BottomToTop")
+                    {
+                        _model.Height = _model.CurtainOpenHeight;
+                        OnPropertyChanged(nameof(Height));
+                        _clipHeight = _model.Height;
+                        OnPropertyChanged(nameof(ClipHeight));
+                    }
+                    else
+                    {
+                        _model.Width = _model.CurtainOpenWidth;
+                        OnPropertyChanged(nameof(Width));
+                        _clipWidth = _model.Width;
+                        OnPropertyChanged(nameof(ClipWidth));
+                    }
+                    _suppressSave = false;
+                }
+                OnPropertyChanged(nameof(IsCurtainActive));
+                Save();
+            }
+        }
+
+        public bool IsCurtainActive => _model.IsCurtainMode;
+
+        public string CurtainHeaderMode
+        {
+            get => _model.CurtainHeaderMode;
+            set { _model.CurtainHeaderMode = value; OnPropertyChanged(); Save(); }
+        }
+
+        public double CurtainOpenWidth
+        {
+            get => _model.CurtainOpenWidth;
+            set { _model.CurtainOpenWidth = Math.Clamp(value, 100.0, 800.0); OnPropertyChanged(); Save(); }
+        }
+
+        public double CurtainOpenHeight
+        {
+            get => _model.CurtainOpenHeight;
+            set { _model.CurtainOpenHeight = Math.Clamp(value, 100.0, 1200.0); OnPropertyChanged(); Save(); }
+        }
+
+        public double CurtainClosedHeight => 48.0;
+        public double CurtainStripWidth => 48.0;
+
+        public int CurtainShortcutIconSize
+        {
+            get => _model.CurtainShortcutIconSize < 16 ? 50 : _model.CurtainShortcutIconSize;
+            set { _model.CurtainShortcutIconSize = Math.Clamp(value, 16, 64); OnPropertyChanged(); Save(); }
+        }
+
+        public string CurtainDirection
+        {
+            get => _model.CurtainDirection;
+            set
+            {
+                _model.CurtainDirection = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsCurtainInverted));
+                Save();
+            }
+        }
+
+        public bool IsCurtainInverted => _model.CurtainDirection == "RightToLeft";
+
+        /// <summary>Set direction without triggering Save cascade. Caller must Save().</summary>
+        public void ApplyCurtainDirectionNoSave(string direction)
+        {
+            _model.CurtainDirection = direction;
+            OnPropertyChanged(nameof(CurtainDirection));
+            OnPropertyChanged(nameof(IsCurtainInverted));
+        }
+
+        public event Action? RequestDockCurtain;
 
         public bool HideAddSvgButton
         {
@@ -409,6 +610,9 @@ namespace Palisades.ViewModels
             set { _isEditing = value; OnPropertyChanged(); }
         }
 
+        /// <summary>Suppress curtain open animation during drag.</summary>
+        public bool IsDragging { get; set; }
+
         public bool IsHovered
         {
             get => _isHovered;
@@ -425,19 +629,56 @@ namespace Palisades.ViewModels
                 if (Math.Abs(targetOpacity - _currentOpacity) > 0.005)
                     StartOpacityAnimation(targetOpacity);
 
-                if (_model.AutoHide)
+                if (_model.IsCurtainMode)
                 {
                     if (value)
                     {
                         _autoHideTimer?.Stop();
-                        if (Height < _fullHeight || _isAnimatingHeight)
+                        if (!IsDragging)
+                        {
+                            if (CurtainDirection == "BottomToTop")
+                            {
+                                double targetH = CurtainClosedHeight + _model.CurtainOpenHeight;
+                                StartHeightAnimation(targetH, ShowDurMs);
+                            }
+                            else
+                            {
+                                double targetW = CurtainStripWidth + _model.CurtainOpenWidth;
+                                StartWidthAnimation(targetW, ShowDurMs);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (!IsDragging)
+                        {
+                            if (CurtainDirection == "BottomToTop")
+                            {
+                                StartHeightAnimation(CurtainClosedHeight, HideDurMs);
+                            }
+                            else
+                            {
+                                StartWidthAnimation(CurtainStripWidth, HideDurMs);
+                            }
+                        }
+                    }
+                }
+                else if (_model.AutoHide)
+                {
+                    if (value)
+                    {
+                        _autoHideTimer?.Stop();
+                        if (ClipHeight < _fullHeight || _isAnimatingHeight)
                         {
                             StartHeightAnimation(_fullHeight, ShowDurMs);
                         }
                     }
                     else
                     {
-                        StartHeightAnimation(MIN_AUTO_HIDE_HEIGHT, HideDurMs);
+                        if (!IsDragging)
+                        {
+                            StartHeightAnimation(CollapsedHeight, HideDurMs);
+                        }
                     }
                 }
             }
@@ -451,6 +692,17 @@ namespace Palisades.ViewModels
             set
             {
                 _model.ShowShortcutArrow = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public bool ShowRecycleBin
+        {
+            get => _model.ShowRecycleBin;
+            set
+            {
+                _model.ShowRecycleBin = value;
                 OnPropertyChanged();
                 Save();
             }
@@ -473,6 +725,17 @@ namespace Palisades.ViewModels
             set
             {
                 _model.ShortcutIconSize = Math.Clamp(value, 24, 64);
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public bool TwoLineShortcuts
+        {
+            get => _model.TwoLineShortcuts;
+            set
+            {
+                _model.TwoLineShortcuts = value;
                 OnPropertyChanged();
                 Save();
             }
@@ -520,6 +783,7 @@ namespace Palisades.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(BodyOpacityFactor));
                 OnPropertyChanged(nameof(BodyColorWithOpacity));
+                OnPropertyChanged(nameof(PreviewBackgroundBrush));
                 Save();
             }
         }
@@ -551,6 +815,27 @@ namespace Palisades.ViewModels
 
         public bool IsDetailsView => _model.ViewMode == "Details";
 
+        public Brush PreviewBackgroundBrush
+        {
+            get
+            {
+                if (BodyGradientEnabled && IsGradient && GradientEndColor != null &&
+                    ColorConverter.ConvertFromString(GradientEndColor) is Color endRaw &&
+                    ColorConverter.ConvertFromString(_model.BodyColor) is Color bodyColor)
+                {
+                    var end = Color.FromArgb(bodyColor.A, endRaw.R, endRaw.G, endRaw.B);
+                    double rad = GradientAngle * Math.PI / 180;
+                    double cos = Math.Cos(rad), sin = Math.Sin(rad);
+                    return new LinearGradientBrush(bodyColor, end,
+                        new Point(0.5 - cos / 2, 0.5 - sin / 2),
+                        new Point(0.5 + cos / 2, 0.5 + sin / 2));
+                }
+                if (ColorConverter.ConvertFromString(_model.BodyColor) is Color solidColor)
+                    return new SolidColorBrush(solidColor);
+                return new SolidColorBrush(Colors.Transparent);
+            }
+        }
+
         public string? ContainerThemeName
         {
             get => _model.ContainerThemeName;
@@ -566,13 +851,13 @@ namespace Palisades.ViewModels
             }
         }
 
-        public bool IsThemeActive => ContainerThemeName != "Custom";
+        public bool IsThemeActive => ContainerThemeName is not "Custom" and not "Global";
 
         public static string[] ContainerThemeNames
         {
             get
             {
-                var list = new List<string> { "Theme", "Custom" };
+                var list = new List<string> { "Global", "Custom" };
                 list.AddRange(ThemeService.Presets.Select(p => p.Name));
                 try
                 {
@@ -707,6 +992,7 @@ namespace Palisades.ViewModels
         public ICommand ToggleLockCommand { get; }
         public ICommand ToggleAutoHideCommand { get; }
         public ICommand EditCommand { get; }
+        public ICommand DuplicateCommand { get; }
         public ICommand DeleteShortcutCommand { get; }
         public ICommand UndoLastDeleteCommand { get; }
         public ICommand ChangeFolderPortalPathCommand { get; }
@@ -759,11 +1045,16 @@ namespace Palisades.ViewModels
         public event Action? RequestClose;
         public event Action? RequestEdit;
         public event Action? RequestCreateShortcut;
+        public event Action? RequestDuplicate;
         public event Action? PositionChanged;
 
         public ContainerViewModel(ContainerModel model)
         {
             _model = model;
+            if (model.CurtainShortcutIconSize < 16)
+            {
+                model.CurtainShortcutIconSize = 50;
+            }
             double loadedHeight = model.Height;
 
             // Legacy check: old containers only had Opacity (0-100), not IdleOpacity/ActiveOpacity.
@@ -779,15 +1070,46 @@ namespace Palisades.ViewModels
                 _activeOpacityPercent = model.ActiveOpacity > 0 ? model.ActiveOpacity : 41;
             }
             _currentOpacity = _idleOpacityPercent / 100.0;
-            _fullHeight = Math.Max(MIN_AUTO_HIDE_HEIGHT + 60, model.FullHeight);
-            if (loadedHeight > _fullHeight && loadedHeight > MIN_AUTO_HIDE_HEIGHT + 20)
+            _fullHeight = Math.Max(CollapsedHeight + 60, model.FullHeight);
+            if (loadedHeight > _fullHeight && loadedHeight > CollapsedHeight + 20)
                 _fullHeight = loadedHeight;
-            _clipHeight = _fullHeight;
+            if (model.IsCurtainMode)
+            {
+                if (model.CurtainDirection == "BottomToTop")
+                {
+                    model.Height = 48.0;
+                    _clipHeight = 48.0;
+                    _clipWidth = model.Width;
+                    OnPropertyChanged(nameof(Height));
+                }
+                else
+                {
+                    model.Width = 48.0;
+                    _clipWidth = 48.0;
+                    _clipHeight = model.Height;
+                    OnPropertyChanged(nameof(Width));
+                }
+            }
+            else
+            {
+                _clipHeight = model.Height;
+                _clipWidth = model.Width;
+            }
 
-            if (model.AutoHide)
+            // Curtain containers handle visibility on their own (hover open/close),
+            // don't force auto-hide height which conflicts with user's height resize.
+            if (model.AutoHide && !model.IsCurtainMode)
             {
                 _suppressSave = true;
-                Height = MIN_AUTO_HIDE_HEIGHT;
+                _clipHeight = CollapsedHeight;
+                OnPropertyChanged(nameof(ClipHeight));
+                // Keep _model.Height at full height for correct layout space,
+                // clip handles visual collapse. First hover animation starts from _clipHeight.
+                if (model.Height < _fullHeight)
+                {
+                    model.Height = _fullHeight;
+                    OnPropertyChanged(nameof(Height));
+                }
                 _suppressSave = false;
             }
 
@@ -795,6 +1117,7 @@ namespace Palisades.ViewModels
             ToggleLockCommand = new RelayCommand(() => IsLocked = !IsLocked);
             ToggleAutoHideCommand = new RelayCommand(() => AutoHide = !AutoHide);
             EditCommand = new RelayCommand(() => RequestEdit?.Invoke());
+            DuplicateCommand = new RelayCommand(() => RequestDuplicate?.Invoke());
             DeleteShortcutCommand = new RelayCommand(DeleteSelectedShortcut);
             UndoLastDeleteCommand = new RelayCommand(UndoLastDelete);
             ChangeFolderPortalPathCommand = new RelayCommand(() => FolderPortalPathChanged?.Invoke(_model.FolderPortalPath));
@@ -811,7 +1134,7 @@ namespace Palisades.ViewModels
                 {
                     _fullHeight = Math.Max(100, Height);
                     _model.FullHeight = _fullHeight;
-                    StartHeightAnimation(MIN_AUTO_HIDE_HEIGHT, HideDurMs);
+                    StartHeightAnimation(CollapsedHeight, HideDurMs);
                     _model.AutoHide = true;
                     OnPropertyChanged(nameof(AutoHide));
                     Save();
@@ -847,6 +1170,11 @@ namespace Palisades.ViewModels
                     case "TitleHoverEffect": TitleHoverEffect = !TitleHoverEffect; break;
                     case "ShowCounter": ShowCounter = !ShowCounter; break;
                     case "IsSvgButtonContainer": IsSvgButtonContainer = !IsSvgButtonContainer; break;
+                    case "CurtainHeaderVertical": CurtainHeaderMode = "Vertical"; break;
+                    case "CurtainHeaderStacked": CurtainHeaderMode = "Stacked"; break;
+                    case "CurtainHeaderHidden": CurtainHeaderMode = "Hidden"; break;
+                    case "CurtainDirectionRightToLeft": CurtainDirection = "RightToLeft"; break;
+                    case "CurtainDirectionLeftToRight": CurtainDirection = "LeftToRight"; break;
                     case "FilterAll": FilterEnabled = false; FilterType = "All"; break;
                     case "FilterPrograms": FilterEnabled = true; FilterType = "Programs"; break;
                     case "FilterDocuments": FilterEnabled = true; FilterType = "Documents"; break;
@@ -883,7 +1211,7 @@ namespace Palisades.ViewModels
 
         private void StartHeightAnimation(double to, double durationMs)
         {
-            double currentClip = _isAnimatingHeight ? _clipHeight : Height;
+            double currentClip = _clipHeight;
             StopHeightAnimation();
             _heightAnimFrom = currentClip;
             _heightAnimTo = to;
@@ -892,9 +1220,12 @@ namespace Palisades.ViewModels
             _suppressSave = true;
             _isAnimatingHeight = true;
 
-            double fullH = Math.Max(_fullHeight, Math.Max(_heightAnimFrom, _heightAnimTo));
-            _model.Height = fullH;
-            OnPropertyChanged(nameof(Height));
+            if (!_model.IsCurtainMode || CurtainDirection != "BottomToTop")
+            {
+                double fullH = Math.Max(_fullHeight, Math.Max(_heightAnimFrom, _heightAnimTo));
+                _model.Height = fullH;
+                OnPropertyChanged(nameof(Height));
+            }
 
             _renderingHandler = (_, _) =>
             {
@@ -902,6 +1233,12 @@ namespace Palisades.ViewModels
                 double t = Math.Min(1.0, elapsed / _heightAnimDuration);
                 double eased = t * t * (3.0 - 2.0 * t);
                 ClipHeight = _heightAnimFrom + (_heightAnimTo - _heightAnimFrom) * eased;
+
+                if (_model.IsCurtainMode && CurtainDirection == "BottomToTop")
+                {
+                    _model.Height = ClipHeight;
+                    OnPropertyChanged(nameof(Height));
+                }
 
                 if (t >= 1.0)
                 {
@@ -930,6 +1267,125 @@ namespace Palisades.ViewModels
             }
             _isAnimatingHeight = false;
             _suppressSave = false;
+        }
+
+        public void StartHeightAnimationIfHovered()
+        {
+            if (_isHovered && _model.IsCurtainMode && CurtainDirection == "BottomToTop")
+            {
+                double targetH = CurtainClosedHeight + _model.CurtainOpenHeight;
+                StartHeightAnimation(targetH, ShowDurMs);
+            }
+        }
+
+        public void SetCurtainOpenHeightDirectly()
+        {
+            if (!_model.IsCurtainMode) return;
+            double currentHeight = _model.Height;
+            double targetHeight = CurtainClosedHeight + _model.CurtainOpenHeight;
+            _model.Height = targetHeight;
+            OnPropertyChanged(nameof(Height));
+            _clipHeight = targetHeight;
+            OnPropertyChanged(nameof(ClipHeight));
+
+            // Shift Y so bottom edge remains anchored to screen bottom
+            double delta = targetHeight - currentHeight;
+            _model.Y -= delta;
+            OnPropertyChanged(nameof(Y));
+        }
+
+        private EventHandler? _widthRenderingHandler;
+        private DateTime _widthAnimStart;
+        private double _widthAnimFrom;
+        private double _widthAnimTo;
+        private double _widthAnimDuration;
+        private double _widthAnimStartX;
+        private bool _isAnimatingWidth;
+
+        public void StartWidthAnimation(double to, double durationMs)
+        {
+            double currentClip = _isAnimatingWidth ? _clipWidth : Width;
+            StopWidthAnimation();
+            _widthAnimFrom = currentClip;
+            _widthAnimTo = to;
+            _widthAnimDuration = durationMs;
+            _widthAnimStart = DateTime.UtcNow;
+            _widthAnimStartX = X;
+            _suppressSave = true;
+            _isAnimatingWidth = true;
+
+            _widthRenderingHandler = (_, _) =>
+            {
+                double elapsed = (DateTime.UtcNow - _widthAnimStart).TotalMilliseconds;
+                double t = Math.Min(1.0, elapsed / _widthAnimDuration);
+                double eased = t * t * (3.0 - 2.0 * t);
+                ClipWidth = _widthAnimFrom + (_widthAnimTo - _widthAnimFrom) * eased;
+
+                // Sync physical width
+                _model.Width = ClipWidth;
+                OnPropertyChanged(nameof(Width));
+
+                // For RightToLeft, shift X to slide out from right edge
+                if (CurtainDirection == "RightToLeft")
+                {
+                    X = _widthAnimStartX + (_widthAnimFrom - ClipWidth);
+                }
+
+                if (t >= 1.0)
+                {
+                    CompositionTarget.Rendering -= _widthRenderingHandler;
+                    _widthRenderingHandler = null;
+                    _suppressSave = false;
+                    _isAnimatingWidth = false;
+
+                    if (CurtainDirection == "RightToLeft")
+                    {
+                        X = _widthAnimStartX + (_widthAnimFrom - _widthAnimTo);
+                    }
+                    Width = _widthAnimTo;
+                    ClipWidth = _widthAnimTo;
+                }
+            };
+            CompositionTarget.Rendering += _widthRenderingHandler;
+        }
+
+        public void StopWidthAnimation()
+        {
+            if (_widthRenderingHandler != null)
+            {
+                CompositionTarget.Rendering -= _widthRenderingHandler;
+                _widthRenderingHandler = null;
+            }
+            _isAnimatingWidth = false;
+            _suppressSave = false;
+        }
+
+        public void StartWidthAnimationIfHovered()
+        {
+            if (_isHovered && _model.IsCurtainMode && CurtainDirection != "BottomToTop")
+            {
+                double targetW = CurtainStripWidth + _model.CurtainOpenWidth;
+                StartWidthAnimation(targetW, ShowDurMs);
+            }
+        }
+
+        public void SetCurtainOpenWidthDirectly()
+        {
+            if (!_model.IsCurtainMode || CurtainDirection == "BottomToTop") return;
+            double currentWidth = _model.Width;
+            double targetWidth = CurtainStripWidth + _model.CurtainOpenWidth;
+            _model.Width = targetWidth;
+            OnPropertyChanged(nameof(Width));
+            _clipWidth = targetWidth;
+            OnPropertyChanged(nameof(ClipWidth));
+
+            // Shift X for RightToLeft so right edge remains anchored
+            if (CurtainDirection == "RightToLeft")
+            {
+                double delta = targetWidth - currentWidth;
+                _model.X -= delta;
+                OnPropertyChanged(nameof(X));
+            }
         }
 
         private void StartOpacityAnimation(double to)
@@ -972,6 +1428,19 @@ namespace Palisades.ViewModels
             _autoHideTimer?.Stop();
         }
 
+        public void NotifyResizeEnded()
+        {
+            if (_model.AutoHide && !_isHovered)
+            {
+                if (Height > _fullHeight)
+                {
+                    _fullHeight = Math.Max(100, Height);
+                    _model.FullHeight = _fullHeight;
+                }
+                StartHeightAnimation(CollapsedHeight, HideDurMs);
+            }
+        }
+
         private void EnsureTimer()
         {
             if (_autoHideTimer != null) return;
@@ -989,7 +1458,7 @@ namespace Palisades.ViewModels
                     _fullHeight = Math.Max(100, Height);
                     _model.FullHeight = _fullHeight;
                 }
-                StartHeightAnimation(MIN_AUTO_HIDE_HEIGHT, HideDurMs);
+                StartHeightAnimation(CollapsedHeight, HideDurMs);
             }
         }
 
@@ -1001,7 +1470,7 @@ namespace Palisades.ViewModels
 
         public void RestoreFullHeight()
         {
-            if (Height <= MIN_AUTO_HIDE_HEIGHT + 10)
+            if (Height <= CollapsedHeight + 10)
             {
                 _model.Height = _fullHeight;
                 OnPropertyChanged(nameof(Height));
@@ -1092,7 +1561,7 @@ namespace Palisades.ViewModels
                 StartOpacityAnimation(targetOpacity);
             else
                 CurrentOpacity = targetOpacity;
-            _fullHeight = Math.Max(MIN_AUTO_HIDE_HEIGHT + 60, _model.FullHeight);
+            _fullHeight = Math.Max(CollapsedHeight + 60, _model.FullHeight);
             // Handle AutoHide change (ApplyModelTo bypasses the ViewModel setter)
             if (_model.AutoHide)
             {

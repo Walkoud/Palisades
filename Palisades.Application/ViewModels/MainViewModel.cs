@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
@@ -106,6 +107,20 @@ namespace Palisades.ViewModels
                 var overlay = System.Windows.Application.Current.Windows.OfType<Window>()
                     .FirstOrDefault(w => w is DesktopOverlayWindow) as DesktopOverlayWindow;
                 overlay?.SetShortcutArrow(value);
+            }
+        }
+
+        public bool ShowRecycleBin
+        {
+            get => DefaultModel.ShowRecycleBin;
+            set
+            {
+                DefaultModel.ShowRecycleBin = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                var overlay = System.Windows.Application.Current.Windows.OfType<Window>()
+                    .FirstOrDefault(w => w is DesktopOverlayWindow) as DesktopOverlayWindow;
+                overlay?.RebuildDesktopIcons();
             }
         }
 
@@ -597,8 +612,33 @@ namespace Palisades.ViewModels
 
         public ObservableCollection<SnapshotModel> Snapshots { get; } = new();
 
+        public ObservableCollection<ContributorModel> Contributors { get; } = new();
+
+        public async Task FetchContributorsAsync()
+        {
+            try
+            {
+                using var client = new System.Net.Http.HttpClient();
+                client.DefaultRequestHeaders.UserAgent.TryParseAdd("Palisades");
+                client.Timeout = TimeSpan.FromSeconds(5);
+                var json = await client.GetStringAsync("https://api.github.com/repos/Walkoud/Palisades/contributors");
+                var list = Newtonsoft.Json.JsonConvert.DeserializeObject<List<ContributorModel>>(json);
+                if (list == null) return;
+
+                Contributors.Clear();
+                foreach (var c in list.OrderByDescending(c => c.Contributions))
+                    Contributors.Add(c);
+                OnPropertyChanged(nameof(Contributors));
+            }
+            catch
+            {
+                // Silently fail — network issue or rate limit
+            }
+        }
+
         public event Action? RequestExit;
         public event Action<ContainerViewModel>? RequestEditContainer;
+        public void InvokeRequestEditContainer(ContainerViewModel vm) => RequestEditContainer?.Invoke(vm);
         public event Action<ContainerViewModel>? RequestShowContainer;
         public event Action<ContainerViewModel>? RequestChangeFolderPortalPath;
         public event Action<ContainerViewModel>? RequestRecenter;
@@ -870,8 +910,10 @@ namespace Palisades.ViewModels
                     c.LabelsColor = src.LabelsColor;
                     c.OpenOnDoubleClick = src.OpenOnDoubleClick;
                     c.UseShellContextMenu = src.UseShellContextMenu;
+                    c.TwoLineShortcuts = src.TwoLineShortcuts;
                     c.FilterEnabled = src.FilterEnabled;
                     c.ShowShortcutArrow = src.ShowShortcutArrow;
+                    c.ShowRecycleBin = src.ShowRecycleBin;
                     c.HeaderIconSize = src.HeaderIconSize;
                     c.PrivateBoxAutoLockSeconds = src.PrivateBoxAutoLockSeconds;
                     if (!string.IsNullOrEmpty(src.FilterType))
@@ -1176,6 +1218,7 @@ namespace Palisades.ViewModels
             var vm = new ContainerViewModel(container);
             vm.RequestClose += () => DeleteContainer(vm);
             vm.RequestEdit += () => RequestEditContainer?.Invoke(vm);
+            vm.RequestDuplicate += () => DuplicateContainer(vm);
             vm.FolderPortalPathChanged += _ => RequestChangeFolderPortalPath?.Invoke(vm);
             vm.RequestRecenter += () => RequestRecenter?.Invoke(vm);
             return vm;
@@ -1204,6 +1247,15 @@ namespace Palisades.ViewModels
             if (vm == null) return;
             _manager.DeleteContainer(vm.Identifier);
             Containers.Remove(vm);
+        }
+
+        public void DuplicateContainer(ContainerViewModel? source)
+        {
+            if (source == null) return;
+            var model = _manager.DuplicateContainer(source.Model);
+            var vm = CreateContainerVm(model);
+            Containers.Add(vm);
+            RequestShowContainer?.Invoke(vm);
         }
 
         private void ToggleIcons()
