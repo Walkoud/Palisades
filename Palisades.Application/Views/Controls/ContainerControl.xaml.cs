@@ -97,7 +97,7 @@ namespace Palisades.Views.Controls
                     if (e.PropertyName == nameof(ContainerViewModel.ClipHeight))
                     {
                         UpdateClip();
-                        if (viewModel.IsCurtainMode && !_isDragging && _parentCanvas != null)
+                        if (viewModel.IsCurtainMode && viewModel.CurtainDirection == "BottomToTop" && !_isDragging && _parentCanvas != null)
                         {
                             // Find screen based on center
                             double currentLeft = Canvas.GetLeft(this);
@@ -136,7 +136,9 @@ namespace Palisades.Views.Controls
                         // Sync Canvas.Left for RTL width animation (anchors right edge).
                         // Safe: drag suppresses width animation via IsDragging flag.
                         if (!_vm.IsDragging && _parentCanvas != null)
+                        {
                             Canvas.SetLeft(this, _vm.X - OverlayOffsetX);
+                        }
                     }
 
                     if (e.PropertyName == nameof(ContainerViewModel.CornerRadius))
@@ -391,19 +393,27 @@ namespace Palisades.Views.Controls
             double currentTop = Canvas.GetTop(this);
             if (double.IsNaN(currentTop)) currentTop = _vm.Y - OverlayOffsetY;
 
-            double width = _vm.Width;
-            double height = _vm.Height;
+            // Use CLIP dimensions for edge detection — Width/Height may hold the
+            // open-curtain layout size (e.g. 478px) while the visible strip is
+            // only CurtainStripWidth (48px). ClipWidth/ClipHeight match what the
+            // user actually sees and drags.
+            double width = _vm.ClipWidth;
+            double height = _vm.ClipHeight;
 
             var dpiInfo = VisualTreeHelper.GetDpi(this);
             double dpiX = dpiInfo.DpiScaleX > 0 ? dpiInfo.DpiScaleX : 1.0;
             double dpiY = dpiInfo.DpiScaleY > 0 ? dpiInfo.DpiScaleY : 1.0;
 
-            // Find screen based on center
-            double centerX = currentLeft + width / 2 + OverlayOffsetX;
+            // Find which monitor the container is on using its left edge.
+            // Using center is unreliable near monitor boundaries: a 48px strip
+            // at the right edge of monitor 1 has its center past the boundary
+            // into monitor 2, causing incorrect screen selection.
+            double containerLeft = currentLeft + OverlayOffsetX;
+            double centerX = containerLeft + width / 2;
             double centerY = currentTop + height / 2 + OverlayOffsetY;
-            var physicalX = (int)(centerX * dpiX);
+            var physicalScreenX = (int)(containerLeft * dpiX);
             var physicalY = (int)(centerY * dpiY);
-            var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(physicalX, physicalY));
+            var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(physicalScreenX, physicalY));
 
             double screenLeft = screen.WorkingArea.Left / dpiX;
             double screenRight = screen.WorkingArea.Right / dpiX;
@@ -431,13 +441,35 @@ namespace Palisades.Views.Controls
 
             _vm.ApplyCurtainDirectionNoSave(bestDirection);
 
+            // Sync container dimensions to match the new direction.
+            // IsCurtainMode setter shrinks dimensions AFTER docking, so on first
+            // activation _vm.ClipWidth/Height are still the full container size.
+            // Using curtain constants directly ensures correct position regardless
+            // of call timing. Also handles re-dock to a different edge.
+            if (bestDirection == "BottomToTop")
+            {
+                _vm.ClipHeight = _vm.CurtainClosedHeight;
+                _vm.Height = _vm.CurtainClosedHeight;
+                // Expand width for bottom-to-top normal layout
+                if (_vm.Width < 200)
+                    _vm.Width = 200;
+            }
+            else
+            {
+                _vm.ClipWidth = _vm.CurtainStripWidth;
+                _vm.Width = _vm.CurtainStripWidth;
+                // Expand height for side curtains
+                if (_vm.Height < 150)
+                    _vm.Height = 150;
+            }
+
             double dockedLeft = currentLeft;
             double dockedTop = currentTop;
 
             if (bestDirection == "BottomToTop")
             {
-                dockedTop = (screenBottom - OverlayOffsetY) - _vm.ClipHeight;
-                dockedLeft = Math.Clamp(currentLeft, screenLeft - OverlayOffsetX, screenRight - OverlayOffsetX - width);
+                dockedTop = (screenBottom - OverlayOffsetY) - _vm.CurtainClosedHeight;
+                dockedLeft = Math.Clamp(currentLeft, screenLeft - OverlayOffsetX, screenRight - OverlayOffsetX - _vm.Width);
             }
             else if (bestDirection == "LeftToRight")
             {
@@ -446,7 +478,7 @@ namespace Palisades.Views.Controls
             }
             else // RightToLeft
             {
-                dockedLeft = screenRight - OverlayOffsetX - _vm.ClipWidth;
+                dockedLeft = screenRight - OverlayOffsetX - _vm.CurtainStripWidth;
                 dockedTop = Math.Clamp(currentTop, screenTop - OverlayOffsetY, screenBottom - OverlayOffsetY - height);
             }
 
@@ -473,10 +505,16 @@ namespace Palisades.Views.Controls
             if (CurtainContentElement != null)
                 CurtainContentElement.Clip = null;
 
-            // BottomToTop: height naturally constrains content, no clip needed
+            // BottomToTop: height constrains content, but need clip for corner radius
             if (_vm.CurtainDirection == "BottomToTop")
             {
-                MainBorder.Clip = null;
+                double btmCr = _vm.CornerRadius;
+                double btmW = MainBorder.ActualWidth;
+                double btmH = MainBorder.ActualHeight;
+                if (btmCr > 0 && btmW > 0 && btmH > 0)
+                    MainBorder.Clip = new RectangleGeometry(new Rect(0, 0, btmW, btmH), btmCr, btmCr);
+                else
+                    MainBorder.Clip = null;
                 return;
             }
 
@@ -713,18 +751,18 @@ namespace Palisades.Views.Controls
         {
             if (_vm.IsLocked || _parentCanvas == null) return;
             _isDragging = true;
-            _vm.IsHovered = true;
+            _vm.IsHovered = false;
             if (_vm.IsCurtainMode)
             {
                 if (_vm.CurtainDirection == "BottomToTop")
                 {
                     _vm.StopHeightAnimation();
-                    _vm.SetCurtainOpenHeightDirectly();
+                    _vm.ClipHeight = _vm.CurtainClosedHeight;
                 }
                 else
                 {
                     _vm.StopWidthAnimation();
-                    _vm.SetCurtainOpenWidthDirectly();
+                    _vm.ClipWidth = _vm.CurtainStripWidth;
                 }
             }
             else
@@ -797,7 +835,12 @@ namespace Palisades.Views.Controls
                 }
                 else
                 {
-                    var snapResult = ApplySnap(proposedLeft, proposedTop, _vm.Width, _vm.Height);
+                    // Use CLIP dimensions during curtain drag so snap sees the
+                    // visible strip size (48px) instead of the full layout width
+                    // (e.g. 478px from the previously-open curtain).
+                    double snapW = _vm.IsCurtainMode ? _vm.ClipWidth : _vm.Width;
+                    double snapH = _vm.IsCurtainMode ? _vm.ClipHeight : _vm.Height;
+                    var snapResult = ApplySnap(proposedLeft, proposedTop, snapW, snapH);
                     snapX = snapResult.Item1;
                     snapY = snapResult.Item2;
                 }
@@ -863,17 +906,27 @@ namespace Palisades.Views.Controls
                     {
                         DockCurtainToScreenEdge();
 
-                        // Re-evaluate hover state based on cursor position relative to the container
-                        _vm.IsHovered = IsMouseOver;
+                        // Check hover via mouse position relative to visual bounds.
+                        // IsMouseOver is unreliable here — layout from Canvas.SetLeft hasn't
+                        // settled, so async MouseLeave can fire later and trigger a close
+                        // animation that overwrites the correct dock+open position.
+                        var mousePt = Mouse.GetPosition(this);
+                        bool hovered = mousePt.X >= -1 && mousePt.X < ActualWidth + 1 &&
+                                       mousePt.Y >= -1 && mousePt.Y < ActualHeight + 1;
 
-                        // Set open height/width instantly (no animation) to avoid coordinate drift
-                        if (_vm.IsHovered)
+                        if (hovered)
                         {
                             if (_vm.CurtainDirection == "BottomToTop")
                                 _vm.SetCurtainOpenHeightDirectly();
                             else
                                 _vm.SetCurtainOpenWidthDirectly();
                         }
+                        _vm.IsHovered = hovered;
+                        // Stop any width animation immediately — IsHovered=true
+                        // starts a no-op (478→478) but its CompositionTarget.Rendering
+                        // handler can still fire later with a stale _widthAnimStartX
+                        // (captured before direction change), overwriting the correct X.
+                        _vm.StopWidthAnimation();
                     }
                 }
                 else
