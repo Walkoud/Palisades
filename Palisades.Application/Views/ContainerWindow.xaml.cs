@@ -28,6 +28,7 @@ namespace Palisades.Views
         private Rect _resizeStartRect;
         private bool _windowReady;
         private HwndSource? _hwndSource;
+        private RectangleGeometry? _clipGeometry; // cached, reused per frame
 
         public ContainerWindow(ContainerViewModel viewModel)
         {
@@ -295,14 +296,13 @@ namespace Palisades.Views
             double ch = _vm.ClipHeight;
             double h = Height > 0 ? Height : ActualHeight;
             if (ch >= h) ch = h;
-            if (ch > 0)
-                MainBorder.Clip = new RectangleGeometry(
-                    new Rect(0, 0, MainBorder.ActualWidth, ch),
-                    cr, cr);
+            if (ch <= 0) ch = 1;
+            Rect r = new Rect(0, 0, MainBorder.ActualWidth, ch);
+            if (_clipGeometry == null)
+                _clipGeometry = new RectangleGeometry(r, cr, cr);
             else
-                MainBorder.Clip = new RectangleGeometry(
-                    new Rect(0, 0, MainBorder.ActualWidth, 1),
-                    cr, cr);
+                _clipGeometry.Rect = r;
+            MainBorder.Clip = _clipGeometry;
         }
 
         private void UpdateContainerTheme()

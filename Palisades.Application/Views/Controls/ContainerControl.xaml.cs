@@ -40,6 +40,7 @@ namespace Palisades.Views.Controls
         private System.Windows.Shapes.Rectangle? _selectionRect;
         private System.Windows.Shapes.Rectangle? _insertionMarker;
         private Point _selectionStartPoint;
+        private RectangleGeometry? _clipGeometry; // cached, reused per frame
 
         /// <summary>Offset of parent overlay window from virtual desktop origin.</summary>
         internal double OverlayOffsetX { get; set; }
@@ -526,7 +527,13 @@ namespace Palisades.Views.Controls
                 double btmW = MainBorder.ActualWidth;
                 double btmH = MainBorder.ActualHeight;
                 if (btmCr > 0 && btmW > 0 && btmH > 0)
-                    MainBorder.Clip = new RectangleGeometry(new Rect(0, 0, btmW, btmH), btmCr, btmCr);
+                {
+                    if (_clipGeometry == null)
+                        _clipGeometry = new RectangleGeometry(new Rect(0, 0, btmW, btmH), btmCr, btmCr);
+                    else
+                        _clipGeometry.Rect = new Rect(0, 0, btmW, btmH);
+                    MainBorder.Clip = _clipGeometry;
+                }
                 else
                     MainBorder.Clip = null;
                 return;
@@ -546,13 +553,23 @@ namespace Palisades.Views.Controls
             if (_vm.CurtainDirection == "LeftToRight")
             {
                 double targetW = Math.Max(0, clipW - 14);
-                MainBorder.Clip = new RectangleGeometry(new Rect(0, 0, targetW, h), cr, cr);
+                Rect r = new Rect(0, 0, targetW, h);
+                if (_clipGeometry == null)
+                    _clipGeometry = new RectangleGeometry(r, cr, cr);
+                else
+                    _clipGeometry.Rect = r;
+                MainBorder.Clip = _clipGeometry;
             }
             else if (_vm.CurtainDirection == "RightToLeft")
             {
                 double targetW = Math.Max(0, clipW - 14);
                 double offset = Math.Max(0, w - targetW);
-                MainBorder.Clip = new RectangleGeometry(new Rect(offset, 0, targetW, h), cr, cr);
+                Rect r = new Rect(offset, 0, targetW, h);
+                if (_clipGeometry == null)
+                    _clipGeometry = new RectangleGeometry(r, cr, cr);
+                else
+                    _clipGeometry.Rect = r;
+                MainBorder.Clip = _clipGeometry;
             }
             else
             {
@@ -573,14 +590,13 @@ namespace Palisades.Views.Controls
             double ch = _vm.ClipHeight;
             double h = Height > 0 ? Height : ActualHeight;
             if (ch >= h) ch = h;
-            if (ch > 0)
-                MainBorder.Clip = new RectangleGeometry(
-                    new Rect(0, 0, MainBorder.ActualWidth, ch),
-                    cr, cr);
+            if (ch <= 0) ch = 1;
+            Rect r = new Rect(0, 0, MainBorder.ActualWidth, ch);
+            if (_clipGeometry == null)
+                _clipGeometry = new RectangleGeometry(r, cr, cr);
             else
-                MainBorder.Clip = new RectangleGeometry(
-                    new Rect(0, 0, MainBorder.ActualWidth, 1),
-                    cr, cr);
+                _clipGeometry.Rect = r;
+            MainBorder.Clip = _clipGeometry;
         }
 
         private void ContainerControl_SizeChanged(object sender, SizeChangedEventArgs e)
