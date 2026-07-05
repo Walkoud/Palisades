@@ -219,6 +219,14 @@
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Fill" Value="{DynamicResource ContainerHeaderBrushHover}" />
                                 </MultiDataTrigger>
+                                <!-- Curtain closed: make background transparent so only title shows -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsCurtainMode}" Value="True" />
+                                        <Condition Binding="{Binding IsVisuallyCollapsed}" Value="True" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Fill" Value="Transparent" />
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Rectangle.Style>

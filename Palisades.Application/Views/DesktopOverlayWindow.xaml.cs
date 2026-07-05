@@ -1623,6 +1623,14 @@ namespace Palisades.Views
             {
                 if (child is ContainerControl ctrl && ctrl.Visibility == Visibility.Visible)
                 {
+                    // Auto-hidden containers should not block overlay selection —
+                    // they're collapsed to a small strip and the user expects to
+                    // draw selection rectangles through them.
+                    // Curtain containers are excluded — their strip must remain
+                    // interactive for hover-to-open.
+                    if (ctrl.DataContext is ContainerViewModel vm && vm.IsVisuallyCollapsed && !vm.IsCurtainMode)
+                        continue;
+
                     double left = Canvas.GetLeft(ctrl);
                     double top = Canvas.GetTop(ctrl);
                     double w = double.IsNaN(ctrl.Width) ? ctrl.ActualWidth : ctrl.Width;

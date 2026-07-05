@@ -448,6 +448,14 @@ namespace Palisades.Views.Controls
             // of call timing. Also handles re-dock to a different edge.
             if (bestDirection == "BottomToTop")
             {
+                // When switching from a side curtain to BottomToTop,
+                // CurtainOpenHeight is still 0 (side curtains only set
+                // CurtainOpenWidth). Capture current height as the open
+                // height before syncing dimensions.
+                if (_vm.CurtainOpenHeight < 100)
+                {
+                    _vm.CurtainOpenHeight = Math.Max(100, _vm.Height);
+                }
                 _vm.ClipHeight = _vm.CurtainClosedHeight;
                 _vm.Height = _vm.CurtainClosedHeight;
                 // Expand width for bottom-to-top normal layout
@@ -456,6 +464,12 @@ namespace Palisades.Views.Controls
             }
             else
             {
+                // When switching from BottomToTop to a side curtain,
+                // CurtainOpenWidth may still be 0 (BottomToTop doesn't set it).
+                if (_vm.CurtainOpenWidth < 100)
+                {
+                    _vm.CurtainOpenWidth = Math.Max(100, _vm.Width);
+                }
                 _vm.ClipWidth = _vm.CurtainStripWidth;
                 _vm.Width = _vm.CurtainStripWidth;
                 // Expand height for side curtains

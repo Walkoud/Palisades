@@ -209,7 +209,7 @@ namespace Palisades.ViewModels
         public Visibility ShowTitleVisibility => _model.ShowTitle ? Visibility.Visible : Visibility.Collapsed;
 
         /// <summary>True when the container is visually collapsed (auto-hide enabled AND not hovered).</summary>
-        public bool IsVisuallyCollapsed => AutoHide && !_isHovered;
+        public bool IsVisuallyCollapsed => !_isHovered && (AutoHide || (_model.IsCurtainMode && CurtainDirection == "BottomToTop"));
 
         public string HeaderText
         {
@@ -471,14 +471,25 @@ namespace Palisades.ViewModels
                         OnPropertyChanged(nameof(CurtainShortcutIconSize));
                     }
 
+                    // Save current height/width BEFORE docking — DockCurtainToScreenEdge
+                    // shrinks dimensions to curtain constants, so _model.Height
+                    // would be 48 (not the original) if we read it after Invoke.
+                    double preDockHeight = _model.Height;
+                    double preDockWidth = _model.Width;
+
                     // First trigger view docking to identify CurtainDirection and position
                     RequestDockCurtain?.Invoke();
 
                     // Now adjust dimensions based on the determined direction
                     if (CurtainDirection == "BottomToTop")
                     {
-                        _model.CurtainOpenHeight = _model.Height;
-                        OnPropertyChanged(nameof(CurtainOpenHeight));
+                        // Use pre-dock height; _model.Height is already CurtainClosedHeight
+                        // because DockCurtainToScreenEdge synced it.
+                        if (_model.CurtainOpenHeight < 100)
+                        {
+                            _model.CurtainOpenHeight = preDockHeight;
+                            OnPropertyChanged(nameof(CurtainOpenHeight));
+                        }
                         _model.Height = CurtainClosedHeight;
                         OnPropertyChanged(nameof(Height));
                         _clipHeight = CurtainClosedHeight;
@@ -486,8 +497,13 @@ namespace Palisades.ViewModels
                     }
                     else
                     {
-                        _model.CurtainOpenWidth = _model.Width;
-                        OnPropertyChanged(nameof(CurtainOpenWidth));
+                        // Use pre-dock width; _model.Width is already CurtainStripWidth
+                        // because DockCurtainToScreenEdge synced it.
+                        if (_model.CurtainOpenWidth < 100)
+                        {
+                            _model.CurtainOpenWidth = preDockWidth;
+                            OnPropertyChanged(nameof(CurtainOpenWidth));
+                        }
                         _model.Width = CurtainStripWidth;
                         OnPropertyChanged(nameof(Width));
                         _clipWidth = CurtainStripWidth;
@@ -568,6 +584,7 @@ namespace Palisades.ViewModels
             _model.CurtainDirection = direction;
             OnPropertyChanged(nameof(CurtainDirection));
             OnPropertyChanged(nameof(IsCurtainInverted));
+            OnPropertyChanged(nameof(IsNormalContainer));
         }
 
         public event Action? RequestDockCurtain;
@@ -1236,8 +1253,13 @@ namespace Palisades.ViewModels
 
                 if (_model.IsCurtainMode && CurtainDirection == "BottomToTop")
                 {
+                    double prevHeight = _model.Height;
                     _model.Height = ClipHeight;
                     OnPropertyChanged(nameof(Height));
+                    // Shift Y upward by height increase so bottom edge stays anchored.
+                    // On close, ClipHeight shrinks → delta negative → Y shifts down.
+                    _model.Y -= (ClipHeight - prevHeight);
+                    OnPropertyChanged(nameof(Y));
                 }
 
                 if (t >= 1.0)
