@@ -264,6 +264,13 @@ namespace Palisades.Views.Controls
             // Set initial chevron rotation if visually collapsed on load
             if (_vm.IsVisuallyCollapsed && ChevronPath?.RenderTransform is RotateTransform rt)
                 rt.Angle = 180;
+
+            // Re-dock after close animation completes (fix position drift)
+            _vm.RequestReDock += () =>
+            {
+                if (_vm.IsCurtainMode)
+                    DockCurtainToScreenEdge();
+            };
         }
 
         private bool FilterShortcut(object obj)
@@ -520,22 +527,11 @@ namespace Palisades.Views.Controls
             if (CurtainContentElement != null)
                 CurtainContentElement.Clip = null;
 
-            // BottomToTop: height constrains content, but need clip for corner radius
+            // BottomToTop: height + Y positioning constrains content (no clip needed).
+            // Screen bottom edge naturally clips excess. Corner radius handled by MainBorder.
             if (_vm.CurtainDirection == "BottomToTop")
             {
-                double btmCr = _vm.CornerRadius;
-                double btmW = MainBorder.ActualWidth;
-                double btmH = MainBorder.ActualHeight;
-                if (btmCr > 0 && btmW > 0 && btmH > 0)
-                {
-                    if (_clipGeometry == null)
-                        _clipGeometry = new RectangleGeometry(new Rect(0, 0, btmW, btmH), btmCr, btmCr);
-                    else
-                        _clipGeometry.Rect = new Rect(0, 0, btmW, btmH);
-                    MainBorder.Clip = _clipGeometry;
-                }
-                else
-                    MainBorder.Clip = null;
+                MainBorder.Clip = null;
                 return;
             }
 

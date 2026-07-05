@@ -29,6 +29,7 @@ namespace Palisades.ViewModels
         private double _clipHeight;
         private double _clipWidth;
         private int _savedCornerRadius = 12;
+        private double _rightEdgeDockX; // RightToLeft: anchor right edge, survives interrupted anims
 
         public double ClipHeight
         {
@@ -464,6 +465,7 @@ namespace Palisades.ViewModels
                 if (value)
                 {
                     _suppressSave = true;
+                    _rightEdgeDockX = 0; // Reset anchor, re-dock sets new position
                     // Set default curtain icon size on activation
                     if (_model.CurtainShortcutIconSize < 50)
                     {
@@ -555,7 +557,7 @@ namespace Palisades.ViewModels
             set { _model.CurtainOpenHeight = Math.Clamp(value, 100.0, 1200.0); OnPropertyChanged(); Save(); }
         }
 
-        public double CurtainClosedHeight => 48.0;
+        public double CurtainClosedHeight => Math.Max(52, CollapsedHeight);
         public double CurtainStripWidth => 48.0;
 
         public int CurtainShortcutIconSize
@@ -1061,6 +1063,7 @@ namespace Palisades.ViewModels
         public event Action? RequestRecenter;
         public event Action? RequestClose;
         public event Action? RequestEdit;
+        public event Action? RequestReDock;
         public event Action? RequestCreateShortcut;
         public event Action? RequestDuplicate;
         public event Action? PositionChanged;
@@ -1094,8 +1097,9 @@ namespace Palisades.ViewModels
             {
                 if (model.CurtainDirection == "BottomToTop")
                 {
-                    model.Height = 48.0;
-                    _clipHeight = 48.0;
+                    double closedH = Math.Max(40, CollapsedHeight);
+                    model.Height = closedH;
+                    _clipHeight = closedH;
                     _clipWidth = model.Width;
                     OnPropertyChanged(nameof(Height));
                 }
@@ -1240,12 +1244,15 @@ namespace Palisades.ViewModels
 
             if (_model.IsCurtainMode && CurtainDirection == "BottomToTop")
             {
-                // OPTIM: set Height to max once → no per-frame layout.
-                // Clip hides extra area during animation.
                 _heightAnimStartY = _model.Y;
-                double openH = Math.Max(_heightAnimFrom, _heightAnimTo);
-                _model.Height = openH;
-                OnPropertyChanged(nameof(Height));
+                // Opening: pin Height to max once (optimization).
+                // Closing: animate Height per-frame (avoids restore issue).
+                if (_heightAnimTo > _heightAnimFrom)
+                {
+                    double openH = Math.Max(_heightAnimFrom, _heightAnimTo);
+                    _model.Height = openH;
+                    OnPropertyChanged(nameof(Height));
+                }
             }
             else
             {
@@ -1263,6 +1270,12 @@ namespace Palisades.ViewModels
 
                 if (_model.IsCurtainMode && CurtainDirection == "BottomToTop")
                 {
+                    // Closing: animate Height per-frame (avoids restore issue)
+                    if (_heightAnimTo < _heightAnimFrom)
+                    {
+                        _model.Height = ClipHeight;
+                        OnPropertyChanged(nameof(Height));
+                    }
                     // Y tracks bottom edge: only Canvas position, no layout pass.
                     _model.Y = _heightAnimStartY + (_heightAnimFrom - ClipHeight);
                     OnPropertyChanged(nameof(Y));
@@ -1273,19 +1286,29 @@ namespace Palisades.ViewModels
                     CompositionTarget.Rendering -= _renderingHandler;
                     _renderingHandler = null;
                     _suppressSave = false;
-                    _isAnimatingHeight = false;
                     ClipHeight = _heightAnimTo;
                     // Restore Height to closed size if closing animation
+                    // BottomToTop close animates Height per-frame — no restore needed
                     if (_heightAnimTo < _heightAnimFrom)
                     {
-                        _model.Height = _heightAnimTo;
-                        OnPropertyChanged(nameof(Height));
+                        if (!(_model.IsCurtainMode && CurtainDirection == "BottomToTop"))
+                        {
+                            Height = _heightAnimTo;
+                        }
+                        // Re-dock Y + Canvas position (fixes drift after open/close)
+                        if (_model.IsCurtainMode && CurtainDirection == "BottomToTop")
+                        {
+                            _model.Y = _heightAnimStartY + (_heightAnimFrom - _heightAnimTo);
+                            OnPropertyChanged(nameof(Y));
+                            RequestReDock?.Invoke();
+                        }
                     }
                     if (_heightAnimTo > _fullHeight)
                     {
                         _fullHeight = _heightAnimTo;
                         _model.FullHeight = _heightAnimTo;
                     }
+                    _isAnimatingHeight = false;
                 }
             };
             CompositionTarget.Rendering += _renderingHandler;
@@ -1351,8 +1374,20 @@ namespace Palisades.ViewModels
             {
                 // OPTIM: set Width to max once → no per-frame layout.
                 double openW = Math.Max(_widthAnimFrom, _widthAnimTo);
+                // Don't shrink pinned Width mid-animation (interrupted open→close)
+                if (_model.Width > openW)
+                    openW = _model.Width;
                 _model.Width = openW;
                 OnPropertyChanged(nameof(Width));
+
+                // For RightToLeft: right edge must stay at screen edge immediately.
+                // Width jump (48→448) without X adjustment pushes control past screen.
+                if (CurtainDirection == "RightToLeft")
+                {
+                    if (_rightEdgeDockX == 0)
+                        _rightEdgeDockX = _widthAnimStartX + _widthAnimFrom;
+                    X = _rightEdgeDockX - openW;
+                }
             }
 
             _widthRenderingHandler = (_, _) =>
@@ -1369,11 +1404,9 @@ namespace Palisades.ViewModels
                     OnPropertyChanged(nameof(Width));
                 }
 
-                // For RightToLeft, shift X to anchor right edge (Canvas position, no layout)
-                if (CurtainDirection == "RightToLeft")
-                {
-                    X = _widthAnimStartX + (_widthAnimFrom - ClipWidth);
-                }
+                // RightToLeft X is set once at start / end of animation.
+                // Per-frame X update would misalign because Width stays at max (448)
+                // while the clip controls the visible area.
 
                 if (t >= 1.0)
                 {
@@ -1391,7 +1424,7 @@ namespace Palisades.ViewModels
 
                     if (CurtainDirection == "RightToLeft")
                     {
-                        X = _widthAnimStartX + (_widthAnimFrom - _widthAnimTo);
+                        X = _rightEdgeDockX - _widthAnimTo;
                     }
                 }
             };
