@@ -457,6 +457,7 @@
   "Db_ShowShortcutArrows": "Show shortcut arrows",
   "Db_ShowResizeHandle": "Show resize handle",
   "Db_AutoSaveConfig": "Auto-save config",
+  "Db_ShowFileExtensions": "Show file extensions",
   "Db_ApplicationSettings": "Application Settings",
   "Db_BackupAdministration": "Backup & Administration",
   "Db_BackupConfiguration": "Backup Configuration",

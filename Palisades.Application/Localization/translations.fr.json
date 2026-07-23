@@ -457,6 +457,7 @@
   "Db_ShowShortcutArrows": "Flèches de raccourci (bureau)",
   "Db_ShowResizeHandle": "Poignée de redimensionnement",
   "Db_AutoSaveConfig": "Auto-sauvegarde de config",
+  "Db_ShowFileExtensions": "Afficher les extensions de fichier",
   "Db_ApplicationSettings": "Paramètres de l'Application",
   "Db_BackupAdministration": "Sauvegarde & Administration",
   "Db_BackupConfiguration": "Exporter Configuration",

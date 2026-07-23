@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -20,6 +21,9 @@ namespace Palisades.ViewModels
 {
     public class MainViewModel : INotifyPropertyChanged
     {
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SendMessageTimeout(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+
         private readonly ContainerManager _manager;
         private readonly ThemeService _theme;
         private ContainerViewModel? _selectedContainer;
@@ -135,6 +139,53 @@ namespace Palisades.ViewModels
                 var overlay = System.Windows.Application.Current.Windows.OfType<Window>()
                     .FirstOrDefault(w => w is DesktopOverlayWindow) as DesktopOverlayWindow;
                 overlay?.SetResizeHandle(value);
+            }
+        }
+
+        public bool ShowFileExtensions
+        {
+            get
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced");
+                    if (key == null) return true;
+                    var val = key.GetValue("HideFileExt");
+                    return val is int i ? i == 0 : true;
+                }
+                catch { return true; }
+            }
+            set
+            {
+                try
+                {
+                    ShortcutItem.ShowFileExtensions = value;
+
+                    // Refresh all shortcut display names immediately
+                    foreach (var item in ContainerManager.Instance.UnassignedShortcuts)
+                        item.NotifyDisplayNameChanged();
+                    foreach (var vm in Containers)
+                        foreach (var item in vm.Shortcuts)
+                            item.NotifyDisplayNameChanged();
+
+                    // Rebuild desktop overlay icons (they use direct Text assignment, not binding)
+                    var overlay = System.Windows.Application.Current.Windows.OfType<System.Windows.Window>()
+                        .FirstOrDefault(w => w is Views.DesktopOverlayWindow) as Views.DesktopOverlayWindow;
+                    overlay?.RebuildDesktopIcons();
+
+                    using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", true);
+                    if (key == null) return;
+                    key.SetValue("HideFileExt", value ? 0 : 1, RegistryValueKind.DWord);
+                    OnPropertyChanged();
+                    // Notify Windows Explorer of the change
+                    const int HWND_BROADCAST = 0xffff;
+                    const int WM_SETTINGCHANGE = 0x001a;
+                    var lParam = "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced";
+                    var ptr = Marshal.StringToHGlobalUni(lParam);
+                    SendMessageTimeout(new IntPtr(HWND_BROADCAST), WM_SETTINGCHANGE, IntPtr.Zero, ptr, 0, 1000, out _);
+                    Marshal.FreeHGlobal(ptr);
+                }
+                catch { }
             }
         }
 

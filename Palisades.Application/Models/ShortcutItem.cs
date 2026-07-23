@@ -11,6 +11,9 @@ namespace Palisades.Models
 {
     public class ShortcutItem : INotifyPropertyChanged
     {
+        [JsonIgnore]
+        public static bool ShowFileExtensions { get; set; } = true;
+
         private string _name = string.Empty;
         private string _targetPath = string.Empty;
         private string _arguments = string.Empty;
@@ -200,11 +203,28 @@ namespace Palisades.Models
             get
             {
                 if (!string.IsNullOrEmpty(Name))
+                {
+                    if (ShowFileExtensions && !string.IsNullOrEmpty(ShortcutPath))
+                    {
+                        var ext = Path.GetExtension(ShortcutPath);
+                        // For .lnk files, show the target's extension instead
+                        if (string.Equals(ext, ".lnk", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(TargetPath))
+                            ext = Path.GetExtension(TargetPath);
+
+                        if (!string.IsNullOrEmpty(ext) && !Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                            return Name + ext;
+                    }
                     return Name;
+                }
                 if (!string.IsNullOrEmpty(TargetPath))
                     return Path.GetFileNameWithoutExtension(TargetPath);
                 return TranslationService.Instance["Shortcut_FallbackName"];
             }
+        }
+
+        public void NotifyDisplayNameChanged()
+        {
+            OnPropertyChanged(nameof(DisplayName));
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
