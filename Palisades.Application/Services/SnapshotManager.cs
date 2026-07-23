@@ -118,6 +118,20 @@ namespace Palisades.Services
             SnapshotsChanged?.Invoke();
         }
 
+        public void ClearAllSnapshots()
+        {
+            foreach (var snap in _snapshots)
+            {
+                if (!string.IsNullOrEmpty(snap.ScreenshotPath))
+                {
+                    try { File.Delete(snap.ScreenshotPath); } catch { }
+                }
+            }
+            _snapshots.Clear();
+            Save();
+            SnapshotsChanged?.Invoke();
+        }
+
         public void RenameSnapshot(string identifier, string newName)
         {
             var snap = _snapshots.FirstOrDefault(s => s.Identifier == identifier);

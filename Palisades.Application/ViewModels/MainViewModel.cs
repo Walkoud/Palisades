@@ -598,6 +598,7 @@ namespace Palisades.ViewModels
         public ICommand RestoreSnapshotCommand { get; }
         public ICommand DeleteSnapshotCommand { get; }
         public ICommand RenameSnapshotCommand { get; }
+        public ICommand ClearAllSnapshotsCommand { get; }
 
         // Sort commands
         public ICommand SortAllCommand { get; }
@@ -811,6 +812,18 @@ namespace Palisades.ViewModels
                 var snap = Snapshots.FirstOrDefault(s => s.Identifier == id);
                 if (snap == null) return;
                 // Triggered from XAML via a rename dialog — handled in code-behind
+            });
+
+            ClearAllSnapshotsCommand = new RelayCommand(() =>
+            {
+                var result = MessageBox.Show(
+                    TranslationService.Instance["Dialog_ClearSnapshotsConfirm"],
+                    TranslationService.Instance["Snapshots_Title"],
+                    MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (result == MessageBoxResult.Yes)
+                {
+                    SnapshotManager.Instance.ClearAllSnapshots();
+                }
             });
 
             // Sort commands

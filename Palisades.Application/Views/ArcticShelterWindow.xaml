@@ -2051,7 +2051,10 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_Snapshots]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_CaptureSnapshot]}" Command="{Binding CreateSnapshotCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClearAllSnapshots]}" Command="{Binding ClearAllSnapshotsCommand}" Padding="10,6" Background="#2C1A1A" BorderBrush="#3C2222" Foreground="#FCA5A5" Cursor="Hand" Margin="0,0,8,0"/>
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_CaptureSnapshot]}" Command="{Binding CreateSnapshotCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand"/>
+                                    </StackPanel>
                                 </Grid>
                                 <ItemsControl ItemsSource="{Binding Snapshots}" Margin="0,4,0,0">
                                     <ItemsControl.ItemTemplate>
