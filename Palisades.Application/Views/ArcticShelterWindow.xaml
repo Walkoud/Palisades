@@ -1946,7 +1946,7 @@
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="Palisades" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiTextForegroundBrush}" />
                                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                            <TextBlock Text="Version 0.3.0" FontSize="12" Foreground="{DynamicResource GuiTextForegroundBrush}" />
+                                            <TextBlock Text="Version 1.2.0" FontSize="12" Foreground="{DynamicResource GuiTextForegroundBrush}" />
                                             <TextBlock Text=" • " FontSize="12" Foreground="#526475" Margin="4,0" />
                                             <TextBlock Text="Walkoud" FontSize="12" Foreground="{DynamicResource GuiAccentBrush}" />
                                         </StackPanel>
