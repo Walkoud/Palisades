@@ -1807,6 +1807,14 @@
                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowResizeHandle]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding ShowDesktopResizeHandle}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowFileExtensions]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <CheckBox Grid.Column="1" IsChecked="{Binding ShowFileExtensions}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="140" />
@@ -1938,7 +1946,7 @@
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="Palisades" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiTextForegroundBrush}" />
                                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                            <TextBlock Text="Version 0.3.0" FontSize="12" Foreground="{DynamicResource GuiTextForegroundBrush}" />
+                                            <TextBlock Text="Version 1.2.0" FontSize="12" Foreground="{DynamicResource GuiTextForegroundBrush}" />
                                             <TextBlock Text=" • " FontSize="12" Foreground="#526475" Margin="4,0" />
                                             <TextBlock Text="Walkoud" FontSize="12" Foreground="{DynamicResource GuiAccentBrush}" />
                                         </StackPanel>
@@ -2043,7 +2051,10 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_Snapshots]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_CaptureSnapshot]}" Command="{Binding CreateSnapshotCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClearAllSnapshots]}" Command="{Binding ClearAllSnapshotsCommand}" Padding="10,6" Background="#2C1A1A" BorderBrush="#3C2222" Foreground="#FCA5A5" Cursor="Hand" Margin="0,0,8,0"/>
+                                        <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_CaptureSnapshot]}" Command="{Binding CreateSnapshotCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand"/>
+                                    </StackPanel>
                                 </Grid>
                                 <ItemsControl ItemsSource="{Binding Snapshots}" Margin="0,4,0,0">
                                     <ItemsControl.ItemTemplate>
