@@ -1327,6 +1327,14 @@ namespace Palisades.Views
             }
         }
 
+        private void ContainerViewMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ContainerCardView == null || ContainerListView == null) return;
+            bool listMode = (sender as System.Windows.Controls.ComboBox)?.SelectedIndex == 1;
+            ContainerCardView.Visibility = listMode ? Visibility.Collapsed : Visibility.Visible;
+            ContainerListView.Visibility = listMode ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private void NewButton_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.ContextMenu != null)

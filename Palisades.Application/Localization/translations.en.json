@@ -241,6 +241,7 @@
   "Tray_ShowHideAll": "Show / Hide All",
   "Tray_ToggleDesktopIcons": "Toggle Desktop Icons",
   "Tray_InstallContextMenu": "Install Desktop Context Menu...",
+  "Tray_Restart": "Restart",
   "Tray_Exit": "Exit",
 
   "Dialog_ApplyDefaultsToAll": "Apply default options to ALL containers?",
@@ -317,6 +318,8 @@
   "Db_ClockGadget": "Clock Gadget",
   "Db_SystemMonitor": "System Monitor",
   "Db_ActiveContainers": "Active Shortcut Containers",
+  "Db_ContainerView_Cards": "Cards",
+  "Db_ContainerView_List": "Simple list",
   "Db_ActiveWidgets": "Active Desktop Widgets",
   "Db_CustomizeWidgetPlaceholder": "Select an active widget from the list to customize it.",
   "Db_WidgetCustomization": "Widget Customization",

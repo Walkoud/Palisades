@@ -266,6 +266,7 @@ namespace Palisades
             _trayService.ExitRequested += () => Dispatcher.BeginInvoke(new Action(Shutdown));
             _trayService.ToggleDesktopIconsRequested += () => SafeDispatch(ToggleDesktopIcons);
             _trayService.InstallContextMenuRequested += () => SafeDispatch(InstallDesktopContextMenu);
+            _trayService.RestartRequested += () => Dispatcher.BeginInvoke(new Action(RestartApplication));
 
             string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Ressources", "icon.ico");
             if (File.Exists(iconPath))
@@ -775,6 +776,34 @@ namespace Palisades
                 MessageBox.Show(string.Format(TranslationService.Instance["App_FailedContextMenu"], ex.Message), "Palisades",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void RestartApplication()
+        {
+            try
+            {
+                string exePath = Environment.ProcessPath ??
+                    System.Reflection.Assembly.GetExecutingAssembly().Location;
+
+                // Preserve the original command-line arguments (e.g. --autostart)
+                var args = Environment.GetCommandLineArgs().Skip(1)
+                    .Select(a => "\"" + a.Replace("\"", "\\\"") + "\"");
+                string argString = string.Join(" ", args);
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = exePath,
+                    Arguments = argString,
+                    UseShellExecute = false
+                });
+            }
+            catch (Exception ex)
+            {
+                LogError(ex);
+                return;
+            }
+
+            Dispatcher.BeginInvoke(new Action(Shutdown));
         }
 
         protected override void OnExit(ExitEventArgs e)

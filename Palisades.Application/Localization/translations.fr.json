@@ -241,6 +241,7 @@
   "Tray_ShowHideAll": "Afficher / Masquer tout",
   "Tray_ToggleDesktopIcons": "Afficher/Masquer les icônes",
   "Tray_InstallContextMenu": "Installer le menu contextuel...",
+  "Tray_Restart": "Redémarrer",
   "Tray_Exit": "Quitter",
 
   "Dialog_ApplyDefaultsToAll": "Appliquer les options par défaut à TOUS les conteneurs ?",
@@ -317,6 +318,8 @@
   "Db_ClockGadget": "Horloge",
   "Db_SystemMonitor": "Moniteur Système",
   "Db_ActiveContainers": "Conteneurs de Raccourcis Actifs",
+  "Db_ContainerView_Cards": "Cartes",
+  "Db_ContainerView_List": "Liste simple",
   "Db_ActiveWidgets": "Widgets de Bureau Actifs",
   "Db_CustomizeWidgetPlaceholder": "Sélectionnez un widget actif dans la liste pour le personnaliser.",
   "Db_WidgetCustomization": "Personnalisation du Widget",
