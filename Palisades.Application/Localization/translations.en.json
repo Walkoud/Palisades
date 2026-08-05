@@ -374,6 +374,7 @@
   "Db_PositionXLabel": "Position X",
   "Db_PositionYLabel": "Position Y",
   "Db_OpacityLabel": "Opacity",
+  "Db_AnimationSpeed": "Animation speed",
   "Db_WidgetMargins": "Widget Margins (Spacing around wrapper)",
   "Db_MarginLeftLabel": "Margin Left",
   "Db_MarginTopLabel": "Margin Top",

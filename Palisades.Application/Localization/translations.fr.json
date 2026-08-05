@@ -374,6 +374,7 @@
   "Db_PositionXLabel": "Position X",
   "Db_PositionYLabel": "Position Y",
   "Db_OpacityLabel": "Opacité",
+  "Db_AnimationSpeed": "Vitesse d'animation",
   "Db_WidgetMargins": "Marges Extérieures du Widget",
   "Db_MarginLeftLabel": "Marge Gauche",
   "Db_MarginTopLabel": "Marge Haut",

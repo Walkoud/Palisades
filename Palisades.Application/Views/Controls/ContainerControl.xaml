@@ -178,7 +178,7 @@
                     </Style>
             </Border.Style>
 
-        <Grid>
+        <Grid x:Name="ContentRoot">
             <Grid x:Name="NormalLayoutRoot">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

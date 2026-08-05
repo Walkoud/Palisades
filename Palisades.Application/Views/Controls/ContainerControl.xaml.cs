@@ -112,7 +112,7 @@ namespace Palisades.Views.Controls
 
                             double width = viewModel.Width;
                             double centerX = currentLeft + width / 2 + OverlayOffsetX;
-                            double centerY = currentTop + viewModel.Height / 2 + OverlayOffsetY;
+                            double centerY = currentTop + viewModel.ClipHeight / 2 + OverlayOffsetY;
                             var physicalX = (int)(centerX * dpiX);
                             var physicalY = (int)(centerY * dpiY);
                             var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(physicalX, physicalY));
@@ -527,11 +527,21 @@ namespace Palisades.Views.Controls
             if (CurtainContentElement != null)
                 CurtainContentElement.Clip = null;
 
-            // BottomToTop: height + Y positioning constrains content (no clip needed).
-            // Screen bottom edge naturally clips excess. Corner radius handled by MainBorder.
             if (_vm.CurtainDirection == "BottomToTop")
             {
-                MainBorder.Clip = null;
+                double ch = _vm.ClipHeight;
+                double crv = _vm.CornerRadius;
+                double cw = MainBorder.ActualWidth;
+                double totalH = Height > 0 ? Height : ActualHeight;
+                if (ch >= totalH) ch = totalH;
+                if (ch <= 0) ch = 1;
+                Rect r = new Rect(0, 0, cw, ch);
+                if (_clipGeometry == null)
+                    _clipGeometry = new RectangleGeometry(r, crv, crv);
+                else
+                    _clipGeometry.Rect = r;
+                MainBorder.Clip = _clipGeometry;
+                UpdateContentCache(ch < totalH - 0.5);
                 return;
             }
 
@@ -543,6 +553,7 @@ namespace Palisades.Views.Controls
             if (w <= 0 || h <= 0)
             {
                 MainBorder.Clip = null;
+                UpdateContentCache(false);
                 return;
             }
 
@@ -571,6 +582,7 @@ namespace Palisades.Views.Controls
             {
                 MainBorder.Clip = null;
             }
+            UpdateContentCache(clipW < w - 0.5);
         }
 
         private void UpdateClip()
@@ -578,13 +590,14 @@ namespace Palisades.Views.Controls
             if (_vm.IsCurtainMode) { UpdateCurtainClip(); return; }
             CurtainLayoutRoot.Clip = null;
             double cr = _vm.CornerRadius;
+            double h = Height > 0 ? Height : ActualHeight;
             if (cr <= 0)
             {
                 MainBorder.Clip = null;
+                UpdateContentCache(false);
                 return;
             }
             double ch = _vm.ClipHeight;
-            double h = Height > 0 ? Height : ActualHeight;
             if (ch >= h) ch = h;
             if (ch <= 0) ch = 1;
             Rect r = new Rect(0, 0, MainBorder.ActualWidth, ch);
@@ -593,6 +606,28 @@ namespace Palisades.Views.Controls
             else
                 _clipGeometry.Rect = r;
             MainBorder.Clip = _clipGeometry;
+            UpdateContentCache(_vm.ClipHeight < h - 0.5);
+        }
+
+        /// <summary>
+        /// While the content is clipped below its full size (open/close animation,
+        /// collapsed state), cache the content to a bitmap so each frame only
+        /// re-composites the cached texture instead of re-rasterizing every icon.
+        /// Cost becomes independent of container width.
+        /// </summary>
+        private void UpdateContentCache(bool clipped)
+        {
+            if (ContentRoot == null) return;
+            if (clipped && ContentRoot.CacheMode == null)
+            {
+                double dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+                if (dpi <= 0) dpi = 1.0;
+                ContentRoot.CacheMode = new BitmapCache { RenderAtScale = dpi };
+            }
+            else if (!clipped && ContentRoot.CacheMode != null)
+            {
+                ContentRoot.CacheMode = null;
+            }
         }
 
         private void ContainerControl_SizeChanged(object sender, SizeChangedEventArgs e)

@@ -55,13 +55,13 @@ namespace Palisades.ViewModels
         public double X
         {
             get => _model.X;
-            set { _model.X = Math.Round(value); OnPropertyChanged(); Save(); }
+            set { _model.X = Math.Round(value); OnPropertyChanged(); if (!_suppressSave) Save(); }
         }
 
         public double Y
         {
             get => _model.Y;
-            set { _model.Y = Math.Round(value); OnPropertyChanged(); Save(); }
+            set { _model.Y = Math.Round(value); OnPropertyChanged(); if (!_suppressSave) Save(); }
         }
 
         public double Width
@@ -1245,14 +1245,10 @@ namespace Palisades.ViewModels
             if (_model.IsCurtainMode && CurtainDirection == "BottomToTop")
             {
                 _heightAnimStartY = _model.Y;
-                // Opening: pin Height to max once (optimization).
-                // Closing: animate Height per-frame (avoids restore issue).
-                if (_heightAnimTo > _heightAnimFrom)
-                {
-                    double openH = Math.Max(_heightAnimFrom, _heightAnimTo);
-                    _model.Height = openH;
-                    OnPropertyChanged(nameof(Height));
-                }
+                // Pin Height to max — layout stays stable, only clip changes
+                double fullH = Math.Max(_heightAnimFrom, _heightAnimTo);
+                _model.Height = fullH;
+                OnPropertyChanged(nameof(Height));
             }
             else
             {
@@ -1270,15 +1266,8 @@ namespace Palisades.ViewModels
 
                 if (_model.IsCurtainMode && CurtainDirection == "BottomToTop")
                 {
-                    // Closing: animate Height per-frame (avoids restore issue)
-                    if (_heightAnimTo < _heightAnimFrom)
-                    {
-                        _model.Height = ClipHeight;
-                        OnPropertyChanged(nameof(Height));
-                    }
-                    // Y tracks bottom edge: only Canvas position, no layout pass.
-                    _model.Y = _heightAnimStartY + (_heightAnimFrom - ClipHeight);
-                    OnPropertyChanged(nameof(Y));
+                    // Height pinned at max before animation. Only clip changes per frame.
+                    // Y is synced by the View's ClipHeight PropertyChanged handler.
                 }
 
                 if (t >= 1.0)
@@ -1294,13 +1283,6 @@ namespace Palisades.ViewModels
                         if (!(_model.IsCurtainMode && CurtainDirection == "BottomToTop"))
                         {
                             Height = _heightAnimTo;
-                        }
-                        // Re-dock Y + Canvas position (fixes drift after open/close)
-                        if (_model.IsCurtainMode && CurtainDirection == "BottomToTop")
-                        {
-                            _model.Y = _heightAnimStartY + (_heightAnimFrom - _heightAnimTo);
-                            OnPropertyChanged(nameof(Y));
-                            RequestReDock?.Invoke();
                         }
                     }
                     if (_heightAnimTo > _fullHeight)

@@ -1305,7 +1305,7 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="30" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_WidgetMargins]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AnimationSpeed]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
                                     <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="100" Maximum="1000" SmallChange="50" LargeChange="200" Value="{Binding SelectedContainer.AnimationSpeedMs, Mode=TwoWay}" />
                                     <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AnimationSpeedMs, StringFormat={}{0:F0}ms}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
                                 </Grid>
@@ -1583,7 +1583,7 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="30" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_WidgetMargins]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AnimationSpeed]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
                                     <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="100" Maximum="1000" SmallChange="50" LargeChange="200" Value="{Binding DefaultModel.AnimationSpeedMs, Mode=TwoWay}" Tag="AnimationSpeedMs" ValueChanged="DefaultSlider_ValueChanged" />
                                     <TextBlock Grid.Column="2" Text="{Binding DefaultModel.AnimationSpeedMs, StringFormat={}{0:F0}ms}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
                                 </Grid>
