@@ -9,7 +9,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <ProduceReferenceAssembly>False</ProduceReferenceAssembly>
     <PackageId>Palisades</PackageId>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Authors>Xavier Stouder</Authors>
     <Company>StouderIO</Company>
     <Product>Palisades</Product>

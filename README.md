@@ -41,6 +41,12 @@ Palisades declutter your Windows desktop. Drop icons into organized containers, 
   <img src="documentation/medias/curtain-preview-buttom.gif" width="400" alt="Curtain mode bottom"/>
 </p>
 
+**Android Folders** — New container type inspired by Android launchers: a frosted 96px tile that expands into a centered, fully customizable grid panel right where you click.
+
+<p align="center">
+  <img src="documentation/medias/preview-android-folders.gif" width="400" alt="Android folders"/>
+</p>
+
 **Plugins** — Plugin manager to enable/disable and configure gadgets and extensions.
 
 **Filters** — Show only what you need. Filter a container by file type or custom search.
