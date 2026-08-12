@@ -15,18 +15,23 @@ namespace Palisades.Converters
     {
         private static readonly ConcurrentDictionary<string, BitmapSource> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-        private static BitmapSource? _shortcutArrowBitmap;
+        private static readonly ConcurrentDictionary<int, BitmapSource> _arrowCache = new();
 
         public bool ShowArrow { get; set; } = true;
+
+        /// <summary>Rendered pixel size of the icon bitmap. Defaults to 48 (1:1 with SHIL_EXTRALARGE).</summary>
+        public double IconSize { get; set; } = 48;
 
         public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is not string path || string.IsNullOrEmpty(path))
                 return null;
 
+            int size = (int)Math.Round(IconSize);
+
             if (path.Equals("shell:::{645FF040-5081-101B-9F08-00AA002F954E}", StringComparison.OrdinalIgnoreCase))
             {
-                string cacheKeyRb = $"recycle_bin:arrow={ShowArrow}";
+                string cacheKeyRb = $"recycle_bin:arrow={ShowArrow}:size={size}";
                 if (_cache.TryGetValue(cacheKeyRb, out var cachedRb))
                     return cachedRb;
 
@@ -37,7 +42,7 @@ namespace Palisades.Converters
                     int hrRb = SHDefExtractIcon("shell32.dll", 31, 0, out hIconLarge, out hIconSmall, 256);
                     if (hrRb == 0 && hIconLarge != IntPtr.Zero)
                     {
-                        var baseSource = RenderIconToBitmapSource(hIconLarge, 48);
+                        var baseSource = RenderIconToBitmapSource(hIconLarge, size);
                         DestroyIcon(hIconLarge);
                         if (hIconSmall != IntPtr.Zero) DestroyIcon(hIconSmall);
 
@@ -55,7 +60,7 @@ namespace Palisades.Converters
             string shortcutFlag = parameter as string;
             bool isShortcut = IsShortcut(path) || IsShortcut(shortcutFlag);
 
-            string cacheKey = $"{path}:arrow={ShowArrow}:shortcut={isShortcut}";
+            string cacheKey = $"{path}:arrow={ShowArrow}:shortcut={isShortcut}:size={size}";
 
             if (_cache.TryGetValue(cacheKey, out var cached))
                 return cached;
@@ -78,10 +83,14 @@ namespace Palisades.Converters
 
                 Guid iid = s_imageListGuid;
                 IImageList? iml = null;
-                int hr = SHGetImageList(SHIL_EXTRALARGE, ref iid, ref iml);
+                // Renders above 48px prefer the 256px JUMBO list as source so the
+                // draw downscales instead of upscaling; 48px stays 1:1 with EXTRALARGE.
+                int preferred = size > 48 ? SHIL_JUMBO : SHIL_EXTRALARGE;
+                int fallback = size > 48 ? SHIL_EXTRALARGE : SHIL_JUMBO;
+                int hr = SHGetImageList(preferred, ref iid, ref iml);
                 if (hr != 0 || iml == null)
                 {
-                    hr = SHGetImageList(SHIL_JUMBO, ref iid, ref iml);
+                    hr = SHGetImageList(fallback, ref iid, ref iml);
                     if (hr != 0 || iml == null)
                     {
                         hr = SHGetImageList(SHIL_LARGE, ref iid, ref iml);
@@ -96,7 +105,7 @@ namespace Palisades.Converters
                 if (hIcon == IntPtr.Zero)
                     return null;
 
-                var baseSource = RenderIconToBitmapSource(hIcon, 48);
+                var baseSource = RenderIconToBitmapSource(hIcon, size);
                 DestroyIcon(hIcon);
 
                 if (baseSource == null) return null;
@@ -105,7 +114,7 @@ namespace Palisades.Converters
 
                 if (ShowArrow && isShortcut)
                 {
-                    var arrowSource = GetCachedShortcutArrow();
+                    var arrowSource = GetCachedShortcutArrow(size);
                     if (arrowSource != null)
                         finalSource = CompositeIcons(baseSource, arrowSource);
                 }
@@ -122,7 +131,7 @@ namespace Palisades.Converters
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotImplementedException();
 
-        public static void ClearCache() => _cache.Clear();
+        public static void ClearCache() { _cache.Clear(); _arrowCache.Clear(); }
 
         private static bool IsShortcut(string? path)
         {
@@ -133,9 +142,9 @@ namespace Palisades.Converters
                    ext.Equals(".url", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static BitmapSource? GetCachedShortcutArrow()
+        private static BitmapSource? GetCachedShortcutArrow(int size)
         {
-            if (_shortcutArrowBitmap != null) return _shortcutArrowBitmap;
+            if (_arrowCache.TryGetValue(size, out var cached)) return cached;
 
             var sii = new SHSTOCKICONINFO();
             sii.cbSize = (uint)Marshal.SizeOf<SHSTOCKICONINFO>();
@@ -143,15 +152,16 @@ namespace Palisades.Converters
             int hr = SHGetStockIconInfo(29, 0x00000100, ref sii);
             if (hr == 0 && sii.hIcon != IntPtr.Zero)
             {
-                var arrow = RenderIconToBitmapSource(sii.hIcon, 48);
+                var arrow = RenderIconToBitmapSource(sii.hIcon, size);
                 DestroyIcon(sii.hIcon);
                 if (arrow != null)
                 {
                     arrow.Freeze();
-                    _shortcutArrowBitmap = arrow;
+                    _arrowCache[size] = arrow;
+                    return arrow;
                 }
             }
-            return _shortcutArrowBitmap;
+            return null;
         }
 
         private static BitmapSource CompositeIcons(BitmapSource baseIcon, BitmapSource arrowIcon)

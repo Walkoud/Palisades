@@ -1,15 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -52,6 +56,92 @@ namespace Palisades.Views
         private Border? _drawMenuPopup;
         private double _dpiScaleX = 1.0;
         private double _dpiScaleY = 1.0;
+
+        // Android-style folder open state
+        private bool _androidFolderOpen;
+        private ContainerViewModel? _androidFolderVm;
+        private Rect _androidPanelRect;
+        private double _androidPanelWidth;
+        private double _androidPanelHeight;
+        private Point _androidPanelCenter;
+        // Center of the closed tile, captured at open. The close shrink recedes the panel
+        // toward this point so it ends exactly under the tile (no dot stranded in empty
+        // space). Null when unknown → shrink in place.
+        private Point? _androidTileCenter;
+        // Delays the tile's re-show during a close until the folder has receded part-way
+        // into the tile, so the shrink and the reveal read as one motion (no tile popping
+        // in while the folder is still large — the "tp").
+        private System.Windows.Threading.DispatcherTimer? _androidTileReShowTimer;
+        private ScaleTransform? _androidPanelScale;
+        private TranslateTransform? _androidPanelTranslate;
+        private double _androidPanelStartScale;
+        private double _androidPanelStartTx;
+        private double _androidPanelStartTy;
+        private int _androidGen;
+        private Task<BitmapSource?>? _backdropCaptureTask;
+        private System.Diagnostics.Stopwatch? _androidAnimSw;
+        private System.Windows.Media.Effects.Effect? _androidPanelEffect;
+        private bool _androidOpenAnimFinished;
+        private BitmapSource? _pendingBackdropSource;
+        private static readonly CubicEase _androidEase = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        // Single pre-rendered snapshot for the Scale open animation (atClick): the live
+        // panel is collapsed and a frozen full-size bitmap of it is stretched per frame via
+        // RenderTransform. Software bilinear stretch of a leaf Image is ~1-3ms/frame — the
+        // earlier 40-60ms was BitmapCache re-rasterizing the complex panel tree, not a blit.
+        private BitmapSource? _androidPanelSnapshot;
+        // Pre-filtered (Fant) downscaled snapshots for the close. Swapping the Image source
+        // as the panel shrinks keeps the per-frame LowQuality blit cheap (no big downscale
+        // = no skipped-pixel shimmer), because the aliasing-prone detail is already removed.
+        private BitmapSource? _androidSnapHalf;
+        private BitmapSource? _androidSnapQuarter;
+        private BitmapSource? _androidSnapEighth;
+        private MatrixTransform? _androidGrowTransform;
+        private System.Diagnostics.Stopwatch? _androidGrowSw;
+        private double _androidGrowDurMs;
+        private int _androidGrowGen;
+        private string _androidGrowStyle = "Scale";
+        private double _androidGrowTargetOpacity = 1;
+        private static readonly BackEase _growZoomEase = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.25 };
+        private static readonly CubicEase _growSlideEase = new CubicEase { EasingMode = EasingMode.EaseOut };
+        private static readonly ElasticEase _growElasticEase = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 2, Springiness = 4 };
+
+        // Android folder drag/select/reorder state (within the open panel)
+        private bool _isAndroidIconDrag;
+        private bool _isAndroidRectSelect;
+        private readonly HashSet<ShortcutItem> _androidSelectedItems = new();
+        private readonly HashSet<Border> _androidHighlighted = new();
+        private Point _androidDragStartLocal;
+        private ShortcutItem? _androidDragSourceItem;
+        private bool _androidCtrlHeld;
+        private bool _androidIgnoreThisPress;
+        private Rectangle? _androidSelRect;
+        private Rectangle? _androidInsertionMarker;
+        private bool _isAndroidRenameActive;
+        // Frame-time profiler for the open/close — measures real per-frame cost of the
+        // transparent overlay so backdrop-mode jank can be diagnosed without guessing.
+        private System.Diagnostics.Stopwatch? _androidFrameSw;
+        private double _androidFrameMax;
+        private long _androidFrameCount;
+        private long _androidSlowFrames;
+        private bool _androidFinalized;
+
+        /// <summary>Icon size (px) of shortcuts in the open Android folder panel.</summary>
+        public static readonly DependencyProperty AndroidFolderIconSizeProperty =
+            DependencyProperty.Register(nameof(AndroidFolderIconSize), typeof(double), typeof(DesktopOverlayWindow), new PropertyMetadata(72.0));
+        public double AndroidFolderIconSize
+        {
+            get => (double)GetValue(AndroidFolderIconSizeProperty);
+            set => SetValue(AndroidFolderIconSizeProperty, value);
+        }
+
+        /// <summary>True = shortcut names wrap to 2 lines in the open Android folder panel.</summary>
+        public static readonly DependencyProperty AndroidTwoLineNamesProperty =
+            DependencyProperty.Register(nameof(AndroidTwoLineNames), typeof(bool), typeof(DesktopOverlayWindow), new PropertyMetadata(false));
+        public bool AndroidTwoLineNames
+        {
+            get => (bool)GetValue(AndroidTwoLineNamesProperty);
+            set => SetValue(AndroidTwoLineNamesProperty, value);
+        }
 
         private const int SWP_NOSIZE = 0x0001;
         private const int SWP_NOMOVE = 0x0002;
@@ -123,6 +213,7 @@ namespace Palisades.Views
             };
 
             SnapshotManager.ScreenshotCaptureCallback = CaptureOverlayScreenshot;
+            LogAndroidPerf($"overlay window constructed ({DateTime.Now:yyyy-MM-dd})");
         }
 
         private string? CaptureOverlayScreenshot()
@@ -461,7 +552,23 @@ namespace Palisades.Views
                 bool onOverlay = canvasPt.X >= 0 && canvasPt.X <= Width
                     && canvasPt.Y >= 0 && canvasPt.Y <= Height;
 
-                if (onOverlay || _isDragging || _isRectSelecting)
+                // Android folder open: a click outside the panel closes it.
+                // Over real apps the folder closes and the click reaches the app;
+                // over the desktop it is swallowed so it never hits what's underneath.
+                if (_androidFolderOpen && (wParam.ToInt32() == WM_LBUTTONDOWN || wParam.ToInt32() == WM_RBUTTONDOWN))
+                {
+                    if (onOverlay && !IsOverOpenPanel(canvasPt))
+                    {
+                        CloseAndroidFolder();
+                        return (IntPtr)1;
+                    }
+                    if (!onOverlay)
+                    {
+                        CloseAndroidFolder();
+                    }
+                }
+
+                if (onOverlay || _isDragging || _isRectSelecting || _isAndroidIconDrag)
                 {
                     int msg = wParam.ToInt32();
                     var hitItem = onOverlay ? HitTestIcon(canvasPt) : null;
@@ -497,7 +604,7 @@ namespace Palisades.Views
                             }
                             _overlayHasFocus = true;
                             ActivateDesktopWindow();
-                            if (overContainer || overNote || overGadget || IsOverDrawMenu(canvasPt))
+                            if (overContainer || overNote || overGadget || IsOverDrawMenu(canvasPt) || (_androidFolderOpen && IsOverOpenPanel(canvasPt)))
                             {
                                 if (IsOverDrawMenu(canvasPt))
                                 {
@@ -561,11 +668,15 @@ namespace Palisades.Views
                             return (IntPtr)1;
 
                         case WM_MOUSEMOVE:
-                            if (_isContainerDrag || _isDragging)
+                            if (_isContainerDrag || _isDragging || _isAndroidIconDrag)
                             {
                                 ContainerControl? activeCtrl = null;
                                 foreach (var kvp in _containerControls)
                                 {
+                                    if (!(kvp.Value.DataContext is ContainerViewModel vm))
+                                        continue;
+                                    if (vm.IsVisuallyCollapsed && !vm.IsCurtainMode)
+                                        continue;
                                     double left = Canvas.GetLeft(kvp.Value);
                                     double top = Canvas.GetTop(kvp.Value);
                                     double w = double.IsNaN(kvp.Value.Width) ? kvp.Value.ActualWidth : kvp.Value.Width;
@@ -599,7 +710,10 @@ namespace Palisades.Views
                         case WM_LBUTTONUP:
                             if (_isContainerDrag)
                             {
-                                FinishContainerDrag(canvasPt);
+                                // A drop on the open Android panel swallows the mouse-up so the
+                                // folder does not close right after receiving the items.
+                                if (FinishContainerDrag(canvasPt))
+                                    return (IntPtr)1;
                                 break;
                             }
                             if (_isDragging)
@@ -1058,14 +1172,15 @@ namespace Palisades.Views
             _isContainerDrag = true;
         }
 
-        private void FinishContainerDrag(Point canvasPt)
+        /// <returns>True when the drop targeted the open Android folder panel (caller should swallow the mouse-up).</returns>
+        private bool FinishContainerDrag(Point canvasPt)
         {
             _isContainerDrag = false;
             foreach (var kvp in _containerControls)
                 kvp.Value.ClearInsertionMarker();
             if (_containerDragSource != null && _containerControls.TryGetValue(_containerDragSource.Identifier, out var srcCtrl))
                 srcCtrl.ResetDragState();
-            if (_containerDragItems == null || _containerDragItems.Count == 0) return;
+            if (_containerDragItems == null || _containerDragItems.Count == 0) return false;
 
             double sx = (canvasPt.X + OverlayOffsetX) * _dpiScaleX;
             double sy = (canvasPt.Y + OverlayOffsetY) * _dpiScaleY;
@@ -1075,18 +1190,44 @@ namespace Palisades.Views
             ContainerViewModel? targetVM = null;
             foreach (var kvp in _containerControls)
             {
+                if (!(kvp.Value.DataContext is ContainerViewModel vm))
+                    continue;
+                // Auto-hidden containers are collapsed to a thin strip; a drop below
+                // them (within the expanded bounds) must not land inside the container.
+                // Curtain strips stay interactive for hover-to-open.
+                if (vm.IsVisuallyCollapsed && !vm.IsCurtainMode)
+                    continue;
                 double left = Canvas.GetLeft(kvp.Value);
                 double top = Canvas.GetTop(kvp.Value);
                 double w = double.IsNaN(kvp.Value.Width) ? kvp.Value.ActualWidth : kvp.Value.Width;
                 double h = double.IsNaN(kvp.Value.Height) ? kvp.Value.ActualHeight : kvp.Value.Height;
                 if (canvasPt.X >= left && canvasPt.X <= left + w &&
-                    canvasPt.Y >= top && canvasPt.Y <= top + h &&
-                    kvp.Value.DataContext is ContainerViewModel vm)
+                    canvasPt.Y >= top && canvasPt.Y <= top + h)
                 {
                     targetIdentifier = vm.Identifier;
                     targetVM = vm;
                     break;
                 }
+            }
+
+            // The open Android folder panel is a valid drop target even though it is
+            // rendered in the overlay layer and not present in _containerControls.
+            if (targetVM == null && _androidFolderOpen && _androidFolderVm != null &&
+                _androidPanelRect.Contains(canvasPt))
+            {
+                var dropItems = _containerDragItems.ToList();
+                var dropSrcVM = _containerDragSource;
+                _containerDragItems = null;
+                _containerDragSource = null;
+
+                foreach (var item in dropItems)
+                {
+                    if (dropSrcVM != null) dropSrcVM.Shortcuts.Remove(item);
+                    _androidFolderVm.Shortcuts.Add(item);
+                }
+                dropSrcVM?.Save();
+                _androidFolderVm.Save();
+                return true;
             }
 
             var items = _containerDragItems.ToList();
@@ -1119,14 +1260,24 @@ namespace Palisades.Views
             }
             else if (srcVM != null)
             {
-                // Desktop background → return to unassigned
+                // Desktop background → return to unassigned, placed under the cursor.
+                // The position must be saved before ReturnToUnassigned so the
+                // synchronous RebuildDesktopIcons picks it up.
+                int i = 0;
                 foreach (var item in items)
                 {
                     srcVM.Shortcuts.Remove(item);
+                    string key = item.ShortcutPath ?? item.TargetPath ?? item.Name;
+                    // Center the 80x90 icon tile on the drop point; stagger multi-drops.
+                    ContainerManager.Instance.SetDesktopIconPosition(key,
+                        canvasPt.X - 40 + (i % 3) * 24,
+                        canvasPt.Y - 45 + (i / 3) * 24);
                     ContainerManager.Instance.ReturnToUnassigned(item);
+                    i++;
                 }
                 srcVM.Save();
             }
+            return false;
         }
 
         #endregion
@@ -1649,6 +1800,7 @@ namespace Palisades.Views
             {
                 if (child is ContainerControl ctrl && ctrl.Visibility == Visibility.Visible
                     && ctrl.DataContext is ContainerViewModel vm
+                    && !(vm.IsVisuallyCollapsed && !vm.IsCurtainMode)
                     && (excludeIdentifier == null || vm.Identifier != excludeIdentifier))
                 {
                     double left = Canvas.GetLeft(ctrl);
@@ -1667,7 +1819,9 @@ namespace Palisades.Views
         {
             foreach (UIElement child in OverlayCanvas.Children)
             {
-                if (child is ContainerControl ctrl && ctrl.Visibility == Visibility.Visible)
+                if (child is ContainerControl ctrl && ctrl.Visibility == Visibility.Visible
+                    && ctrl.DataContext is ContainerViewModel vm
+                    && !(vm.IsVisuallyCollapsed && !vm.IsCurtainMode))
                 {
                     double left = Canvas.GetLeft(ctrl);
                     double top = Canvas.GetTop(ctrl);
@@ -1975,15 +2129,22 @@ namespace Palisades.Views
                 };
 
                 vm.RequestClose += () => RemoveContainer(vm.Identifier);
+
+                if (vm.IsAndroidFolderContainer)
+                    control.AndroidFolderOpenRequested += () => OpenAndroidFolder(vm);
             }
             catch (Exception ex)
             {
+                LogAndroidPerf($"AddContainer FAILED ({vm.Name}, type={vm.IsAndroidFolderContainer}): {ex.GetType().Name}: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Failed to add container to overlay: {ex.Message}");
             }
         }
 
         public void RemoveContainer(string identifier)
         {
+            if (_androidFolderVm != null && _androidFolderVm.Identifier == identifier)
+                CloseAndroidFolder();
+
             if (_containerControls.TryGetValue(identifier, out var control))
             {
                 OverlayCanvas.Children.Remove(control);
@@ -2031,8 +2192,1705 @@ namespace Palisades.Views
 
         public void SetAllVisible(bool visible)
         {
+            if (!visible && _androidFolderOpen)
+                CloseAndroidFolder();
             foreach (var ctrl in _containerControls.Values)
                 ctrl.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        #endregion
+
+        #region Android-style folder (open state)
+
+        private static void Animate(DependencyObject target, DependencyProperty prop, double from, double to,
+            double ms, IEasingFunction? ease, Action? onComplete = null)
+        {
+            var anim = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms))
+            {
+                EasingFunction = ease,
+                FillBehavior = FillBehavior.HoldEnd
+            };
+            if (onComplete != null)
+                anim.Completed += (_, _) => onComplete();
+            // IAnimatable covers both Animatable (transforms/brushes) and UIElement (Grid/Border).
+            // A bare `as Animatable` cast would silently no-op for UIElement targets.
+            if (target is IAnimatable animatable)
+                animatable.BeginAnimation(prop, anim);
+        }
+
+        private void OnAndroidRenderFrame(object? sender, EventArgs e)
+        {
+            var sw = _androidFrameSw;
+            if (sw == null) return;
+            double delta = sw.Elapsed.TotalMilliseconds;
+            sw.Restart();
+            _androidFrameCount++;
+            if (delta > _androidFrameMax) _androidFrameMax = delta;
+            if (delta > 25)
+            {
+                _androidSlowFrames++;
+                double t = _androidAnimSw?.Elapsed.TotalMilliseconds ?? -1;
+                double sc = _androidPanelScale?.ScaleX ?? -1;
+                // During the grow the panel transform stays pinned at start scale — report
+                // the snapshot Image's live transform scale instead.
+                if (_androidGrowSw != null && _androidGrowDurMs > 0)
+                {
+                    double tt = _androidGrowSw.Elapsed.TotalMilliseconds;
+                    double eased = _androidEase.Ease(Math.Min(1.0, tt / _androidGrowDurMs));
+                    sc = _androidPanelStartScale + (1 - _androidPanelStartScale) * eased;
+                }
+                // No GC.GetTotalMemory here: it walks the managed heap with the UI thread
+                // blocked, which would manufacture the very slow frames it is logging.
+                LogAndroidPerf($"SLOWFRAME {delta:F0}ms open={_androidFolderOpen} t={t:F0}ms scale={sc:F2} gc0={GC.CollectionCount(0)} gc1={GC.CollectionCount(1)} gc2={GC.CollectionCount(2)}");
+            }
+            // Profile through the close animation: only finalize once FinalizeAndroidClose
+            // has run (the close anim is where the user reported lag).
+            if (!_androidFolderOpen && _androidFinalized && _androidFrameCount > 3)
+            {
+                CompositionTarget.Rendering -= OnAndroidRenderFrame;
+                _androidFrameSw = null;
+                LogAndroidPerf($"FRAMES count={_androidFrameCount} max={_androidFrameMax:F1}ms slow(>25ms)={_androidSlowFrames} ({100.0 * _androidSlowFrames / _androidFrameCount:F0}%)");
+            }
+        }
+
+        /// <summary>
+        /// Capture the desktop behind the overlay, downscale, optionally box-blur it, and
+        /// bake a dim into it. Runs on a background thread: GDI capture + a plain C# blur
+        /// avoid the WPF BlurEffect RenderTargetBitmap pass (software rasterizer) that used
+        /// to block the UI thread and stall the open animation. Caller must pass
+        /// physical-pixel coordinates. keep = 1 - dim/100 (1 = full brightness, 0 = black).
+        /// </summary>
+        private static BitmapSource? CaptureBlurredBackdrop(int x, int y, int w, int h, bool blur, double keep)
+        {
+            try
+            {
+                if (w <= 0 || h <= 0) return null;
+
+                using var src = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                using (var g = System.Drawing.Graphics.FromImage(src))
+                {
+                    g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h));
+                }
+
+                // Downscale before blurring so the pre-blur and the full-screen upscale stay cheap.
+                // Blur hides aliasing, so 0.10 (4% of the pixels) is fine there; the unblurred
+                // wallpaper keeps 0.25 so it stays readable when upscaled.
+                double capScale = blur ? 0.10 : 0.25;
+                int sw = Math.Max(1, (int)Math.Round(w * capScale));
+                int sh = Math.Max(1, (int)Math.Round(h * capScale));
+                using var small = new System.Drawing.Bitmap(sw, sh, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                using (var g = System.Drawing.Graphics.FromImage(small))
+                {
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.Low;
+                    g.DrawImage(src, 0, 0, sw, sh);
+                }
+
+                int stride = sw * 4;
+                var pixels = new byte[stride * sh];
+                var data = small.LockBits(new System.Drawing.Rectangle(0, 0, sw, sh),
+                    System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                    System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+                }
+                finally
+                {
+                    small.UnlockBits(data);
+                }
+
+                // Desktop capture is opaque, so blur only RGB and keep alpha. Radius 4 at 0.10
+                // scale ≈ radius 10 at full res — softer but still hides details, runs ~4× faster.
+                if (blur)
+                    BoxBlur(pixels, sw, sh, stride, 4, 3);
+                // Bake the dim into the capture so the backdrop needs no separate full-screen
+                // dim border — a second full-screen software blend every frame is what made
+                // the full-screen-mode fade stutter.
+                ApplyDim(pixels, keep);
+
+                var bs = BitmapSource.Create(sw, sh, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+                bs.Freeze();
+                return bs;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>Darken a BGRA buffer by a keep factor (0.30 = 70% dim), preserving alpha.</summary>
+        private static void ApplyDim(byte[] pixels, double keep)
+        {
+            for (int i = 0; i < pixels.Length; i += 4)
+            {
+                pixels[i] = (byte)(pixels[i] * keep);
+                pixels[i + 1] = (byte)(pixels[i + 1] * keep);
+                pixels[i + 2] = (byte)(pixels[i + 2] * keep);
+            }
+        }
+
+        /// <summary>Separable box blur (sliding-window sums) on a BGRA buffer. Safe on any thread.</summary>
+        private static void BoxBlur(byte[] pixels, int width, int height, int stride, int radius, int passes)
+        {
+            var tmp = new byte[pixels.Length];
+            for (int p = 0; p < passes; p++)
+            {
+                BlurAxis(pixels, tmp, width, height, stride, radius, horizontal: true);
+                BlurAxis(tmp, pixels, width, height, stride, radius, horizontal: false);
+            }
+        }
+
+        private static void BlurAxis(byte[] src, byte[] dst, int width, int height, int stride, int radius, bool horizontal)
+        {
+            int kernel = radius * 2 + 1;
+            if (horizontal)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    int row = y * stride;
+                    long sb = 0, sg = 0, sr = 0;
+                    for (int x = 0; x < width; x++)
+                    {
+                        int idx = row + x * 4;
+                        sb += src[idx];
+                        sg += src[idx + 1];
+                        sr += src[idx + 2];
+                        if (x >= kernel)
+                        {
+                            int o = row + (x - kernel) * 4;
+                            sb -= src[o];
+                            sg -= src[o + 1];
+                            sr -= src[o + 2];
+                        }
+                        int count = Math.Min(x + 1, kernel);
+                        dst[idx] = (byte)(sb / count);
+                        dst[idx + 1] = (byte)(sg / count);
+                        dst[idx + 2] = (byte)(sr / count);
+                        dst[idx + 3] = src[idx + 3];
+                    }
+                }
+            }
+            else
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    long sb = 0, sg = 0, sr = 0;
+                    for (int y = 0; y < height; y++)
+                    {
+                        int idx = y * stride + x * 4;
+                        sb += src[idx];
+                        sg += src[idx + 1];
+                        sr += src[idx + 2];
+                        if (y >= kernel)
+                        {
+                            int o = (y - kernel) * stride + x * 4;
+                            sb -= src[o];
+                            sg -= src[o + 1];
+                            sr -= src[o + 2];
+                        }
+                        int count = Math.Min(y + 1, kernel);
+                        dst[idx] = (byte)(sb / count);
+                        dst[idx + 1] = (byte)(sg / count);
+                        dst[idx + 2] = (byte)(sr / count);
+                        dst[idx + 3] = src[idx + 3];
+                    }
+                }
+            }
+        }
+
+        private Rect GetTileCanvasRect(ContainerViewModel vm)
+        {
+            if (_containerControls.TryGetValue(vm.Identifier, out var ctrl))
+            {
+                double left = Canvas.GetLeft(ctrl);
+                double top = Canvas.GetTop(ctrl);
+                double w = double.IsNaN(ctrl.Width) ? ctrl.ActualWidth : ctrl.Width;
+                double h = double.IsNaN(ctrl.Height) ? ctrl.ActualHeight : ctrl.Height;
+                if (w > 0 && h > 0)
+                    return new Rect(left, top, w, h);
+            }
+            return Rect.Empty;
+        }
+
+        private bool IsOverOpenPanel(Point canvasPt)
+        {
+            return _androidFolderOpen && _androidPanelRect.Contains(canvasPt);
+        }
+
+        private void SetAndroidTileHidden(ContainerViewModel vm, bool hidden, int animationDurationMs = 200)
+        {
+            if (_containerControls.TryGetValue(vm.Identifier, out var control))
+                control.SetAndroidTileHidden(hidden, animationDurationMs);
+        }
+
+        private void OpenAndroidFolder(ContainerViewModel vm)
+        {
+            try
+            {
+                if (_androidFolderOpen)
+                {
+                    _androidFolderOpen = false;
+                    if (_androidFolderVm != null)
+                        SetAndroidTileHidden(_androidFolderVm, false);
+                    FinalizeAndroidClose();
+                }
+
+                var tile = GetTileCanvasRect(vm);
+                if (tile == Rect.Empty) return;
+
+                // A pending delayed tile re-show belongs to a prior close — cancel it so the
+                // new open's hide is not fought by a stale re-show.
+                StopAndroidTileReShowTimer();
+                var setupSw = System.Diagnostics.Stopwatch.StartNew();
+                _androidGen++;
+                int gen = _androidGen;
+                _androidFolderOpen = true;
+                _androidFolderVm = vm;
+                vm.IsAndroidFolderOpen = true;
+                SetAndroidTileHidden(vm, true, vm.AndroidAnimationDurationMs);
+
+                _androidFrameSw = System.Diagnostics.Stopwatch.StartNew();
+                _androidFrameMax = 0;
+                _androidFrameCount = 0;
+                _androidSlowFrames = 0;
+                _androidFinalized = false;
+                CompositionTarget.Rendering += OnAndroidRenderFrame;
+
+                double panelW = Math.Clamp(vm.AndroidPanelWidth, 240, Width - 16);
+                double panelH = Math.Clamp(vm.AndroidPanelHeight, 200, Height - 16);
+
+                // Center of the closed tile (canvas coordinates).
+                double tileCx = tile.X + tile.Width / 2;
+                double tileCy = tile.Y + tile.Height / 2;
+                _androidTileCenter = new Point(tileCx, tileCy);
+                double screenCx, screenCy;
+                // Working area of the monitor that contains the tile, in overlay DIP coords.
+                // The overlay spans all monitors, so clamping to the COMBINED bounds lets a
+                // panel on a tile near an internal edge bleed onto the neighbor monitor;
+                // clamping to the tile's own monitor keeps every panel on its own screen.
+                Rect monitorArea = Rect.Empty;
+                try
+                {
+                    var s = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(
+                        (int)Math.Round((tileCx + OverlayOffsetX) * _dpiScaleX),
+                        (int)Math.Round((tileCy + OverlayOffsetY) * _dpiScaleY))).WorkingArea;
+                    monitorArea = new Rect(
+                        s.Left / _dpiScaleX - OverlayOffsetX,
+                        s.Top / _dpiScaleY - OverlayOffsetY,
+                        s.Width / _dpiScaleX,
+                        s.Height / _dpiScaleY);
+                }
+                catch { }
+
+                if (vm.AndroidOpenAtClick)
+                {
+                    // Open centered on the tile where the user clicked (then clamped below).
+                    screenCx = tileCx;
+                    screenCy = tileCy;
+                }
+                else
+                {
+                    // Center on the monitor that contains the tile center.
+                    screenCx = monitorArea != Rect.Empty ? monitorArea.X + monitorArea.Width / 2 : Width / 2;
+                    screenCy = monitorArea != Rect.Empty ? monitorArea.Y + monitorArea.Height / 2 : Height / 2;
+                }
+
+                panelW = Math.Min(panelW, Width - 16);
+                panelH = Math.Min(panelH, Height - 16);
+                if (monitorArea != Rect.Empty)
+                {
+                    screenCx = ClampAndroidCenter(screenCx, monitorArea.X, monitorArea.Width, panelW);
+                    screenCy = ClampAndroidCenter(screenCy, monitorArea.Y, monitorArea.Height, panelH);
+                }
+                else
+                {
+                    screenCx = Math.Clamp(screenCx, 8 + panelW / 2, Width - 8 - panelW / 2);
+                    screenCy = Math.Clamp(screenCy, 8 + panelH / 2, Height - 8 - panelH / 2);
+                }
+
+                _androidPanelWidth = panelW;
+                _androidPanelHeight = panelH;
+                _androidPanelCenter = new Point(screenCx, screenCy);
+                _androidPanelRect = new Rect(screenCx - panelW / 2, screenCy - panelH / 2, panelW, panelH);
+
+                AndroidPanel.DataContext = vm;
+
+                AndroidBackdropRoot.Opacity = 0;
+                AndroidBackdropImage.Source = null;
+                AndroidBackdropImage.Effect = null; // pre-blurred once — no live blur per frame
+                bool fullScreen = vm.AndroidBackdropMode != "Panel";
+                _backdropCaptureTask = null;
+                bool capBlur = vm.AndroidBackdropStyle == "Blur";
+                bool needsCapture = fullScreen && (capBlur || vm.AndroidBackdropStyle == "Darkening");
+                if (needsCapture)
+                {
+                    // Capture (+ blur) off the UI thread so the open animation starts immediately.
+                    int capX = (int)Math.Round(Left * _dpiScaleX);
+                    int capY = (int)Math.Round(Top * _dpiScaleY);
+                    int capW = (int)Math.Round(Width * _dpiScaleX);
+                    int capH = (int)Math.Round(Height * _dpiScaleY);
+                    double keep = 1.0 - Math.Clamp(vm.AndroidBackdropDim, 0, 100) / 100.0;
+                    _backdropCaptureTask = Task.Run(() => CaptureBlurredBackdrop(capX, capY, capW, capH, capBlur, keep));
+                }
+                ConfigureAndroidBackdrop();
+
+                AndroidPanelTitle.Text = vm.Name;
+                AndroidPanelTitle.Visibility = vm.AndroidShowHeader ? Visibility.Visible : Visibility.Collapsed;
+                AndroidFolderIconSize = vm.AndroidIconSize;
+                AndroidTwoLineNames = vm.TwoLineShortcuts;
+                AndroidIconsList.ItemsSource = vm.Shortcuts;
+
+                AndroidPanel.Width = panelW;
+                AndroidPanel.Height = panelH;
+                AndroidPanel.Margin = new Thickness(screenCx - panelW / 2, screenCy - panelH / 2, 0, 0);
+                AndroidPanel.RenderTransformOrigin = new Point(0.5, 0.5);
+
+                // Start the bloom much smaller than the tile so the panel reads as a fluid
+                // zoom from a tiny dot (bitmap-cached, so scaling is cheap).
+                _androidPanelStartScale = 0.02;
+                // Pure scale at the clamped center — the SAME animation at every position.
+                // The panel never translates from the tile, so an edge tile (whose clamped
+                // center is elsewhere) no longer produces a position-dependent slide/arc.
+                _androidPanelStartTx = 0;
+                _androidPanelStartTy = 0;
+                _androidPanelScale = new ScaleTransform(_androidPanelStartScale, _androidPanelStartScale);
+                _androidPanelTranslate = new TranslateTransform(_androidPanelStartTx, _androidPanelStartTy);
+                var transform = new TransformGroup();
+                transform.Children.Add(_androidPanelTranslate);
+                transform.Children.Add(_androidPanelScale);
+                AndroidPanel.RenderTransform = transform;
+
+                _androidOpenAnimFinished = false;
+                _pendingBackdropSource = null;
+                AndroidBackdropImage.Source = null;
+                AndroidBackdropImage.Opacity = 0;
+                AndroidBackdropImage.Visibility = Visibility.Collapsed;
+
+                AndroidFolderLayer.Visibility = Visibility.Visible;
+
+                // Force a synchronous layout update so first frame of rendering does not
+                // have to execute Measure/Arrange and compile bitmap cache simultaneously.
+                AndroidFolderLayer.UpdateLayout();
+
+                SubscribeAndroidVm(vm);
+                RefreshAndroidPanelStyle();
+                // The 40px drop shadow re-rasterizes every frame it animates — drop it
+                // for the open/close and re-attach when the motion stops.
+                _androidPanelEffect = AndroidPanel.Effect;
+                AndroidPanel.Effect = null;
+                // Create the bitmap cache LAST, after every panel mutation (title, effect).
+                // The growth animation then scales a stable cached bitmap — if anything
+                // invalidates the cache mid-animation the icons re-rasterize every frame
+                // and the panel visibly "modifies itself" while it grows.
+                // Pre-render the panel once and drive EVERY open animation by transforming
+                // that frozen bitmap per frame (see OnAndroidGrowRenderFrame). The live panel
+                // stays collapsed during the animation: a live-panel BitmapCache animating
+                // inside this layered (software-composited) window was measured to render
+                // blank on non-Scale styles, while the snapshot blit is proven smooth for
+                // Scale opens and every close.
+                RenderAndroidSnapshot();
+                setupSw.Stop();
+                LogAndroidPerf($"open setup {setupSw.Elapsed.TotalMilliseconds:F1}ms mode={vm.AndroidBackdropMode} atClick={vm.AndroidOpenAtClick} anim={vm.AndroidOpenAnimation} panel={panelW:F0}x{panelH:F0}@{screenCx:F0},{screenCy:F0} tile={tileCx:F0},{tileCy:F0} startTx={_androidPanelStartTx:F0} startTy={_androidPanelStartTy:F0}");
+                AnimateAndroidOpen(gen);
+                _ = ApplyAndroidBackdropAsync(gen);
+            }
+            catch (Exception ex)
+            {
+                LogAndroidPerf($"OpenAndroidFolder FAILED: {ex.GetType().Name}: {ex.Message}");
+                // The tile was already hidden for the open animation — restore it so a
+                // failed open never leaves the folder invisible on the desktop.
+                try { vm.IsAndroidFolderOpen = false; } catch { }
+                FinalizeAndroidClose();
+                try { SetAndroidTileHidden(vm, false, 150); } catch { }
+            }
+        }
+
+        private void CloseAndroidFolder()
+        {
+            if (!_androidFolderOpen)
+            {
+                LogAndroidPerf("CloseAndroidFolder called while NOT open (ignored)");
+                return;
+            }
+            LogAndroidPerf($"CloseAndroidFolder START vm={_androidFolderVm?.Name}");
+            _androidGen++;
+            int gen = _androidGen;
+            _androidFolderOpen = false;
+            var vm = _androidFolderVm;
+            _androidFolderVm = null;
+            if (vm != null)
+            {
+                vm.IsAndroidFolderOpen = false;
+                // Re-show the tile AFTER the folder has receded part-way into it. An
+                // immediate re-show fades the tile in while the folder is still large and
+                // (for edge tiles) 90px away — two separated objects, reads as a "tp".
+                // Delaying until the shrink has nearly reached the tile makes the folder's
+                // recede and the tile's reveal one continuous motion.
+                ScheduleAndroidTileReShow(vm, gen, vm.AndroidAnimationDurationMs);
+            }
+            UnsubscribeAndroidVm(vm);
+            if (_isAndroidRenameActive) CancelAndroidTitleRename();
+
+            AnimateAndroidClose(vm, gen);
+        }
+
+        private void ScheduleAndroidTileReShow(ContainerViewModel vm, int gen, int durMs)
+        {
+            StopAndroidTileReShowTimer();
+            // Start the tile reveal as the shrinking folder begins its fade-out (the last
+            // ~45% of the shrink, see OnAndroidCloseRenderFrame) so the two cross-fade at
+            // the same spot — the folder melts into the tile instead of popping away.
+            var timer = new System.Windows.Threading.DispatcherTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(Math.Max(0, durMs * 0.55));
+            timer.Tick += (s, e) =>
+            {
+                timer.Stop();
+                // A new open/close superseded this close — don't re-show the tile over it.
+                if (_androidGen != gen) return;
+                SetAndroidTileHidden(vm, false, 200);
+            };
+            timer.Start();
+            _androidTileReShowTimer = timer;
+        }
+
+        private void StopAndroidTileReShowTimer()
+        {
+            if (_androidTileReShowTimer != null)
+            {
+                _androidTileReShowTimer.Stop();
+                _androidTileReShowTimer = null;
+            }
+        }
+
+        private void FinalizeAndroidClose()
+        {
+            LogAndroidPerf("FinalizeAndroidClose");
+            _androidFinalized = true;
+            try
+            {
+                StopAndroidGrow();
+                _androidPanelSnapshot = null;
+                AndroidPanel.CacheMode = null;
+                AndroidPanel.RenderTransform = null;
+                AndroidFolderLayer.Visibility = Visibility.Collapsed;
+                AndroidIconsList.ItemsSource = null;
+                AndroidBackdropImage.Source = null;
+                _backdropCaptureTask = null;
+                AndroidBackdropRoot.CacheMode = null;
+                AndroidBackdropRoot.BeginAnimation(OpacityProperty, null);
+                AndroidBackdropRoot.Opacity = 1;
+                AndroidBackdropRoot.HorizontalAlignment = HorizontalAlignment.Stretch;
+                AndroidBackdropRoot.VerticalAlignment = VerticalAlignment.Stretch;
+                AndroidBackdropRoot.Margin = new Thickness(0);
+                AndroidBackdropRoot.Width = double.NaN;
+                AndroidBackdropRoot.Height = double.NaN;
+                _androidFolderOpen = false;
+                UnsubscribeAndroidVm(_androidFolderVm);
+                _androidFolderVm = null;
+
+                // Reset any in-progress drag/selection inside the panel.
+                _isAndroidIconDrag = false;
+                _isAndroidRectSelect = false;
+                _androidDragSourceItem = null;
+                _androidCtrlHeld = false;
+                foreach (var b in _androidHighlighted)
+                {
+                    try { b.ClearValue(Border.BackgroundProperty); } catch { }
+                }
+                _androidHighlighted.Clear();
+                _androidSelectedItems.Clear();
+                ClearAndroidSelectionRect();
+                ClearAndroidInsertionMarker();
+                AndroidFolderScroller.ReleaseMouseCapture();
+                if (_isAndroidRenameActive) CancelAndroidTitleRename();
+
+                // Release any held opacity animation so the bound value is restored.
+                AndroidPanel.BeginAnimation(OpacityProperty, null);
+                if (_androidPanelEffect != null)
+                {
+                    AndroidPanel.Effect = _androidPanelEffect;
+                    _androidPanelEffect = null;
+                }
+            }
+            catch { }
+        }
+
+        private void AndroidPanel_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            // A click on the title is reserved for double-click rename; don't close on it.
+            if (IsAndroidTitleArea(e.OriginalSource)) return;
+            CloseAndroidFolder();
+        }
+
+        private static bool IsAndroidTitleArea(object? src)
+        {
+            var dep = src as DependencyObject;
+            while (dep != null && dep is not Window)
+            {
+                if (dep is FrameworkElement fe &&
+                    (fe.Name == "AndroidPanelTitle" || fe.Name == "AndroidTitleEditBox"))
+                    return true;
+                dep = VisualTreeHelper.GetParent(dep);
+            }
+            return false;
+        }
+
+        // === Android folder: open/close animations, live style refresh, title rename ===
+
+        private static readonly HashSet<string> _androidRefreshNames = new()
+        {
+            nameof(ContainerViewModel.Name),
+            nameof(ContainerViewModel.AndroidShowHeader),
+            nameof(ContainerViewModel.AndroidHeaderFontSize),
+            nameof(ContainerViewModel.AndroidTitleTwoLine),
+            nameof(ContainerViewModel.AndroidPanelBackgroundBrush),
+            nameof(ContainerViewModel.AndroidPanelBorderBrush),
+            nameof(ContainerViewModel.AndroidOpenOpacity),
+            nameof(ContainerViewModel.AndroidPanelCornerRadius),
+            nameof(ContainerViewModel.AndroidPanelShowBorder),
+            nameof(ContainerViewModel.AndroidBackdropMode),
+            nameof(ContainerViewModel.AndroidBackdropStyle),
+            nameof(ContainerViewModel.AndroidBackdropColor),
+            nameof(ContainerViewModel.AndroidBackdropDim),
+        };
+
+        private void SubscribeAndroidVm(ContainerViewModel? vm)
+        {
+            if (vm != null) vm.PropertyChanged += OnAndroidFolderVmPropertyChanged;
+        }
+
+        private void UnsubscribeAndroidVm(ContainerViewModel? vm)
+        {
+            if (vm != null) vm.PropertyChanged -= OnAndroidFolderVmPropertyChanged;
+        }
+
+        private void OnAndroidFolderVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (sender != _androidFolderVm || e.PropertyName is null) return;
+            if (_androidRefreshNames.Contains(e.PropertyName))
+                RefreshAndroidPanelStyle();
+        }
+
+        private void RefreshAndroidPanelStyle()
+        {
+            var vm = _androidFolderVm;
+            if (vm == null) return;
+            AndroidPanelTitle.Text = vm.Name;
+            AndroidPanelTitle.Visibility = vm.AndroidShowHeader ? Visibility.Visible : Visibility.Collapsed;
+            ConfigureAndroidBackdrop();
+        }
+
+        private void ConfigureAndroidBackdrop()
+        {
+            var vm = _androidFolderVm;
+            if (vm == null) return;
+
+            if (vm.AndroidBackdropMode == "Panel")
+            {
+                // Panel mode: no dark backdrop — the folder floats over the live desktop with its drop shadow.
+                AndroidBackdropImage.Source = null;
+                AndroidBackdropImage.Visibility = Visibility.Collapsed;
+                AndroidBackdropDim.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                AndroidBackdropRoot.HorizontalAlignment = HorizontalAlignment.Stretch;
+                AndroidBackdropRoot.VerticalAlignment = VerticalAlignment.Stretch;
+                AndroidBackdropRoot.Margin = new Thickness(0);
+                AndroidBackdropRoot.Width = double.NaN;
+                AndroidBackdropRoot.Height = double.NaN;
+                AndroidBackdropDim.CornerRadius = new CornerRadius(0);
+                if (vm.AndroidBackdropStyle == "Color")
+                {
+                    // Flat solid fill from the user's color — no capture, no blur. The
+                    // default is opaque #FF1F1F1F: an opaque fill fully occludes the desktop
+                    // widgets so the software renderer skips them (measured ~40ms/frame with
+                    // a semi-transparent veil). A user-chosen semi-transparent color still
+                    // honors their pick, at the cost of that per-frame re-blend.
+                    AndroidBackdropDim.Background = vm.AndroidBackdropColorBrush;
+                    AndroidBackdropImage.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    // Blur / Darkening: the dim is baked into the captured image; a
+                    // transparent (but non-null) background keeps the border hit-testable
+                    // so backdrop clicks close the folder.
+                    AndroidBackdropDim.Background = Brushes.Transparent;
+                    AndroidBackdropImage.Visibility = AndroidBackdropImage.Source != null ? Visibility.Visible : Visibility.Collapsed;
+                }
+                AndroidBackdropDim.Visibility = Visibility.Visible;
+            }
+        }
+
+        // Buffered async perf logger. Writing the log synchronously on the UI thread
+        // (the frame profiler logs from inside CompositionTarget.Rendering) delayed the
+        // NEXT frame by the file-I/O time — a logged 30ms frame caused the following
+        // frame to measure 30ms, cascading into a self-sustaining burst of false "slow"
+        // frames. Enqueue + flush on a low-priority background thread keeps profiling
+        // from perturbing the measurement it records.
+        private static readonly System.Collections.Concurrent.ConcurrentQueue<string> _perfLogQueue = new();
+        private static int _perfFlusherStarted;
+
+        internal static void LogAndroidPerf(string msg)
+        {
+            try
+            {
+                _perfLogQueue.Enqueue($"{DateTime.Now:HH:mm:ss.fff} {msg}{Environment.NewLine}");
+                if (System.Threading.Interlocked.CompareExchange(ref _perfFlusherStarted, 1, 0) == 0)
+                {
+                    var thread = new System.Threading.Thread(() =>
+                    {
+                        string path = System.IO.Path.Combine(
+                            System.IO.Path.GetTempPath(), "palisades-android-perf.log");
+                        while (true)
+                        {
+                            try
+                            {
+                                if (_perfLogQueue.TryDequeue(out var line))
+                                    System.IO.File.AppendAllText(path, line);
+                                else
+                                    System.Threading.Thread.Sleep(50);
+                            }
+                            catch { System.Threading.Thread.Sleep(100); }
+                        }
+                    })
+                    { IsBackground = true, Priority = System.Threading.ThreadPriority.Lowest, Name = "PalisadesPerfLog" };
+                    thread.Start();
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>Swap the off-thread backdrop capture in when it finishes, without stalling the open animation.</summary>
+        private async Task ApplyAndroidBackdropAsync(int gen)
+        {
+            var vm = _androidFolderVm;
+            if (vm == null || vm.AndroidBackdropMode == "Panel") return;
+            if (vm.AndroidBackdropStyle == "Color")
+            {
+                // Solid color backdrop — no screen capture to await. Snapping it on instead
+                // of fading: a full-screen opacity fade re-blends the whole window in
+                // software every frame (~40ms/frame measured), the fade is exactly what
+                // lags. An instant veil pop reads as a light switch — the panel growth is
+                // then the only animated element.
+                LogAndroidPerf("color backdrop snapped on");
+                AndroidBackdropRoot.Opacity = 1;
+                return;
+            }
+            var task = _backdropCaptureTask;
+            if (task == null) return;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            BitmapSource? bmp;
+            try { bmp = await task; }
+            catch { bmp = null; }
+            sw.Stop();
+            LogAndroidPerf($"backdrop capture landed in {sw.Elapsed.TotalMilliseconds:F1}ms (dropped={gen != _androidGen || !_androidFolderOpen})");
+            if (gen != _androidGen || !_androidFolderOpen) return;
+            if (_androidFolderVm == null) return;
+
+            // Start the backdrop fade now that the capture is done. A failed capture
+            // (bmp == null) still fades in the dim so the folder never opens backdrop-less.
+            _pendingBackdropSource = bmp;
+            ApplyReadyBackdrop();
+        }
+
+        private void ApplyReadyBackdrop()
+        {
+            if (!_androidFolderOpen) return;
+            // Bake the completed full-screen backdrop into a bitmap cache, then fade the
+            // CACHE in (a per-frame alpha-blit). The cache renders at 0.25× — the backdrop
+            // is already blurred, so quarter-res is visually identical, but building a
+            // full-res full-screen cache stalls the software renderer for several frames.
+            if (_pendingBackdropSource != null)
+            {
+                AndroidBackdropImage.Source = _pendingBackdropSource;
+                AndroidBackdropImage.Opacity = 1;
+                AndroidBackdropImage.Visibility = Visibility.Visible;
+                _pendingBackdropSource = null;
+            }
+            AndroidBackdropRoot.CacheMode = new BitmapCache { RenderAtScale = 0.25 };
+            double dur = _androidFolderVm?.AndroidAnimationDurationMs ?? 320;
+            double fadeMs = Math.Min(150, dur * 0.5);
+            LogAndroidPerf($"backdrop fade started ({fadeMs:F0}ms, cached)");
+            Animate(AndroidBackdropRoot, OpacityProperty, 0, 1, fadeMs, null);
+        }
+
+        /// <summary>Clamp a panel center to keep the panel (of size panelSize) inside a screen
+        /// area, leaving an 8px inset. If the panel is larger than the area, center it.</summary>
+        private static double ClampAndroidCenter(double center, double areaLeft, double areaSize, double panelSize)
+        {
+            double inset = Math.Min(8 + panelSize / 2, areaSize / 2);
+            double min = areaLeft + inset;
+            double max = areaLeft + areaSize - inset;
+            return min >= max ? areaLeft + areaSize / 2 : Math.Clamp(center, min, max);
+        }
+
+        private static double GetAndroidOpenOpacity(ContainerViewModel? vm)
+            => (vm?.AndroidOpenOpacity ?? 100) / 100.0;
+
+        private void ResetAndroidTransforms(double? scale, double? tx, double? ty)
+        {
+            if (_androidPanelScale != null)
+            {
+                _androidPanelScale.ScaleX = scale ?? 1.0;
+                _androidPanelScale.ScaleY = scale ?? 1.0;
+            }
+            if (_androidPanelTranslate != null)
+            {
+                _androidPanelTranslate.X = tx ?? 0;
+                _androidPanelTranslate.Y = ty ?? 0;
+            }
+        }
+
+        private void AnimateAndroidOpen(int gen)
+        {
+            var vm = _androidFolderVm;
+            if (vm == null) return;
+            // Every open runs from the frozen snapshot (RenderAndroidSnapshot). The style
+            // drives the per-frame transform in OnAndroidGrowRenderFrame; a centered open
+            // is a plain fade (no scale/translate). _androidGrowStyle is picked here so
+            // the render-frame handler does not branch on open mode.
+            _androidGrowStyle = vm.AndroidOpenAtClick ? vm.AndroidOpenAnimation : "Fade";
+            // Panel mode has no backdrop — nothing full-screen to fade.
+            if (vm.AndroidBackdropMode == "Panel")
+                AndroidBackdropRoot.Opacity = 1;
+            // Full-screen mode: the backdrop fade is DEFERRED until the blurred capture
+            // lands (ApplyReadyBackdrop). Fading a full-screen backdrop while the capture
+            // thread is still building it forces per-frame re-rasterization of the whole
+            // backdrop (image scale + dim blend) on a software-composited transparent
+            // overlay → stutter. Once the capture is baked into a BitmapCache, the fade is
+            // a cheap per-frame alpha-blit of a cached bitmap.
+
+            _androidAnimSw = System.Diagnostics.Stopwatch.StartNew();
+            if (_androidPanelSnapshot != null)
+                StartAndroidGrow(gen);
+            else
+                FinishAndroidOpen(gen);
+        }
+
+        private void FinishAndroidOpen(int gen)
+        {
+            if (_androidGen != gen || !_androidFolderOpen) return;
+            if (_androidAnimSw != null)
+            {
+                _androidAnimSw.Stop();
+                LogAndroidPerf($"open animation wall-clock {_androidAnimSw.Elapsed.TotalMilliseconds:F1}ms (dur={_androidFolderVm?.AndroidAnimationDurationMs ?? 0})");
+                _androidAnimSw = null;
+            }
+            // Re-create the cache at FULL resolution now that the grow is done (crisp
+            // settled state). Keeping a cache here instead of nulling it re-rasterizes the
+            // panel content once into the cache, then the shadow re-blur is a single
+            // post-cache pass — the old null-then-blur sequence read as several slow frames
+            // at the end of every open. The cache re-renders on live style changes too.
+            double scale = _dpiScaleX > 0 ? _dpiScaleX : 1.0;
+            AndroidPanel.CacheMode = new BitmapCache { RenderAtScale = scale };
+            // Drop the open animation so the bound opacity/brushes stay live.
+            AndroidPanel.BeginAnimation(OpacityProperty, null);
+            if (_androidPanelScale != null)
+            {
+                _androidPanelScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                _androidPanelScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                _androidPanelScale.ScaleX = 1.0;
+                _androidPanelScale.ScaleY = 1.0;
+            }
+            if (_androidPanelTranslate != null)
+            {
+                _androidPanelTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+                _androidPanelTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+                _androidPanelTranslate.X = 0;
+                _androidPanelTranslate.Y = 0;
+            }
+            if (_androidPanelEffect != null)
+            {
+                // Re-attach the drop shadow at full strength in ONE frame. Animating its
+                // Opacity would re-run the software blur every frame for 160ms — ten heavy
+                // re-blurs that read as a stutter at the end of every open. A single snap
+                // costs one heavy frame and is barely visible on the dimmed backdrop.
+                AndroidPanel.Effect = _androidPanelEffect;
+                _androidPanelEffect = null;
+            }
+
+            _androidOpenAnimFinished = true;
+            if (_pendingBackdropSource != null)
+            {
+                ApplyReadyBackdrop();
+            }
+        }
+
+        /// <summary>
+        /// Render the Android panel once, full-size, to a frozen bitmap and park the grow
+        /// Image over the final panel rect. Playback stretches that single bitmap per frame
+        /// with a RenderTransform — no layout, no BitmapCache, no live panel re-raster.
+        /// </summary>
+        private void RenderAndroidSnapshot()
+        {
+            _androidPanelSnapshot = null;
+            double pw = _androidPanelWidth;
+            double ph = _androidPanelHeight;
+            if (pw < 8 || ph < 8) return;
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            double renderScale = _dpiScaleX > 0 ? _dpiScaleX : 1.0;
+            int fw = Math.Max(1, (int)Math.Round(pw * renderScale));
+            int fh = Math.Max(1, (int)Math.Round(ph * renderScale));
+
+            // Render the panel at identity (no grow transform) so the snapshot is full-size.
+            // The panel is ARRANGED at its canvas margin inside the layer grid; RenderTargetBitmap
+            // rasterizes a visual at its layout offset (VisualOffset), so a panel parked at
+            // (332, 8) was drawn off the RTB's origin and clipped to a ~24% sliver — the folder
+            // visibly jumped to a strip at the start of the close ("se tp") and stayed cut during
+            // the whole shrink ("coupé"). Park the panel at the origin for the raster, then
+            // restore it; all synchronous and off-screen, so no frame ever shows the moved panel.
+            var savedTransform = AndroidPanel.RenderTransform;
+            var savedMargin = AndroidPanel.Margin;
+            var savedVisibility = AndroidPanel.Visibility;
+            AndroidPanel.RenderTransform = null;
+            AndroidPanel.Margin = new Thickness(0);
+            // A superseded grow/close may have collapsed the panel; the snapshot must still
+            // rasterize the real content. All synchronous and off-screen, no frame shows it.
+            AndroidPanel.Visibility = Visibility.Visible;
+            try
+            {
+                AndroidPanel.UpdateLayout();
+                var rtb = new RenderTargetBitmap(fw, fh, 96 * renderScale, 96 * renderScale, PixelFormats.Pbgra32);
+                rtb.Render(AndroidPanel);
+                rtb.Freeze();
+                _androidPanelSnapshot = rtb;
+            }
+            catch
+            {
+                AndroidPanel.RenderTransform = savedTransform;
+                AndroidPanel.Margin = savedMargin;
+                AndroidPanel.Visibility = savedVisibility;
+                return;
+            }
+            AndroidPanel.RenderTransform = savedTransform;
+            AndroidPanel.Margin = savedMargin;
+            AndroidPanel.Visibility = savedVisibility;
+
+            // Pre-filtered (Fant) downscaled copies for the close's mipmap swap. Generated
+            // once here — one-time cost — so the per-frame close blit never minifies by more
+            // than ~2x (no skipped-pixel shimmer).
+            _androidSnapHalf = DownscaleSnapshot(_androidPanelSnapshot, 0.5);
+            _androidSnapQuarter = DownscaleSnapshot(_androidPanelSnapshot, 0.25);
+            _androidSnapEighth = DownscaleSnapshot(_androidPanelSnapshot, 0.125);
+
+            // Park the Image at the final panel rect ONCE. Per frame only RenderTransform
+            // changes, so the software renderer never re-runs Measure/Arrange mid-animation.
+            AndroidGrowImage.Width = pw;
+            AndroidGrowImage.Height = ph;
+            AndroidGrowImage.Margin = new Thickness(_androidPanelRect.X, _androidPanelRect.Y, 0, 0);
+            AndroidGrowImage.Source = _androidPanelSnapshot;
+            AndroidGrowImage.Opacity = 1;
+            sw.Stop();
+            LogAndroidPerf($"grow snapshot rendered in {sw.Elapsed.TotalMilliseconds:F1}ms panel={pw:F0}x{ph:F0} renderScale={renderScale:F2}");
+        }
+
+        /// <summary>
+        /// Render a high-quality downscaled copy of a snapshot using the Fant (area-average)
+        /// filter. Fant averages the covered pixels instead of skipping them, so the source
+        /// carries no aliasing-prone high-frequency detail for the cheap per-frame blit to
+        /// reproduce. One-time cost; runs off the animation path.
+        /// </summary>
+        private static BitmapSource? DownscaleSnapshot(BitmapSource? source, double scale)
+        {
+            if (source == null) return null;
+            try
+            {
+                int w = Math.Max(1, (int)Math.Round(source.PixelWidth * scale));
+                int h = Math.Max(1, (int)Math.Round(source.PixelHeight * scale));
+                var dv = new DrawingVisual();
+                RenderOptions.SetBitmapScalingMode(dv, BitmapScalingMode.Fant);
+                using (var dc = dv.RenderOpen())
+                {
+                    dc.DrawImage(source, new Rect(0, 0, w, h));
+                }
+                var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(dv);
+                rtb.Freeze();
+                return rtb;
+            }
+            catch { return null; }
+        }
+
+        private void StartAndroidGrow(int gen)
+        {
+            if (_androidPanelSnapshot == null)
+            {
+                FinishAndroidOpen(gen);
+                return;
+            }
+            _androidGrowGen = gen;
+            _androidGrowDurMs = _androidFolderVm?.AndroidAnimationDurationMs ?? 320;
+            _androidGrowTargetOpacity = GetAndroidOpenOpacity(_androidFolderVm);
+            // The live panel is collapsed — only the snapshot Image renders, so nothing can
+            // invalidate or re-rasterize the panel mid-animation.
+            AndroidPanel.Visibility = Visibility.Collapsed;
+            _androidGrowTransform = new MatrixTransform();
+            AndroidGrowImage.RenderTransform = _androidGrowTransform;
+            AndroidGrowImage.Visibility = Visibility.Collapsed;
+            _androidGrowSw = System.Diagnostics.Stopwatch.StartNew();
+            CompositionTarget.Rendering += OnAndroidGrowRenderFrame;
+        }
+
+        private void OnAndroidGrowRenderFrame(object? sender, EventArgs e)
+        {
+            if (_androidGrowSw == null || _androidPanelSnapshot == null || _androidGrowTransform == null) return;
+            if (!_androidFolderOpen || _androidGen != _androidGrowGen)
+            {
+                // The open was superseded (close/another open) — stop and let the new state own it.
+                FinishAndroidGrow(_androidGrowGen);
+                return;
+            }
+            double t = _androidGrowSw.Elapsed.TotalMilliseconds;
+            if (t >= _androidGrowDurMs)
+            {
+                FinishAndroidGrow(_androidGrowGen);
+                return;
+            }
+            double t01 = Math.Min(1.0, t / _androidGrowDurMs);
+            double s, tx, ty;
+            double op = _androidGrowTargetOpacity;
+            switch (_androidGrowStyle)
+            {
+                case "Zoom":
+                    // Scale 0.4→1.0 with a BackEase overshoot, fade completes by ~70%.
+                    double z = _growZoomEase.Ease(t01);
+                    s = 0.4 + 0.6 * z;
+                    tx = _androidPanelCenter.X - (_androidPanelRect.Width * s) / 2 - _androidPanelRect.X;
+                    ty = _androidPanelCenter.Y - (_androidPanelRect.Height * s) / 2 - _androidPanelRect.Y;
+                    op *= SmoothOpenStep(t01 / 0.7);
+                    break;
+                case "SlideUp":
+                    // Slide from 80px below into place; scale stays 1.
+                    double u = _growSlideEase.Ease(t01);
+                    s = 1;
+                    tx = 0;
+                    ty = 80 * (1 - u);
+                    op *= SmoothOpenStep(t01);
+                    break;
+                case "Elastic":
+                    // Scale 0.3→1.0 with an elastic overshoot, fade done by ~60%.
+                    double el = _growElasticEase.Ease(t01);
+                    s = 0.3 + 0.7 * el;
+                    tx = _androidPanelCenter.X - (_androidPanelRect.Width * s) / 2 - _androidPanelRect.X;
+                    ty = _androidPanelCenter.Y - (_androidPanelRect.Height * s) / 2 - _androidPanelRect.Y;
+                    op *= SmoothOpenStep(t01 / 0.6);
+                    break;
+                case "Fade":
+                    // Centered open: pure fade of the full-size snapshot, no transform.
+                    s = 1;
+                    tx = 0;
+                    ty = 0;
+                    op *= SmoothOpenStep(t01);
+                    break;
+                default: // "Scale" — keep the exact proven bloom (full opacity from frame 1)
+                    double eased = _androidEase.Ease(t01);
+                    s = _androidPanelStartScale + (1 - _androidPanelStartScale) * eased;
+                    tx = _androidPanelCenter.X - (_androidPanelRect.Width * s) / 2 - _androidPanelRect.X;
+                    ty = _androidPanelCenter.Y - (_androidPanelRect.Height * s) / 2 - _androidPanelRect.Y;
+                    break;
+            }
+            _androidGrowTransform.Matrix = new Matrix(s, 0, 0, s, tx, ty);
+            AndroidGrowImage.Opacity = op;
+            AndroidGrowImage.Visibility = Visibility.Visible;
+        }
+
+        // Smoothstep so the fade eases to full opacity instead of being linear.
+        private static double SmoothOpenStep(double x)
+        {
+            if (x <= 0) return 0;
+            if (x >= 1) return 1;
+            return x * x * (3 - 2 * x);
+        }
+
+        private void FinishAndroidGrow(int gen)
+        {
+            // Always stop the grow (also when the open was superseded mid-animation).
+            StopAndroidGrow();
+            if (_androidGen != gen || !_androidFolderOpen) return;
+            // Panel back on screen at identity — the final grow frame IS the identity
+            // transform, so the swap to the real panel is seamless, then the settle runs.
+            AndroidPanel.Visibility = Visibility.Visible;
+            ResetAndroidTransforms(1.0, 0, 0);
+            FinishAndroidOpen(gen);
+        }
+
+        private void StopAndroidGrow()
+        {
+            // Unsubscribe both the grow and the close shrink handlers (a no-op for whichever
+            // is not subscribed) so a superseded close/open never leaves a stale subscriber.
+            CompositionTarget.Rendering -= OnAndroidGrowRenderFrame;
+            CompositionTarget.Rendering -= OnAndroidCloseRenderFrame;
+            _androidGrowSw = null;
+            _androidGrowTransform = null;
+            _androidSnapHalf = null;
+            _androidSnapQuarter = null;
+            _androidSnapEighth = null;
+            AndroidGrowImage.RenderTransform = null;
+            AndroidGrowImage.Visibility = Visibility.Collapsed;
+            AndroidGrowImage.Opacity = 1;
+            AndroidGrowImage.Source = null;
+        }
+
+        /// <summary>
+        /// Close the "Scale" animation with the same frozen-snapshot blit the open uses.
+        /// The open was smooth because it stretched a pre-rendered bitmap per frame;
+        /// the close animated the LIVE panel (CacheMode re-raster + DropShadow re-blur
+        /// every frame), which measured 4 consecutive ~40ms frames during shrink — the
+        /// "sacadé ça se tp" on the way back. This captures the settled panel once,
+        /// collapses it, and drives the reverse shrink on the leaf Image.
+        /// </summary>
+        private void StartAndroidClose(ContainerViewModel? vm, int gen)
+        {
+            // Drop the shadow and cache BEFORE capturing so the snapshot is clean and the
+            // RTB is not rendered through a half-res cached bitmap. FinalizeAndroidClose
+            // re-attaches the shadow after the layer is hidden.
+            if (_androidPanelEffect == null)
+            {
+                _androidPanelEffect = AndroidPanel.Effect;
+                AndroidPanel.Effect = null;
+            }
+            AndroidPanel.CacheMode = null;
+            RenderAndroidSnapshot();
+            if (_androidPanelSnapshot == null)
+            {
+                FinalizeAndroidClose();
+                return;
+            }
+            _androidGrowGen = gen;
+            // Same duration as the open so the close is a true mirror, not a quick cut.
+            _androidGrowDurMs = vm?.AndroidAnimationDurationMs ?? 320;
+            AndroidPanel.Visibility = Visibility.Collapsed;
+            _androidGrowTransform = new MatrixTransform();
+            AndroidGrowImage.RenderTransform = _androidGrowTransform;
+            AndroidGrowImage.Visibility = Visibility.Collapsed;
+            _androidGrowSw = System.Diagnostics.Stopwatch.StartNew();
+            CompositionTarget.Rendering += OnAndroidCloseRenderFrame;
+        }
+
+        private void OnAndroidCloseRenderFrame(object? sender, EventArgs e)
+        {
+            if (_androidGrowSw == null || _androidPanelSnapshot == null || _androidGrowTransform == null) return;
+            if (_androidGen != _androidGrowGen)
+            {
+                // The close was superseded (another open/close bumped the gen) — stop the
+                // shrink and let the new state own the layer.
+                FinishAndroidClose(_androidGrowGen);
+                return;
+            }
+            double t = _androidGrowSw.Elapsed.TotalMilliseconds;
+            if (t >= _androidGrowDurMs)
+            {
+                FinishAndroidClose(_androidGrowGen);
+                return;
+            }
+            double t01 = Math.Min(1.0, t / _androidGrowDurMs);
+            // Time-reverse of the open bloom: the SAME curve evaluated at (1-t01), so the
+            // close is the exact mirror — a pure shrink to the same tiny dot the open grew
+            // from. No fade: dissolving while still large reads as "melting", not a shrink.
+            double rev = 1.0 - t01;
+            double eased = _androidEase.Ease(rev);
+            double s = _androidPanelStartScale + (1 - _androidPanelStartScale) * eased;
+            // Mipmap swap: keep the source just above the on-screen size so the cheap
+            // LowQuality blit never minifies by much (the Fant pre-filter already removed
+            // the aliasing-prone detail). The Image is parked at panel size with Stretch=Fill,
+            // so swapping the source needs no layout change.
+            BitmapSource? mip = s > 0.6 ? _androidPanelSnapshot : (s > 0.3 ? _androidSnapHalf : (s > 0.15 ? _androidSnapQuarter : _androidSnapEighth));
+            if (mip != null && !ReferenceEquals(AndroidGrowImage.Source, mip))
+                AndroidGrowImage.Source = mip;
+            // Recede toward the tile: the shrink's center slides from the clamped panel
+            // center to the tile center, so the dot lands exactly under the tile and the
+            // tile fades in over it — no dot stranded in empty space (the "tp"). A folder
+            // whose tile already sits at the panel center stays a pure in-place shrink.
+            double cx = _androidPanelCenter.X;
+            double cy = _androidPanelCenter.Y;
+            if (_androidTileCenter is Point tc)
+            {
+                double k = 1.0 - eased; // eased 1→0, so the center glides panel→tile
+                cx += (tc.X - cx) * k;
+                cy += (tc.Y - cy) * k;
+            }
+            double tx = cx - (_androidPanelRect.Width * s) / 2 - _androidPanelRect.X;
+            double ty = cy - (_androidPanelRect.Height * s) / 2 - _androidPanelRect.Y;
+            _androidGrowTransform.Matrix = new Matrix(s, 0, 0, s, tx, ty);
+            // Fade the dot out over the last ~45% (rev<0.45) so it melts into the tile
+            // reveal instead of popping away. The tile re-show is delayed to start at
+            // exactly this point (ScheduleAndroidTileReShow), so folder and tile cross-fade
+            // at the same spot — no visual jump at the handoff.
+            AndroidGrowImage.Opacity = Math.Min(1.0, rev / 0.45);
+            AndroidGrowImage.Visibility = Visibility.Visible;
+        }
+
+        private void FinishAndroidClose(int gen)
+        {
+            StopAndroidGrow();
+            _androidPanelSnapshot = null;
+            if (_androidGen != gen) return;
+            FinalizeAndroidClose();
+        }
+
+        private void AnimateAndroidClose(ContainerViewModel? vm, int gen)
+        {
+            double dur = vm?.AndroidAnimationDurationMs ?? 320;
+            double targetOpacity = GetAndroidOpenOpacity(vm);
+
+            // Only the capture-based backdrops (Blur/Darkening) get a closing fade. Panel
+            // mode has no backdrop and the solid color veil is snap-on/snap-off — a
+            // full-screen fade re-blends the whole window in software every frame (the
+            // measured ~40ms/frame close lag).
+            if (vm?.AndroidBackdropMode == "Panel" || vm?.AndroidBackdropStyle == "Color")
+                AndroidBackdropRoot.Opacity = 0;
+            else
+                Animate(AndroidBackdropRoot, OpacityProperty, 1, 0, Math.Min(150, dur * 0.5), null);
+
+            // Centered (not at click): mirror the open with a plain fade out, no scale.
+            if (vm?.AndroidOpenAtClick == false)
+            {
+                if (_androidPanelEffect == null)
+                {
+                    _androidPanelEffect = AndroidPanel.Effect;
+                    AndroidPanel.Effect = null;
+                }
+                Animate(AndroidPanel, OpacityProperty, targetOpacity, 0, dur * 0.6, new CubicEase { EasingMode = EasingMode.EaseIn }, () =>
+                { if (_androidGen == gen) FinalizeAndroidClose(); });
+                return;
+            }
+
+            // Every atClick close shrinks the frozen snapshot back to the tile — the exact
+            // mirror of the open bloom. The live-panel + BitmapCache close was measured to
+            // re-rasterize and flicker on non-Scale styles; the snapshot blit is proven
+            // smooth for every style.
+            StartAndroidClose(vm, gen);
+        }
+
+        private void AndroidPanelTitle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount < 2 || _androidFolderVm == null || !_androidFolderVm.AndroidShowHeader) return;
+            BeginAndroidTitleRename();
+            e.Handled = true;
+        }
+
+        private void BeginAndroidTitleRename()
+        {
+            var vm = _androidFolderVm;
+            if (vm == null) return;
+            AndroidTitleEditBox.Text = vm.Name;
+            AndroidTitleEditBox.Visibility = Visibility.Visible;
+            EnableWindowActivation();
+            AndroidTitleEditBox.Focus();
+            AndroidTitleEditBox.SelectAll();
+            _isAndroidRenameActive = true;
+            _activeRenameTextBox = AndroidTitleEditBox;
+            _activeRenameCommitAction = CommitAndroidTitleRename;
+        }
+
+        private void CommitAndroidTitleRename()
+        {
+            if (!_isAndroidRenameActive) return;
+            _isAndroidRenameActive = false;
+            _activeRenameTextBox = null;
+            _activeRenameCommitAction = null;
+            DisableWindowActivation();
+            AndroidTitleEditBox.Visibility = Visibility.Collapsed;
+
+            var vm = _androidFolderVm;
+            string newName = AndroidTitleEditBox.Text.Trim();
+            if (vm != null && !string.IsNullOrEmpty(newName) && newName != vm.Name)
+                vm.Name = newName;
+        }
+
+        private void CancelAndroidTitleRename()
+        {
+            if (!_isAndroidRenameActive) return;
+            _isAndroidRenameActive = false;
+            _activeRenameTextBox = null;
+            _activeRenameCommitAction = null;
+            DisableWindowActivation();
+            AndroidTitleEditBox.Visibility = Visibility.Collapsed;
+        }
+
+        private void AndroidTitleEditBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                CommitAndroidTitleRename();
+            }
+            else if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                CancelAndroidTitleRename();
+            }
+        }
+
+        private void AndroidTitleEditBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            CommitAndroidTitleRename();
+        }
+
+        private void AndroidBackdrop_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            CloseAndroidFolder();
+        }
+
+        // === Android folder open panel: selection, drag & reorder ===
+
+        private void AndroidScroller_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Left) return;
+            _androidIgnoreThisPress = false;
+
+            // Let the scrollbar thumb keep its own drag behavior.
+            var src = e.OriginalSource as DependencyObject;
+            while (src != null && src != AndroidFolderScroller)
+            {
+                if (src is ScrollBar)
+                {
+                    _androidIgnoreThisPress = true;
+                    return;
+                }
+                src = VisualTreeHelper.GetParent(src);
+            }
+
+            var item = FindAndroidFolderItem(e.OriginalSource);
+            _androidCtrlHeld = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+
+            if (item != null)
+            {
+                if (_androidCtrlHeld)
+                {
+                    if (_androidSelectedItems.Contains(item)) _androidSelectedItems.Remove(item);
+                    else _androidSelectedItems.Add(item);
+                }
+                else if (!_androidSelectedItems.Contains(item))
+                {
+                    _androidSelectedItems.Clear();
+                    _androidSelectedItems.Add(item);
+                }
+                _androidDragSourceItem = item;
+            }
+            else
+            {
+                if (!_androidCtrlHeld) _androidSelectedItems.Clear();
+                _androidDragSourceItem = null;
+            }
+
+            _androidDragStartLocal = e.GetPosition(AndroidIconsList);
+            _isAndroidIconDrag = false;
+            _isAndroidRectSelect = false;
+            AndroidFolderScroller.CaptureMouse();
+            UpdateAndroidSelectionVisual();
+        }
+
+        private void AndroidScroller_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed) return;
+
+            var pos = e.GetPosition(AndroidIconsList);
+            double dx = pos.X - _androidDragStartLocal.X;
+            double dy = pos.Y - _androidDragStartLocal.Y;
+            double threshold = Math.Max(SystemParameters.MinimumHorizontalDragDistance, 4);
+
+            if (!_isAndroidIconDrag && !_isAndroidRectSelect &&
+                (Math.Abs(dx) > threshold || Math.Abs(dy) > threshold))
+            {
+                if (_androidDragSourceItem != null)
+                {
+                    _isAndroidIconDrag = true;
+                    if (!_androidSelectedItems.Contains(_androidDragSourceItem))
+                    {
+                        _androidSelectedItems.Clear();
+                        _androidSelectedItems.Add(_androidDragSourceItem);
+                    }
+                }
+                else
+                {
+                    _isAndroidRectSelect = true;
+                }
+            }
+
+            if (_isAndroidRectSelect)
+            {
+                UpdateAndroidRectSelect(pos);
+            }
+            else if (_isAndroidIconDrag)
+            {
+                // Only draw the in-panel insertion marker while still over the panel;
+                // over the desktop the mouse hook updates the container markers instead.
+                if (_androidPanelRect.Contains(e.GetPosition(AndroidFolderLayer)))
+                    UpdateAndroidDragInsertionMarker(pos);
+            }
+        }
+
+        private void AndroidScroller_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Left) return;
+            AndroidFolderScroller.ReleaseMouseCapture();
+
+            var posLocal = e.GetPosition(AndroidIconsList);
+
+            if (_isAndroidRectSelect)
+            {
+                FinishAndroidRectSelect(posLocal);
+                e.Handled = true;
+            }
+            else if (_isAndroidIconDrag)
+            {
+                FinishAndroidIconDrag(e.GetPosition(AndroidFolderLayer));
+                e.Handled = true;
+            }
+            else if (_androidDragSourceItem != null && !_androidCtrlHeld)
+            {
+                // Plain click on an item → launch it (mouse is captured to the scroller,
+                // so the item's own MouseLeftButtonUp never fires).
+                e.Handled = true;
+                ContainerControl.LaunchShortcut(_androidDragSourceItem);
+                CloseAndroidFolder();
+            }
+
+            _isAndroidIconDrag = false;
+            _isAndroidRectSelect = false;
+            _androidDragSourceItem = null;
+            _androidCtrlHeld = false;
+            ClearAndroidSelectionRect();
+            ClearAndroidInsertionMarker();
+        }
+
+        private ShortcutItem? FindAndroidFolderItem(object source)
+        {
+            var dep = source as DependencyObject;
+            while (dep != null && dep != AndroidIconsList)
+            {
+                if (dep is FrameworkElement fe && fe.DataContext is ShortcutItem si)
+                    return si;
+                dep = VisualTreeHelper.GetParent(dep);
+            }
+            return null;
+        }
+
+        private void AndroidIcon_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement fe || fe.DataContext is not ShortcutItem item) return;
+
+            string menuPath = !string.IsNullOrEmpty(item.ShortcutPath) ? item.ShortcutPath : item.TargetPath;
+            if (string.IsNullOrEmpty(menuPath)) return;
+
+            var pt = e.GetPosition(AndroidFolderLayer);
+            double screenX = (Left + pt.X) * _dpiScaleX;
+            double screenY = (Top + pt.Y) * _dpiScaleY;
+
+            _isContextMenuOpen = true;
+            try
+            {
+                ContainerControl.ShellContextMenu.ShowMenu(_overlayHwnd, menuPath, (int)screenX, (int)screenY);
+            }
+            catch { }
+            finally
+            {
+                _isContextMenuOpen = false;
+            }
+
+            ContainerManager.Instance.SyncDeletedShortcuts();
+            ContainerManager.Instance.RefreshUnassignedShortcuts();
+            e.Handled = true;
+        }
+
+        private void UpdateAndroidRectSelect(Point posLocal)
+        {
+            if (_androidSelRect == null)
+            {
+                _androidSelRect = new Rectangle
+                {
+                    Stroke = new SolidColorBrush(Color.FromArgb(200, 99, 179, 255)),
+                    StrokeThickness = 1,
+                    Fill = new SolidColorBrush(Color.FromArgb(40, 99, 179, 255)),
+                    IsHitTestVisible = false
+                };
+                AndroidSelectionCanvas.Children.Add(_androidSelRect);
+            }
+            double x = Math.Min(_androidDragStartLocal.X, posLocal.X);
+            double y = Math.Min(_androidDragStartLocal.Y, posLocal.Y);
+            Canvas.SetLeft(_androidSelRect, x);
+            Canvas.SetTop(_androidSelRect, y);
+            _androidSelRect.Width = Math.Abs(posLocal.X - _androidDragStartLocal.X);
+            _androidSelRect.Height = Math.Abs(posLocal.Y - _androidDragStartLocal.Y);
+        }
+
+        private void FinishAndroidRectSelect(Point posLocal)
+        {
+            if (_androidFolderVm == null) return;
+
+            var selRect = new Rect(
+                Math.Min(_androidDragStartLocal.X, posLocal.X),
+                Math.Min(_androidDragStartLocal.Y, posLocal.Y),
+                Math.Abs(posLocal.X - _androidDragStartLocal.X),
+                Math.Abs(posLocal.Y - _androidDragStartLocal.Y));
+
+            if (selRect.Width < 4 && selRect.Height < 4)
+            {
+                UpdateAndroidSelectionVisual();
+                return;
+            }
+
+            foreach (var item in _androidFolderVm.Shortcuts.ToList())
+            {
+                var container = AndroidIconsList.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement;
+                if (container == null) continue;
+                var tr = container.TransformToVisual(AndroidIconsList);
+                var bounds = tr.TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+                var center = new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
+                if (selRect.Contains(center))
+                    _androidSelectedItems.Add(item);
+            }
+            UpdateAndroidSelectionVisual();
+        }
+
+        private void UpdateAndroidDragInsertionMarker(Point posLocal)
+        {
+            if (_androidFolderVm == null || AndroidSelectionCanvas == null) return;
+
+            if (_androidInsertionMarker == null)
+            {
+                _androidInsertionMarker = new Rectangle
+                {
+                    Width = 2,
+                    Height = 40,
+                    Fill = Brushes.White,
+                    RadiusX = 1,
+                    RadiusY = 1,
+                    IsHitTestVisible = false
+                };
+                AndroidSelectionCanvas.Children.Add(_androidInsertionMarker);
+            }
+
+            try
+            {
+                var items = new List<(ShortcutItem Item, Rect Bounds)>();
+                for (int i = 0; i < _androidFolderVm.Shortcuts.Count; i++)
+                {
+                    var item = _androidFolderVm.Shortcuts[i];
+                    if (_androidSelectedItems.Contains(item)) continue;
+
+                    var container = AndroidIconsList.ItemContainerGenerator.ContainerFromItem(item) as FrameworkElement;
+                    if (container != null && container.IsVisible)
+                    {
+                        var tr = container.TransformToVisual(AndroidSelectionCanvas);
+                        var rectInControl = tr.TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+                        items.Add((item, rectInControl));
+                    }
+                }
+                if (items.Count == 0) return;
+
+                var rows = new List<List<(ShortcutItem Item, Rect Bounds)>>();
+                foreach (var item in items.OrderBy(x => x.Bounds.Top).ThenBy(x => x.Bounds.Left))
+                {
+                    bool added = false;
+                    foreach (var row in rows)
+                    {
+                        double avgTop = row.Average(r => r.Bounds.Top);
+                        if (Math.Abs(item.Bounds.Top - avgTop) < 15.0)
+                        {
+                            row.Add(item);
+                            added = true;
+                            break;
+                        }
+                    }
+                    if (!added) rows.Add(new List<(ShortcutItem Item, Rect Bounds)> { item });
+                }
+
+                List<(ShortcutItem Item, Rect Bounds)> closestRow = rows[0];
+                double minRowDistance = double.MaxValue;
+                foreach (var row in rows)
+                {
+                    double rowTop = row.Min(r => r.Bounds.Top);
+                    double rowBottom = row.Max(r => r.Bounds.Bottom);
+                    double distance = posLocal.Y < rowTop ? rowTop - posLocal.Y
+                        : posLocal.Y > rowBottom ? posLocal.Y - rowBottom : 0;
+                    if (distance < minRowDistance)
+                    {
+                        minRowDistance = distance;
+                        closestRow = row;
+                    }
+                }
+
+                var sortedRowItems = closestRow.OrderBy(r => r.Bounds.Left).ToList();
+                int closestIdxInRow = 0;
+                double minXDist = double.MaxValue;
+                for (int i = 0; i < sortedRowItems.Count; i++)
+                {
+                    var b = sortedRowItems[i];
+                    double centerX = b.Bounds.Left + b.Bounds.Width / 2.0;
+                    double dist = Math.Abs(posLocal.X - centerX);
+                    if (dist < minXDist)
+                    {
+                        minXDist = dist;
+                        closestIdxInRow = i;
+                    }
+                }
+
+                var targetItem = sortedRowItems[closestIdxInRow];
+                double targetCenterX = targetItem.Bounds.Left + targetItem.Bounds.Width / 2.0;
+                bool insertAfter = posLocal.X > targetCenterX;
+
+                double markerX;
+                if (insertAfter)
+                {
+                    if (closestIdxInRow < sortedRowItems.Count - 1)
+                    {
+                        var nextItem = sortedRowItems[closestIdxInRow + 1];
+                        markerX = (targetItem.Bounds.Right + nextItem.Bounds.Left) / 2.0;
+                    }
+                    else markerX = targetItem.Bounds.Right + 4;
+                }
+                else
+                {
+                    if (closestIdxInRow > 0)
+                    {
+                        var prevItem = sortedRowItems[closestIdxInRow - 1];
+                        markerX = (prevItem.Bounds.Right + targetItem.Bounds.Left) / 2.0;
+                    }
+                    else markerX = targetItem.Bounds.Left - 4;
+                }
+
+                markerX -= 1;
+                if (markerX < 2) markerX = 2;
+
+                Canvas.SetLeft(_androidInsertionMarker, markerX);
+                Canvas.SetTop(_androidInsertionMarker, targetItem.Bounds.Top);
+                _androidInsertionMarker.Height = targetItem.Bounds.Height;
+                _androidInsertionMarker.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Android insertion marker error: {ex}");
+            }
+        }
+
+        private void ClearAndroidSelectionRect()
+        {
+            if (_androidSelRect != null)
+            {
+                AndroidSelectionCanvas.Children.Remove(_androidSelRect);
+                _androidSelRect = null;
+            }
+        }
+
+        private void ClearAndroidInsertionMarker()
+        {
+            if (_androidInsertionMarker != null)
+            {
+                AndroidSelectionCanvas.Children.Remove(_androidInsertionMarker);
+                _androidInsertionMarker = null;
+            }
+        }
+
+        private void FinishAndroidIconDrag(Point canvasPt)
+        {
+            if (_androidFolderVm == null || _androidSelectedItems.Count == 0) return;
+            var items = _androidSelectedItems.ToList();
+
+            if (_androidPanelRect.Contains(canvasPt))
+            {
+                ReorderAndroidItems(canvasPt, items);
+            }
+            else
+            {
+                // Released outside the panel → delegate to the existing container-drag
+                // system (move to another container / closed folder / unassigned).
+                StartContainerDrag(items, _androidFolderVm);
+                FinishContainerDrag(canvasPt);
+            }
+            _androidFolderVm.Save();
+        }
+
+        private void ReorderAndroidItems(Point canvasPt, List<ShortcutItem> items)
+        {
+            if (_androidFolderVm == null || _androidFolderVm.Shortcuts.Count == 0) return;
+
+            var toList = AndroidFolderLayer.TransformToVisual(AndroidIconsList);
+            Point localPt = toList.Transform(canvasPt);
+
+            double bestDist = double.MaxValue;
+            int bestIdx = -1;
+
+            var remainingItems = new List<(ShortcutItem Item, int OriginalIndex)>();
+            for (int i = 0; i < _androidFolderVm.Shortcuts.Count; i++)
+            {
+                var item = _androidFolderVm.Shortcuts[i];
+                if (items.Contains(item)) continue;
+                remainingItems.Add((item, i));
+            }
+            if (remainingItems.Count == 0) return;
+
+            for (int i = 0; i < remainingItems.Count; i++)
+            {
+                var container = AndroidIconsList.ItemContainerGenerator.ContainerFromItem(remainingItems[i].Item) as FrameworkElement;
+                if (container == null) continue;
+                var tr = container.TransformToVisual(AndroidIconsList);
+                var rectInControl = tr.TransformBounds(new Rect(0, 0, container.ActualWidth, container.ActualHeight));
+                Point center = new Point(rectInControl.X + rectInControl.Width / 2, rectInControl.Y + rectInControl.Height / 2);
+                double dist = Math.Sqrt(Math.Pow(localPt.X - center.X, 2) + Math.Pow(localPt.Y - center.Y, 2));
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestIdx = localPt.X > center.X ? remainingItems[i].OriginalIndex + 1 : remainingItems[i].OriginalIndex;
+                }
+            }
+            if (bestIdx == -1) return;
+
+            var itemsToReorder = items.Where(i => _androidFolderVm.Shortcuts.Contains(i)).ToList();
+            foreach (var item in itemsToReorder)
+            {
+                int oldIdx = _androidFolderVm.Shortcuts.IndexOf(item);
+                if (oldIdx < 0) continue;
+                int newIdx = bestIdx;
+                if (oldIdx < newIdx) newIdx--;
+                newIdx = Math.Clamp(newIdx, 0, _androidFolderVm.Shortcuts.Count - 1);
+                if (oldIdx != newIdx)
+                    _androidFolderVm.Shortcuts.Move(oldIdx, newIdx);
+            }
+            _androidFolderVm.Save();
+        }
+
+        private void UpdateAndroidSelectionVisual()
+        {
+            if (_androidFolderVm == null) return;
+            foreach (var item in _androidFolderVm.Shortcuts)
+            {
+                var container = AndroidIconsList.ItemContainerGenerator.ContainerFromItem(item);
+                if (container == null) continue;
+                var border = FindVisualChild<Border>(container, b => b.DataContext is ShortcutItem);
+                if (border == null) continue;
+                bool sel = _androidSelectedItems.Contains(item);
+                if (sel)
+                {
+                    if (!_androidHighlighted.Contains(border))
+                    {
+                        _androidHighlighted.Add(border);
+                        border.Background = new SolidColorBrush(Color.FromArgb(0x40, 0x63, 0xB3, 0xFF));
+                    }
+                }
+                else if (_androidHighlighted.Remove(border))
+                {
+                    border.ClearValue(Border.BackgroundProperty); // restore hover style trigger
+                }
+            }
+        }
+
+        private static T? FindVisualChild<T>(DependencyObject parent, Func<T, bool>? predicate = null)
+            where T : DependencyObject
+        {
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T tChild && (predicate == null || predicate(tChild)))
+                    return tChild;
+                var found = FindVisualChild<T>(child, predicate);
+                if (found != null)
+                    return found;
+            }
+            return null;
         }
 
         #endregion
@@ -2402,6 +4260,14 @@ namespace Palisades.Views
             };
             stack.Children.Add(btnPortal);
 
+            var btnAndroid = new Button { Content = "Android Folder", Style = btnStyle };
+            btnAndroid.Click += (s, e) =>
+            {
+                CreateContainerRequested?.Invoke(rx, ry, rw, rh, SelectedContainerType.AndroidFolder);
+                CancelDrawMenu();
+            };
+            stack.Children.Add(btnAndroid);
+
             _drawMenuPopup.Child = stack;
 
             // Position menu slightly offset from cursor so cursor starts inside/near the border
@@ -2409,7 +4275,7 @@ namespace Palisades.Views
             double menuY = mousePos.Y - 5;
 
             menuX = Math.Clamp(menuX, 0, Width - 170);
-            menuY = Math.Clamp(menuY, 0, Height - 100);
+            menuY = Math.Clamp(menuY, 0, Height - 160);
 
             Canvas.SetLeft(_drawMenuPopup, menuX);
             Canvas.SetTop(_drawMenuPopup, menuY);

@@ -8,7 +8,8 @@ namespace Palisades.Views
         None,
         Normal,
         SvgButton,
-        FolderPortal
+        FolderPortal,
+        AndroidFolder
     }
 
     public partial class ContainerTypeSelectionWindow : Window

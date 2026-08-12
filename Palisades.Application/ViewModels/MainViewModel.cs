@@ -623,6 +623,7 @@ namespace Palisades.ViewModels
         public ICommand CreateNormalContainerCommand { get; }
         public ICommand CreateSvgContainerCommand { get; }
         public ICommand CreateFolderPortalCommand { get; }
+        public ICommand CreateAndroidFolderContainerCommand { get; }
         public ICommand SpawnClockCommand { get; }
         public ICommand SpawnSysMonCommand { get; }
         public ICommand SpawnPostItCommand { get; }
@@ -690,7 +691,17 @@ namespace Palisades.ViewModels
 
         public event Action? RequestExit;
         public event Action<ContainerViewModel>? RequestEditContainer;
-        public void InvokeRequestEditContainer(ContainerViewModel vm) => RequestEditContainer?.Invoke(vm);
+        public void InvokeRequestEditContainer(ContainerViewModel vm)
+        {
+            try
+            {
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(System.IO.Path.GetTempPath(), "palisades-android-perf.log"),
+                    $"{DateTime.Now:HH:mm:ss.fff} InvokeRequestEditContainer name='{vm?.Name}' android={vm?.IsAndroidFolderContainer} subscribers={(RequestEditContainer?.GetInvocationList().Length ?? 0)}{Environment.NewLine}");
+            }
+            catch { }
+            RequestEditContainer?.Invoke(vm);
+        }
         public event Action<ContainerViewModel>? RequestShowContainer;
         public event Action<ContainerViewModel>? RequestChangeFolderPortalPath;
         public event Action<ContainerViewModel>? RequestRecenter;
@@ -761,6 +772,20 @@ namespace Palisades.ViewModels
                 }
             });
             CreateFolderPortalCommand = new RelayCommand(() => RequestCreateFolderPortal?.Invoke(100, 100));
+            CreateAndroidFolderContainerCommand = new RelayCommand(() =>
+            {
+                var model = _manager.CreateContainer(TranslationService.Instance["Db_AndroidFolder"]);
+                model.IsAndroidFolderContainer = true;
+                model.Width = ContainerModel.AndroidFolderTileSize;
+                model.Height = ContainerModel.AndroidFolderTileSize;
+                model.CornerRadius = 24;
+                model.AutoHide = false;
+                model.Shortcuts.Clear();
+                _manager.Save();
+                var vm = CreateContainerVm(model);
+                Containers.Add(vm);
+                RequestShowContainer?.Invoke(vm);
+            });
 
             SpawnClockCommand = new RelayCommand(() => SpawnBuiltInGadget("com.palisades.plugin.clock", "Clock"));
             SpawnSysMonCommand = new RelayCommand(() => SpawnBuiltInGadget("com.palisades.plugin.sysmon", "SysMon"));
@@ -1076,6 +1101,36 @@ namespace Palisades.ViewModels
                             created.Y = model.Y;
                             created.Width = model.Width;
                             created.Height = model.Height;
+                            // Restore the Android-style folder settings too — Export writes the
+                            // full ContainerModel, so the import must mirror it or an Android
+                            // folder comes back as a plain container.
+                            created.IsAndroidFolderContainer = model.IsAndroidFolderContainer;
+                            created.AndroidOpenAtClick = model.AndroidOpenAtClick;
+                            created.AndroidPanelWidth = model.AndroidPanelWidth;
+                            created.AndroidPanelHeight = model.AndroidPanelHeight;
+                            created.AndroidIconSize = model.AndroidIconSize;
+                            created.AndroidShowHeader = model.AndroidShowHeader;
+                            created.AndroidHeaderFontSize = model.AndroidHeaderFontSize;
+                            created.AndroidShowLabel = model.AndroidShowLabel;
+                            created.AndroidLabelGap = model.AndroidLabelGap;
+                            created.AndroidPanelBackgroundColor = model.AndroidPanelBackgroundColor;
+                            created.AndroidPanelGradientEnabled = model.AndroidPanelGradientEnabled;
+                            created.AndroidPanelGradientEndColor = model.AndroidPanelGradientEndColor;
+                            created.AndroidPanelGradientAngle = model.AndroidPanelGradientAngle;
+                            created.AndroidPanelBackgroundOpacity = model.AndroidPanelBackgroundOpacity;
+                            created.AndroidOpenOpacity = model.AndroidOpenOpacity;
+                            created.AndroidClosedOpacity = model.AndroidClosedOpacity;
+                            created.AndroidPanelCornerRadius = model.AndroidPanelCornerRadius;
+                            created.AndroidPanelShowBorder = model.AndroidPanelShowBorder;
+                            created.AndroidTitleTwoLine = model.AndroidTitleTwoLine;
+                            created.AndroidOpenAnimation = model.AndroidOpenAnimation;
+                            created.AndroidAnimationDurationMs = model.AndroidAnimationDurationMs;
+                            created.AndroidBackdropMode = model.AndroidBackdropMode;
+                            created.AndroidBackdropStyle = model.AndroidBackdropStyle;
+                            created.AndroidBackdropColor = model.AndroidBackdropColor;
+                            created.AndroidBackdropDim = model.AndroidBackdropDim;
+                            created.AndroidTileShowBorder = model.AndroidTileShowBorder;
+                            created.AndroidTileCornerRadius = model.AndroidTileCornerRadius;
                             foreach (var s in model.Shortcuts)
                             {
                                 if (!created.Shortcuts.Any(ex =>

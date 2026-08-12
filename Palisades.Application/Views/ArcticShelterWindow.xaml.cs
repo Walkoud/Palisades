@@ -596,6 +596,44 @@ namespace Palisades.Views
                 _viewModel.SelectedContainer.BodyColor = (Color)ColorConverter.ConvertFromString(hex);
         }
 
+        private void AndroidPanelColorSwatch_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Border { Tag: string tag } && _viewModel.SelectedContainer != null && tag != "CUSTOM")
+                _viewModel.SelectedContainer.AndroidPanelBackgroundColor = tag;
+        }
+
+        private void AndroidPanelColorCustom_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.SelectedContainer == null) return;
+            var hex = PickColorViaDialog(_viewModel.SelectedContainer.AndroidPanelBackgroundColor);
+            if (hex != null)
+                _viewModel.SelectedContainer.AndroidPanelBackgroundColor = hex;
+        }
+
+        private void AndroidBackdropColorSwatch_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Border { Tag: string tag } && _viewModel.SelectedContainer != null && tag != "CUSTOM")
+                _viewModel.SelectedContainer.AndroidBackdropColor = tag;
+        }
+
+        private void AndroidBackdropColorCustom_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.SelectedContainer == null) return;
+            var hex = PickColorViaDialog(_viewModel.SelectedContainer.AndroidBackdropColor);
+            if (hex != null)
+                _viewModel.SelectedContainer.AndroidBackdropColor = hex;
+        }
+
+        private void AndroidGradientEndColor_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel.SelectedContainer == null) return;
+            var cur = _viewModel.SelectedContainer.AndroidPanelGradientEndColor
+                ?? _viewModel.SelectedContainer.AndroidPanelBackgroundColor;
+            var hex = PickColorViaDialog(cur);
+            if (hex != null)
+                _viewModel.SelectedContainer.AndroidPanelGradientEndColor = hex;
+        }
+
         // --- Gradient color fields ---
         private string _gradSelC1Hex = "#FF000000";
         private string _gradSelC2Hex = "#FF1A1A2E";

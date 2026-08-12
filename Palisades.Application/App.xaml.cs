@@ -212,10 +212,23 @@ namespace Palisades
                     {
                         SafeDispatch(() =>
                         {
+                            try
+                            {
+                                System.IO.File.AppendAllText(
+                                    System.IO.Path.Combine(System.IO.Path.GetTempPath(), "palisades-android-perf.log"),
+                                    $"{DateTime.Now:HH:mm:ss.fff} EDIT requested for '{vm.Name}' (android={vm.IsAndroidFolderContainer}){Environment.NewLine}");
+                            }
+                            catch { }
                             _mainViewModel.SelectedContainer = vm;
                             ShowMainWindow();
                             if (_arcticWindow != null)
+                            {
                                 _arcticWindow.ShowContainerProperties(vm);
+                                if (_arcticWindow.WindowState == WindowState.Minimized)
+                                    _arcticWindow.WindowState = WindowState.Normal;
+                                _arcticWindow.Activate();
+                                _arcticWindow.Focus();
+                            }
                         });
                     }
                 };
@@ -487,6 +500,28 @@ namespace Palisades
                         _overlayWindow?.AddContainer(vm);
 
                         StartFolderWatcher(container, folderPath);
+                    }
+                    else if (selectedType == SelectedContainerType.AndroidFolder)
+                    {
+                        double tile = ContainerModel.AndroidFolderTileSize;
+                        var container = ContainerManager.Instance.CreateContainer(
+                            TranslationService.Instance["App_AndroidFolder"]);
+                        container.X = x + Math.Max(0, (width - tile) / 2);
+                        container.Y = y + Math.Max(0, (height - tile) / 2);
+                        container.Width = tile;
+                        container.Height = tile;
+                        container.CornerRadius = 24;
+                        container.IsAndroidFolderContainer = true;
+                        container.AutoHide = false;
+                        container.Shortcuts.Clear();
+                        ContainerManager.Instance.Save();
+
+                        var vm = new ContainerViewModel(container);
+                        vm.RequestClose += () => _mainViewModel?.DeleteContainer(vm);
+                        vm.RequestEdit += () => _mainViewModel?.InvokeRequestEditContainer(vm);
+                        vm.RequestDuplicate += () => _mainViewModel?.DuplicateContainer(vm);
+                        _mainViewModel?.Containers.Add(vm);
+                        _overlayWindow?.AddContainer(vm);
                     }
                 }
                 catch (Exception ex)

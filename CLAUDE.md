@@ -34,3 +34,16 @@ WPF .NET 8 desktop app — declutter Windows desktop with icon containers, gadge
 - `ContainerManager` — container persistence (singleton)
 - App auto-starts with `--autostart` flag (from registry Run key), hides dashboard
 - Tray click shows/recreates ArcticShelterWindow
+
+
+
+## Gestion du contexte et suivi des échecs (Anti-Loop)
+
+1. **Vérification obligatoire :** Avant de tenter une résolution de problème ou d'exécuter une commande, lis impérativement le fichier `ATTEMPTS.LOG` à la racine. Ne répète JAMAIS une approche qui y est listée.
+2. **Consignation immédiate :** Dès qu'une commande, un script ou une méthode échoue ou ne donne pas le résultat attendu, tu DOIS immédiatement écrire l'échec dans `ATTEMPTS.LOG`.
+3. **Format strict pour `ATTEMPTS.LOG` :**
+   - **Date/Heure ou Étape :** [Description concise du problème]
+   - **Méthode tentée :** [Commande, modification de code ou approche exacte]
+   - **Erreur / Résultat :** [Code d'erreur ou comportement obtenu]
+   - **Raison de l'échec :** [Pourquoi ça n'a pas marché]
+4. **Interdiction :** Ne propose aucune nouvelle solution tant que l'échec précédent n'a pas été consigné dans `ATTEMPTS.LOG`.

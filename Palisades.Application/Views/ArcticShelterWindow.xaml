@@ -390,6 +390,7 @@
                                                 </ContextMenu.Resources>
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_StandardContainer]}" Command="{Binding CreateNormalContainerCommand}" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SvgContainer]}" Command="{Binding CreateSvgContainerCommand}" />
+                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidFolder]}" Command="{Binding CreateAndroidFolderContainerCommand}" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_FolderPortal]}" Command="{Binding CreateFolderPortalCommand}" />
                                                 <Separator Background="#333" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItNote]}" Command="{Binding SpawnPostItCommand}" />
@@ -886,6 +887,251 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Android Folder Settings -->
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
+                                Visibility="{Binding SelectedContainer.IsAndroidFolderContainer, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidFolderSettings]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
+                                <CheckBox IsChecked="{Binding SelectedContainer.AndroidOpenAtClick}" FontSize="12" Margin="0,0,0,10" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidOpenAtClick]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidPanelWidth]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="280" Maximum="900" Value="{Binding SelectedContainer.AndroidPanelWidth, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidPanelWidth, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidPanelHeight]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="200" Maximum="700" Value="{Binding SelectedContainer.AndroidPanelHeight, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidPanelHeight, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+
+                                <Separator Background="{DynamicResource GuiBorderBrush}" Margin="0,8,0,12" />
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidIconSize]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="32" Maximum="120" Value="{Binding SelectedContainer.AndroidIconSize, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidIconSize, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <CheckBox IsChecked="{Binding SelectedContainer.AndroidShowHeader}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidShowHeader]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <Grid Margin="0,0,0,10" Visibility="{Binding SelectedContainer.AndroidShowHeader, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidHeaderFontSize]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="14" Maximum="40" Value="{Binding SelectedContainer.AndroidHeaderFontSize, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidHeaderFontSize, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <CheckBox IsChecked="{Binding SelectedContainer.AndroidShowLabel}" FontSize="12" Margin="0,0,0,10" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidShowLabel]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidLabelGap]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="-10" Maximum="40" Value="{Binding SelectedContainer.AndroidLabelGap, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidLabelGap, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <CheckBox IsChecked="{Binding SelectedContainer.TwoLineShortcuts}" FontSize="12" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidTwoLineNames]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Android Folder Appearance -->
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
+                                Visibility="{Binding SelectedContainer.IsAndroidFolderContainer, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidAppearance]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
+
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidPanelBackground]}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,6" FontSize="12" />
+                                <UniformGrid Columns="11" Height="24" Margin="0,0,0,10">
+                                    <Border Background="#000000" Tag="#F2000000" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#1E3A5F" Tag="#F21E3A5F" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#3A1E5F" Tag="#F23A1E5F" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#1E4A3A" Tag="#F21E4A3A" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#5F4E1E" Tag="#F25F4E1E" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#5F2D1E" Tag="#F25F2D1E" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#4A1E3A" Tag="#F24A1E3A" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#1E4A5F" Tag="#F21E4A5F" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#151515" Tag="#F2151515" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#1F1F1F" Tag="#F21F1F1F" MouseDown="AndroidPanelColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#333333" Tag="CUSTOM" MouseDown="AndroidPanelColorCustom_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1">
+                                        <TextBlock Text="+" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16" FontWeight="Bold" />
+                                    </Border>
+                                </UniformGrid>
+
+                                <CheckBox IsChecked="{Binding SelectedContainer.AndroidPanelGradientEnabled}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidPanelGradient]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <Grid Margin="0,0,0,10" Visibility="{Binding SelectedContainer.AndroidPanelGradientEnabled, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="28" Height="26" Background="{Binding SelectedContainer.AndroidPanelGradientEndBrush}" CornerRadius="3" BorderBrush="#2D3A4B" BorderThickness="1" Cursor="Hand" MouseDown="AndroidGradientEndColor_Click" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="0" Maximum="360" Value="{Binding SelectedContainer.AndroidPanelGradientAngle, Mode=TwoWay}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidPanelGradientAngle, StringFormat={}{0:F0}°}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackgroundOpacity]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="0" Maximum="100" Value="{Binding SelectedContainer.AndroidPanelBackgroundOpacity, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidPanelBackgroundOpacity, StringFormat={}{0:F0}%}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidOpenOpacity]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="0" Maximum="100" Value="{Binding SelectedContainer.AndroidOpenOpacity, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidOpenOpacity, StringFormat={}{0:F0}%}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidClosedOpacity]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="0" Maximum="100" Value="{Binding SelectedContainer.AndroidClosedOpacity, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidClosedOpacity, StringFormat={}{0:F0}%}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidCornerRadius]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="0" Maximum="60" Value="{Binding SelectedContainer.AndroidPanelCornerRadius, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidPanelCornerRadius, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+
+                                <CheckBox IsChecked="{Binding SelectedContainer.AndroidPanelShowBorder}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidShowBorder]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <CheckBox IsChecked="{Binding SelectedContainer.AndroidTitleTwoLine}" FontSize="12" Margin="0,0,0,10" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidTwoLineTitle]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <CheckBox IsChecked="{Binding SelectedContainer.AndroidTileShowBorder}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidTileBorder]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidTileCornerRadius]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="0" Maximum="40" Value="{Binding SelectedContainer.AndroidTileCornerRadius, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidTileCornerRadius, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidAnimation]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <ComboBox Grid.Column="1" Width="160" HorizontalAlignment="Left" SelectedValue="{Binding SelectedContainer.AndroidOpenAnimation, Mode=TwoWay}" SelectedValuePath="Tag" Height="28" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}">
+                                        <ComboBoxItem Content="Scale" Tag="Scale" />
+                                        <ComboBoxItem Content="Fade" Tag="Fade" />
+                                        <ComboBoxItem Content="Zoom" Tag="Zoom" />
+                                        <ComboBoxItem Content="SlideUp" Tag="SlideUp" />
+                                        <ComboBoxItem Content="Elastic" Tag="Elastic" />
+                                    </ComboBox>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidAnimationDuration]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="100" Maximum="1000" Value="{Binding SelectedContainer.AndroidAnimationDurationMs, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidAnimationDurationMs, StringFormat={}{0:F0}ms}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdrop]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <ComboBox Grid.Column="1" Width="160" HorizontalAlignment="Left" SelectedValue="{Binding SelectedContainer.AndroidBackdropMode, Mode=TwoWay}" SelectedValuePath="Tag" Height="28" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}">
+                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdropFull]}" Tag="FullScreen" />
+                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdropPanel]}" Tag="Panel" />
+                                    </ComboBox>
+                                </Grid>
+                                <StackPanel Visibility="{Binding SelectedContainer.AndroidBackdropMode, Converter={StaticResource EqualsConverter}, ConverterParameter=FullScreen}">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdropStyle]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <ComboBox Grid.Column="1" Width="160" HorizontalAlignment="Left" SelectedValue="{Binding SelectedContainer.AndroidBackdropStyle, Mode=TwoWay}" SelectedValuePath="Tag" Height="28" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}">
+                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdropStyleColor]}" Tag="Color" />
+                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdropStyleBlur]}" Tag="Blur" />
+                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdropStyleWallpaper]}" Tag="Darkening" />
+                                    </ComboBox>
+                                </Grid>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdropColor]}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,6" FontSize="12" Visibility="{Binding SelectedContainer.AndroidBackdropStyle, Converter={StaticResource EqualsConverter}, ConverterParameter=Color}" />
+                                <UniformGrid Columns="11" Height="24" Margin="0,0,0,10" Visibility="{Binding SelectedContainer.AndroidBackdropStyle, Converter={StaticResource EqualsConverter}, ConverterParameter=Color}">
+                                    <Border Background="#000000" Tag="#FF000000" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#1E3A5F" Tag="#FF1E3A5F" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#3A1E5F" Tag="#FF3A1E5F" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#1E4A3A" Tag="#FF1E4A3A" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#5F4E1E" Tag="#FF5F4E1E" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#5F2D1E" Tag="#FF5F2D1E" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#4A1E3A" Tag="#FF4A1E3A" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#1E4A5F" Tag="#FF1E4A5F" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#151515" Tag="#FF151515" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#1F1F1F" Tag="#FF1F1F1F" MouseDown="AndroidBackdropColorSwatch_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1" />
+                                    <Border Background="#333333" Tag="CUSTOM" MouseDown="AndroidBackdropColorCustom_MouseDown" Cursor="Hand" CornerRadius="3" Margin="1">
+                                        <TextBlock Text="+" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="16" FontWeight="Bold" />
+                                    </Border>
+                                </UniformGrid>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedContainer.AndroidBackdropStyle}" Value="Blur">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedContainer.AndroidBackdropStyle}" Value="Darkening">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidBackdropDim]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="0" Maximum="100" Value="{Binding SelectedContainer.AndroidBackdropDim, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidBackdropDim, StringFormat={}{0:F0}%}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <!-- SVG Buttons Config Panel -->
                         <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
                                 Visibility="{Binding SelectedContainer.IsSvgButtonContainer, Converter={StaticResource BoolToVisibility}}">
@@ -1126,7 +1372,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
+                                Visibility="{Binding SelectedContainer.IsAndroidFolderContainer, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Colors]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <Grid Margin="0,0,0,10">
@@ -1184,7 +1431,7 @@
                         </Border>
 
                         <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
-                                Visibility="{Binding SelectedContainer.IsSvgButtonContainer, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                                Visibility="{Binding SelectedContainer.IsTitleSettingsVisible, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_Title]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <CheckBox Margin="0,0,0,10" IsChecked="{Binding SelectedContainer.ShowTitle}" FontSize="12" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Header_ShowTitle]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
@@ -1232,7 +1479,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
+                                Visibility="{Binding SelectedContainer.IsAndroidFolderContainer, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SelectButtonToEdit]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <CheckBox IsChecked="{Binding SelectedContainer.AutoHide}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoHideInactive]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
@@ -1308,7 +1556,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
+                                Visibility="{Binding SelectedContainer.IsAndroidFolderContainer, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_Containers]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <CheckBox IsChecked="{Binding SelectedContainer.ShowShortcutArrow}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowShortcutArrow]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
@@ -1365,7 +1614,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
+                                Visibility="{Binding SelectedContainer.IsAndroidFolderContainer, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Properties_PrivateBox]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <Button x:Name="SetPasswordBtn" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[PrivateBox_SetPassword]}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" HorizontalAlignment="Left" Click="SetPassword_Click" />
@@ -1386,7 +1636,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
+                                Visibility="{Binding SelectedContainer.IsAndroidFolderContainer, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Colors]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_HeaderBackground]}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,6" FontSize="12" />
@@ -1451,7 +1702,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12"
+                                Visibility="{Binding SelectedContainer.IsAndroidFolderContainer, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ApplicationSettings]}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,14" />
                                 <CheckBox IsChecked="{Binding SelectedContainer.FilterEnabled}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowSeconds]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>

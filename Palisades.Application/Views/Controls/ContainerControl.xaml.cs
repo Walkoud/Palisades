@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Newtonsoft.Json;
 using Palisades.Models;
 using Palisades.Services;
@@ -37,6 +38,11 @@ namespace Palisades.Views.Controls
         private bool _isRectSelecting;
         private bool _isApplyingTheme;
         private bool _themeHasCustomBrush;
+        // Guards tile hide/show animation callbacks. BeginAnimation(dp, null) detaches a
+        // clock but does NOT stop it — the stale clock keeps ticking and its Completed
+        // fires at the natural end, collapsing a tile that was already re-shown. A generation
+        // counter lets each Completed handler bail if a newer hide/show superseded it.
+        private int _androidTileGen;
         private System.Windows.Shapes.Rectangle? _selectionRect;
         private System.Windows.Shapes.Rectangle? _insertionMarker;
         private Point _selectionStartPoint;
@@ -45,6 +51,171 @@ namespace Palisades.Views.Controls
         /// <summary>Offset of parent overlay window from virtual desktop origin.</summary>
         internal double OverlayOffsetX { get; set; }
         internal double OverlayOffsetY { get; set; }
+
+        /// <summary>Raised when an Android-style folder tile is clicked (to open it).</summary>
+        public event Action? AndroidFolderOpenRequested;
+
+        /// <summary>
+        /// Hide the closed tile (and its label) while the folder is open. Uses a
+        /// local value so it always wins over the style's visibility binding;
+        /// ClearValue on restore lets the style re-apply.
+        /// </summary>
+        public void SetAndroidTileHidden(bool hidden, int animationDurationMs = 200)
+        {
+            try
+            {
+                DesktopOverlayWindow.LogAndroidPerf(
+                    $"SetAndroidTileHidden({hidden}, {animationDurationMs}ms) opacity={(AndroidLayoutRoot == null ? -1 : AndroidLayoutRoot.Opacity)} vis={(AndroidLayoutRoot == null ? "?" : AndroidLayoutRoot.Visibility.ToString())}");
+            }
+            catch { }
+            _androidTileGen++;
+            int gen = _androidTileGen;
+            if (AndroidLayoutRoot != null)
+            {
+                // Le ScaleTransform du Style XAML est gelé (frozen) et ne peut pas être
+                // animé. Créer un nouveau ScaleTransform non-gelé comme valeur locale, qui
+                // écrase le Style et son trigger IsMouseOver.
+                double currentScale = 1.0;
+                if (AndroidLayoutRoot.RenderTransform is ScaleTransform existing)
+                    currentScale = existing.ScaleX;
+
+                var scaleTransform = new ScaleTransform(currentScale, currentScale);
+                AndroidLayoutRoot.RenderTransform = scaleTransform;
+
+                // Scale the tile as a cached bitmap so its frost blur rasters once instead
+                // of every frame — re-showing a Collapsed tile re-rasterizes the whole
+                // (blurred) subtree per frame and was a measured source of close lag.
+                double rscale = 1.0;
+                try { rscale = VisualTreeHelper.GetDpi(this).DpiScaleX; } catch { }
+
+                // WPF effects are software-rasterized, so a DropShadowEffect re-blurs every
+                // frame the tile scales — visible stutter during the zoom on fast machines.
+                // Drop it for the zoom and restore it once the motion stops.
+                var tileShadow = MainBorder.Effect as System.Windows.Media.Effects.DropShadowEffect;
+                if (tileShadow != null) MainBorder.Effect = null;
+                void RestoreShadow()
+                {
+                    if (tileShadow != null && MainBorder.Effect == null)
+                        MainBorder.Effect = tileShadow;
+                }
+
+                if (hidden)
+                {
+                    // Cacher avec animation de scale ET opacité
+                    var opacityAnim = new DoubleAnimation
+                    {
+                        To = 0,
+                        Duration = TimeSpan.FromMilliseconds(animationDurationMs),
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+                    };
+
+                    var scaleAnim = new DoubleAnimation
+                    {
+                        To = 0.3,  // Réduire à 30% de la taille
+                        Duration = TimeSpan.FromMilliseconds(animationDurationMs),
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+                    };
+
+                    opacityAnim.Completed += (s, e) =>
+                    {
+                        // A newer hide/show superseded this one (e.g. the tile was re-shown
+                        // mid-hide) — the stale clock's natural-end Completed must not collapse
+                        // an already-visible tile.
+                        if (gen != _androidTileGen) return;
+                        DesktopOverlayWindow.LogAndroidPerf(
+                            $"[HIDE] Completed → Collapsed (gen={gen} current={_androidTileGen})");
+                        AndroidLayoutRoot.Visibility = Visibility.Collapsed;
+                        AndroidLayoutRoot.CacheMode = null;
+                        RestoreShadow();
+                    };
+
+                    AndroidLayoutRoot.CacheMode = new BitmapCache { RenderAtScale = rscale };
+                    AndroidLayoutRoot.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
+                    scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
+                    scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+                }
+                else
+                {
+                    // Montrer avec animation
+                    AndroidLayoutRoot.ClearValue(FrameworkElement.VisibilityProperty);
+                    // Drop any HoldEnd opacity clock from a previous show/hide — otherwise
+                    // the local Opacity=0 below is ignored and the fade-in never restarts.
+                    AndroidLayoutRoot.BeginAnimation(UIElement.OpacityProperty, null);
+                    // Raster the tile into a cache while opaque, then hide it — the cached
+                    // bitmap stays opaque (opacity is applied at draw time, not baked into
+                    // the cache), so the fade-in reveals it without re-rasterizing the blur.
+                    AndroidLayoutRoot.Opacity = 1;
+                    AndroidLayoutRoot.CacheMode = new BitmapCache { RenderAtScale = rscale };
+                    AndroidLayoutRoot.Opacity = 0;
+
+                    scaleTransform.ScaleX = 0.3;
+                    scaleTransform.ScaleY = 0.3;
+
+                    var opacityAnim = new DoubleAnimation
+                    {
+                        To = _vm.CurrentOpacity,
+                        Duration = TimeSpan.FromMilliseconds(animationDurationMs),
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    };
+
+                    var scaleAnim = new DoubleAnimation
+                    {
+                        To = 1.0,
+                        Duration = TimeSpan.FromMilliseconds(animationDurationMs),
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    };
+
+                    // Quand l'animation est finie, restaurer le RenderTransform du Style
+                    // (scale 1.0 + effet hover IsMouseOver).
+                    opacityAnim.Completed += (s, e) =>
+                    {
+                        if (gen != _androidTileGen) return;
+                        try
+                        {
+                            System.IO.File.AppendAllText(
+                                System.IO.Path.Combine(System.IO.Path.GetTempPath(), "palisades-android-perf.log"),
+                                $"{DateTime.Now:HH:mm:ss.fff}   [SHOW] Completed → restore (opacity={AndroidLayoutRoot.Opacity}, vis={AndroidLayoutRoot.Visibility}){Environment.NewLine}");
+                        }
+                        catch { }
+                        AndroidLayoutRoot.CacheMode = null;
+                        AndroidLayoutRoot.ClearValue(FrameworkElement.RenderTransformProperty);
+                        RestoreShadow();
+                    };
+
+                    AndroidLayoutRoot.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
+                    scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
+                    scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+                }
+            }
+            if (AndroidTileLabel != null)
+            {
+                if (hidden)
+                {
+                    // Cacher avec animation
+                    var anim = new DoubleAnimation
+                    {
+                        To = 0,
+                        Duration = TimeSpan.FromMilliseconds(animationDurationMs),
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+                    };
+                    anim.Completed += (s, e) => AndroidTileLabel.Visibility = Visibility.Collapsed;
+                    AndroidTileLabel.BeginAnimation(UIElement.OpacityProperty, anim);
+                }
+                else
+                {
+                    // Montrer avec animation
+                    AndroidTileLabel.ClearValue(FrameworkElement.VisibilityProperty);
+                    AndroidTileLabel.Opacity = 0;
+                    var anim = new DoubleAnimation
+                    {
+                        To = 1,
+                        Duration = TimeSpan.FromMilliseconds(animationDurationMs),
+                        EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                    };
+                    AndroidTileLabel.BeginAnimation(UIElement.OpacityProperty, anim);
+                }
+            }
+        }
 
         public ContainerControl(ContainerViewModel viewModel)
         {
@@ -271,6 +442,12 @@ namespace Palisades.Views.Controls
                 if (_vm.IsCurtainMode)
                     DockCurtainToScreenEdge();
             };
+
+            // Android folder: capture the frosted-glass backdrop once laid out
+            if (_vm.IsAndroidFolderContainer)
+            {
+                Dispatcher.BeginInvoke(new Action(RefreshAndroidFrost), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
         }
 
         private bool FilterShortcut(object obj)
@@ -346,6 +523,15 @@ namespace Palisades.Views.Controls
 
         private void UpdateCurtainModeVisibility()
         {
+            if (_vm.IsAndroidFolderContainer)
+            {
+                NormalLayoutRoot.Visibility = Visibility.Collapsed;
+                CurtainLayoutRoot.Visibility = Visibility.Collapsed;
+                AndroidLayoutRoot.Visibility = Visibility.Visible;
+                ResizeHandleGrid.Visibility = Visibility.Collapsed;
+                return;
+            }
+
             if (_vm.IsCurtainMode)
             {
                 if (_vm.CurtainDirection == "BottomToTop")
@@ -590,7 +776,10 @@ namespace Palisades.Views.Controls
             if (_vm.IsCurtainMode) { UpdateCurtainClip(); return; }
             CurtainLayoutRoot.Clip = null;
             double cr = _vm.CornerRadius;
-            double h = Height > 0 ? Height : ActualHeight;
+            // Use the border's actual rendered height (control height minus the
+            // 7px root-grid margin), otherwise the rounded bottom corners land
+            // below the visible tile and the bottom edge renders square.
+            double h = MainBorder.ActualHeight > 0 ? MainBorder.ActualHeight : (Height > 0 ? Height : ActualHeight);
             if (cr <= 0)
             {
                 MainBorder.Clip = null;
@@ -852,6 +1041,80 @@ namespace Palisades.Views.Controls
             e.Handled = true;
         }
 
+        private void AndroidTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_vm.IsLocked || _parentCanvas == null || _vm.IsAndroidFolderOpen) return;
+            _isDragging = true;
+            _vm.IsDragging = true;
+            _vm.IsHovered = false;
+
+            _dragStartCanvas = e.GetPosition(_parentCanvas);
+            _dragStartLeft = Canvas.GetLeft(this);
+            if (double.IsNaN(_dragStartLeft))
+                _dragStartLeft = _vm.X - OverlayOffsetX;
+            _dragStartTop = Canvas.GetTop(this);
+            if (double.IsNaN(_dragStartTop))
+                _dragStartTop = _vm.Y - OverlayOffsetY;
+
+            _dragTransform = new TranslateTransform(0, 0);
+            RenderTransform = _dragTransform;
+            var dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            CacheMode = new BitmapCache { RenderAtScale = dpiScale };
+            MainBorder.Effect = null;
+            Mouse.Capture(this);
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Capture the desktop region behind the Android folder tile and show it
+        /// blurred — the "frosted glass" closed state. Re-run when the tile moves.
+        /// </summary>
+        private void RefreshAndroidFrost()
+        {
+            if (!_vm.IsAndroidFolderContainer || AndroidFrostImage == null) return;
+            if (AndroidFrostImage.ActualWidth < 2 || AndroidFrostImage.ActualHeight < 2) return;
+
+            try
+            {
+                // Temporarily hide the tile so the snapshot shows only what's behind it
+                AndroidLayoutRoot.Opacity = 0;
+                Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+
+                var dpi = VisualTreeHelper.GetDpi(this);
+                int w = (int)Math.Round(AndroidFrostImage.ActualWidth * dpi.DpiScaleX);
+                int h = (int)Math.Round(AndroidFrostImage.ActualHeight * dpi.DpiScaleY);
+                var topLeft = AndroidFrostImage.PointToScreen(new Point(0, 0));
+                int x = (int)Math.Round(topLeft.X);
+                int y = (int)Math.Round(topLeft.Y);
+                if (w <= 0 || h <= 0) { AndroidLayoutRoot.Opacity = 1; return; }
+
+                using var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                using (var g = System.Drawing.Graphics.FromImage(bmp))
+                {
+                    g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h));
+                }
+
+                AndroidLayoutRoot.Opacity = 1;
+
+                int stride = w * 4;
+                var pixels = new byte[stride * h];
+                var rect = new System.Drawing.Rectangle(0, 0, w, h);
+                var data = bmp.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                    System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                try
+                {
+                    System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+                }
+                finally { bmp.UnlockBits(data); }
+
+                var src = System.Windows.Media.Imaging.BitmapSource.Create(
+                    w, h, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+                src.Freeze();
+                AndroidFrostImage.Source = src;
+            }
+            catch { AndroidLayoutRoot.Opacity = 1; }
+        }
+
         private void HeaderBar_MouseEnter(object sender, MouseEventArgs e)
         {
             if (_vm.TitleHoverEffect)
@@ -921,6 +1184,32 @@ namespace Palisades.Views.Controls
         {
             if (_isDragging)
             {
+                // Android folder: a press with no movement is a tap → open, not a drag
+                if (_vm.IsAndroidFolderContainer && _parentCanvas != null)
+                {
+                    var cur = e.GetPosition(_parentCanvas);
+                    double moved = Math.Abs(cur.X - _dragStartCanvas.X) + Math.Abs(cur.Y - _dragStartCanvas.Y);
+                    if (moved < 6)
+                    {
+                        _isDragging = false;
+                        _vm.IsDragging = false;
+                        Mouse.Capture(null);
+                        if (_dragTransform != null) { RenderTransform = null; _dragTransform = null; }
+                        CacheMode = null;
+                        MainBorder.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                        {
+                            Color = Colors.Black,
+                            BlurRadius = 20,
+                            Opacity = 0.35,
+                            ShadowDepth = 3,
+                            Direction = 270
+                        };
+                        AndroidFolderOpenRequested?.Invoke();
+                        e.Handled = true;
+                        return;
+                    }
+                }
+
                 _isDragging = false;
                 _vm.IsDragging = false;
                 ClearSnap();
@@ -995,6 +1284,12 @@ namespace Palisades.Views.Controls
                     _vm.X = Canvas.GetLeft(this) + OverlayOffsetX;
                     _vm.Y = Canvas.GetTop(this) + OverlayOffsetY;
                     _vm.Save();
+
+                    // Frost follows the tile when it's moved
+                    if (_vm.IsAndroidFolderContainer)
+                    {
+                        Dispatcher.BeginInvoke(new Action(RefreshAndroidFrost), System.Windows.Threading.DispatcherPriority.Loaded);
+                    }
 
                     // Check for merge with another container
                     var overlay = Window.GetWindow(this) as DesktopOverlayWindow;
@@ -1167,6 +1462,8 @@ namespace Palisades.Views.Controls
                 if (child == this || child.Visibility != Visibility.Visible)
                     continue;
                 if (child is not ContainerControl other)
+                    continue;
+                if (other.DataContext is ContainerViewModel ovm && ovm.IsVisuallyCollapsed && !ovm.IsCurtainMode)
                     continue;
 
                 double ol = Canvas.GetLeft(other);
@@ -1386,6 +1683,15 @@ namespace Palisades.Views.Controls
         /// </summary>
         private void ContainerControl_ContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
+            bool isAndroid = _vm?.IsAndroidFolderContainer == true;
+            try
+            {
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(System.IO.Path.GetTempPath(), "palisades-android-perf.log"),
+                    $"{DateTime.Now:HH:mm:ss.fff} ContextMenuOpening name='{_vm?.Name}' android={isAndroid} source={e.OriginalSource?.GetType().Name}{Environment.NewLine}");
+            }
+            catch { }
+
             // Walk up from the source to check if this is a shortcut item
             var elem = e.OriginalSource as DependencyObject;
             while (elem != null)
@@ -1393,6 +1699,13 @@ namespace Palisades.Views.Controls
                 if (elem is FrameworkElement fe && fe.DataContext is ShortcutItem)
                 {
                     e.Handled = true;
+                    try
+                    {
+                        System.IO.File.AppendAllText(
+                            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "palisades-android-perf.log"),
+                            $"{DateTime.Now:HH:mm:ss.fff}   suppressed (shortcut item){Environment.NewLine}");
+                    }
+                    catch { }
                     return;
                 }
                 elem = VisualTreeHelper.GetParent(elem);
@@ -2490,7 +2803,7 @@ namespace Palisades.Views.Controls
             return new System.Windows.Point(mousePos.X, mousePos.Y);
         }
 
-        private static void LaunchShortcut(ShortcutItem item)
+        internal static void LaunchShortcut(ShortcutItem item)
         {
             try
             {

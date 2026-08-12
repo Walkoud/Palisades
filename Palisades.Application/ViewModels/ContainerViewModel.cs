@@ -140,8 +140,10 @@ namespace Palisades.ViewModels
             }
         }
 
-        public double IdleTargetOpacity => _idleOpacityPercent / 100.0;
-        public double ActiveTargetOpacity => _activeOpacityPercent / 100.0;
+        public double IdleTargetOpacity => _model.IsAndroidFolderContainer
+            ? AndroidClosedOpacity / 100.0 : _idleOpacityPercent / 100.0;
+        public double ActiveTargetOpacity => _model.IsAndroidFolderContainer
+            ? AndroidClosedOpacity / 100.0 : _activeOpacityPercent / 100.0;
 
         public double CurrentOpacity
         {
@@ -448,11 +450,393 @@ namespace Palisades.ViewModels
                 _model.IsSvgButtonContainer = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsNormalContainer));
+                OnPropertyChanged(nameof(IsTitleSettingsVisible));
                 Save();
             }
         }
 
-        public bool IsNormalContainer => !_model.IsSvgButtonContainer && (!_model.IsCurtainMode || CurtainDirection == "BottomToTop");
+        public bool IsAndroidFolderContainer
+        {
+            get => _model.IsAndroidFolderContainer;
+            set
+            {
+                _model.IsAndroidFolderContainer = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsNormalContainer));
+                OnPropertyChanged(nameof(IsTitleSettingsVisible));
+                Save();
+            }
+        }
+
+        public bool AndroidOpenAtClick
+        {
+            get => _model.AndroidOpenAtClick;
+            set { _model.AndroidOpenAtClick = value; OnPropertyChanged(); Save(); }
+        }
+
+        public double AndroidPanelWidth
+        {
+            get => _model.AndroidPanelWidth;
+            set { _model.AndroidPanelWidth = Math.Max(240, value); OnPropertyChanged(); Save(); }
+        }
+
+        public double AndroidPanelHeight
+        {
+            get => _model.AndroidPanelHeight;
+            set { _model.AndroidPanelHeight = Math.Max(200, value); OnPropertyChanged(); Save(); }
+        }
+
+        public double AndroidIconSize
+        {
+            get => _model.AndroidIconSize;
+            set { _model.AndroidIconSize = Math.Clamp(value, 32, 120); OnPropertyChanged(); Save(); }
+        }
+
+        public bool AndroidShowHeader
+        {
+            get => _model.AndroidShowHeader;
+            set { _model.AndroidShowHeader = value; OnPropertyChanged(); Save(); }
+        }
+
+        public double AndroidHeaderFontSize
+        {
+            get => _model.AndroidHeaderFontSize;
+            set { _model.AndroidHeaderFontSize = Math.Clamp(value, 14, 40); OnPropertyChanged(); Save(); }
+        }
+
+        public bool AndroidShowLabel
+        {
+            get => _model.AndroidShowLabel;
+            set { _model.AndroidShowLabel = value; OnPropertyChanged(); Save(); }
+        }
+
+        public double AndroidLabelGap
+        {
+            get => _model.AndroidLabelGap;
+            set
+            {
+                _model.AndroidLabelGap = Math.Clamp(value, -10, 40);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AndroidLabelTranslateY));
+                Save();
+            }
+        }
+
+        /// <summary>Render offset of the label below the tile (tile height + gap, minus the 7px root-grid margin).</summary>
+        public double AndroidLabelTranslateY => ContainerModel.AndroidFolderTileSize - 14 + _model.AndroidLabelGap;
+
+        public string AndroidPanelBackgroundColor
+        {
+            get => _model.AndroidPanelBackgroundColor;
+            set
+            {
+                _model.AndroidPanelBackgroundColor = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AndroidPanelBackgroundBrush));
+                OnPropertyChanged(nameof(AndroidPanelBorderBrush));
+                OnPropertyChanged(nameof(AndroidTileBackgroundBrush));
+                Save();
+            }
+        }
+
+        public bool AndroidPanelGradientEnabled
+        {
+            get => _model.AndroidPanelGradientEnabled;
+            set
+            {
+                _model.AndroidPanelGradientEnabled = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AndroidPanelBackgroundBrush));
+                Save();
+            }
+        }
+
+        public string? AndroidPanelGradientEndColor
+        {
+            get => _model.AndroidPanelGradientEndColor;
+            set
+            {
+                _model.AndroidPanelGradientEndColor = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AndroidPanelBackgroundBrush));
+                OnPropertyChanged(nameof(AndroidPanelGradientEndBrush));
+                Save();
+            }
+        }
+
+        public double AndroidPanelGradientAngle
+        {
+            get => _model.AndroidPanelGradientAngle;
+            set
+            {
+                _model.AndroidPanelGradientAngle = Math.Clamp(value, 0, 360);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AndroidPanelBackgroundBrush));
+                Save();
+            }
+        }
+
+        public int AndroidPanelBackgroundOpacity
+        {
+            get => _model.AndroidPanelBackgroundOpacity;
+            set
+            {
+                _model.AndroidPanelBackgroundOpacity = Math.Clamp(value, 0, 100);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AndroidPanelBackgroundBrush));
+                Save();
+            }
+        }
+
+        public int AndroidOpenOpacity
+        {
+            get => _model.AndroidOpenOpacity;
+            set
+            {
+                _model.AndroidOpenOpacity = Math.Clamp(value, 0, 100);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AndroidPanelBorderBrush));
+                Save();
+            }
+        }
+
+        public int AndroidClosedOpacity
+        {
+            get => _model.AndroidClosedOpacity;
+            set
+            {
+                _model.AndroidClosedOpacity = Math.Clamp(value, 0, 100);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IdleTargetOpacity));
+                OnPropertyChanged(nameof(ActiveTargetOpacity));
+                Save();
+                StartOpacityAnimation(_isHovered ? ActiveTargetOpacity : IdleTargetOpacity);
+            }
+        }
+
+        public double AndroidPanelCornerRadius
+        {
+            get => _model.AndroidPanelCornerRadius;
+            set
+            {
+                _model.AndroidPanelCornerRadius = Math.Clamp(value, 0, 60);
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public bool AndroidPanelShowBorder
+        {
+            get => _model.AndroidPanelShowBorder;
+            set
+            {
+                _model.AndroidPanelShowBorder = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public bool AndroidTitleTwoLine
+        {
+            get => _model.AndroidTitleTwoLine;
+            set
+            {
+                _model.AndroidTitleTwoLine = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public string AndroidOpenAnimation
+        {
+            get => _model.AndroidOpenAnimation;
+            set
+            {
+                _model.AndroidOpenAnimation = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public int AndroidAnimationDurationMs
+        {
+            get => _model.AndroidAnimationDurationMs;
+            set
+            {
+                _model.AndroidAnimationDurationMs = Math.Clamp(value, 100, 1000);
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public string AndroidBackdropMode
+        {
+            get => _model.AndroidBackdropMode;
+            set
+            {
+                _model.AndroidBackdropMode = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public string AndroidBackdropStyle
+        {
+            get => _model.AndroidBackdropStyle;
+            set
+            {
+                _model.AndroidBackdropStyle = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public string AndroidBackdropColor
+        {
+            get => _model.AndroidBackdropColor;
+            set
+            {
+                _model.AndroidBackdropColor = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public int AndroidBackdropDim
+        {
+            get => _model.AndroidBackdropDim;
+            set
+            {
+                _model.AndroidBackdropDim = Math.Clamp(value, 0, 100);
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        /// <summary>Android folder: solid fill brush for the Color backdrop style.</summary>
+        public Brush AndroidBackdropColorBrush
+        {
+            get
+            {
+                Color c = ParseAndroidColor(_model.AndroidBackdropColor, Color.FromArgb(255, 31, 31, 31));
+                var brush = new SolidColorBrush(c);
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        public bool AndroidTileShowBorder
+        {
+            get => _model.AndroidTileShowBorder;
+            set
+            {
+                _model.AndroidTileShowBorder = value;
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public double AndroidTileCornerRadius
+        {
+            get => _model.AndroidTileCornerRadius;
+            set
+            {
+                _model.AndroidTileCornerRadius = Math.Clamp(value, 0, 40);
+                OnPropertyChanged();
+                Save();
+            }
+        }
+
+        public Brush AndroidPanelBackgroundBrush
+        {
+            get
+            {
+                Color start = ParseAndroidColor(_model.AndroidPanelBackgroundColor, Color.FromArgb(242, 31, 31, 31));
+                byte alpha = (byte)Math.Round(AndroidPanelBackgroundOpacity / 100.0 * 255);
+                start = Color.FromArgb(alpha, start.R, start.G, start.B);
+
+                if (AndroidPanelGradientEnabled)
+                {
+                    Color end;
+                    if (!string.IsNullOrEmpty(AndroidPanelGradientEndColor) &&
+                        ColorConverter.ConvertFromString(AndroidPanelGradientEndColor) is Color rawEnd)
+                        end = rawEnd;
+                    else
+                        end = DarkenAndroidColor(start, 0.6);
+                    end = Color.FromArgb(alpha, end.R, end.G, end.B);
+
+                    double rad = AndroidPanelGradientAngle * Math.PI / 180;
+                    double cos = Math.Cos(rad), sin = Math.Sin(rad);
+                    var grad = new LinearGradientBrush(start, end,
+                        new Point(0.5 - cos / 2, 0.5 - sin / 2),
+                        new Point(0.5 + cos / 2, 0.5 + sin / 2));
+                    grad.Freeze();
+                    return grad;
+                }
+
+                var solid = new SolidColorBrush(start);
+                solid.Freeze();
+                return solid;
+            }
+        }
+
+        public Brush AndroidPanelBorderBrush
+        {
+            get
+            {
+                Color c = ParseAndroidColor(_model.AndroidPanelBackgroundColor, Color.FromArgb(242, 31, 31, 31));
+                // Lighten the background so the border stays visible on dark panels.
+                c = Color.FromArgb(c.A, (byte)(c.R + (255 - c.R) * 0.5), (byte)(c.G + (255 - c.G) * 0.5), (byte)(c.B + (255 - c.B) * 0.5));
+                byte alpha = (byte)Math.Round(AndroidOpenOpacity / 100.0 * 255);
+                var brush = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        public Brush AndroidPanelGradientEndBrush
+        {
+            get
+            {
+                Color c = ParseAndroidColor(_model.AndroidPanelGradientEndColor, Color.FromArgb(255, 26, 26, 46));
+                var brush = new SolidColorBrush(c);
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        /// <summary>Closed-tile glass background: panel color at ~90% alpha (independent of the open-panel opacity).</summary>
+        public Brush AndroidTileBackgroundBrush
+        {
+            get
+            {
+                Color c = ParseAndroidColor(_model.AndroidPanelBackgroundColor, Color.FromRgb(32, 32, 32));
+                var brush = new SolidColorBrush(Color.FromArgb(230, c.R, c.G, c.B));
+                brush.Freeze();
+                return brush;
+            }
+        }
+
+        private static Color ParseAndroidColor(string? hex, Color fallback)
+        {
+            if (string.IsNullOrEmpty(hex)) return fallback;
+            try
+            {
+                if (ColorConverter.ConvertFromString(hex) is Color c) return c;
+            }
+            catch { }
+            return fallback;
+        }
+
+        private static Color DarkenAndroidColor(Color c, double factor)
+        {
+            return Color.FromArgb(c.A, (byte)(c.R * factor), (byte)(c.G * factor), (byte)(c.B * factor));
+        }
+
+        public bool IsNormalContainer => !_model.IsSvgButtonContainer && !_model.IsAndroidFolderContainer
+            && (!_model.IsCurtainMode || CurtainDirection == "BottomToTop");
+
+        public bool IsTitleSettingsVisible => !_model.IsSvgButtonContainer && !_model.IsAndroidFolderContainer;
 
         public bool IsCurtainMode
         {
@@ -615,6 +999,14 @@ namespace Palisades.ViewModels
         {
             get => _model.IsVisible;
             set { _model.IsVisible = value; OnPropertyChanged(); Save(); }
+        }
+
+        /// <summary>True while the Android-style folder is expanded on screen (transient, not persisted).</summary>
+        private bool _isAndroidFolderOpen;
+        public bool IsAndroidFolderOpen
+        {
+            get => _isAndroidFolderOpen;
+            set { if (_isAndroidFolderOpen == value) return; _isAndroidFolderOpen = value; OnPropertyChanged(); }
         }
 
         public string? FolderPortalPath
@@ -1002,6 +1394,9 @@ namespace Palisades.ViewModels
         // --- END NEW ---
 
         public ObservableCollection<ShortcutItem> Shortcuts => _model.Shortcuts;
+
+        /// <summary>First 4 shortcuts, shown as a 2x2 mini grid in the closed Android folder tile.</summary>
+        public IEnumerable<ShortcutItem> TopFourShortcuts => _model.Shortcuts.Take(4).ToList();
         public ShortcutItem? SelectedShortcut { get; set; }
         public ObservableCollection<ShortcutItem> SelectedShortcuts { get; } = new();
         public bool IsMultiSelecting => SelectedShortcuts.Count > 1;
@@ -1089,7 +1484,8 @@ namespace Palisades.ViewModels
                 _idleOpacityPercent = model.IdleOpacity > 0 ? model.IdleOpacity : 29;
                 _activeOpacityPercent = model.ActiveOpacity > 0 ? model.ActiveOpacity : 41;
             }
-            _currentOpacity = _idleOpacityPercent / 100.0;
+            _currentOpacity = _model.IsAndroidFolderContainer
+                ? _model.AndroidClosedOpacity / 100.0 : _idleOpacityPercent / 100.0;
             _fullHeight = Math.Max(CollapsedHeight + 60, model.FullHeight);
             if (loadedHeight > _fullHeight && loadedHeight > CollapsedHeight + 20)
                 _fullHeight = loadedHeight;
@@ -1137,7 +1533,17 @@ namespace Palisades.ViewModels
             DeleteCommand = new RelayCommand(() => RequestClose?.Invoke());
             ToggleLockCommand = new RelayCommand(() => IsLocked = !IsLocked);
             ToggleAutoHideCommand = new RelayCommand(() => AutoHide = !AutoHide);
-            EditCommand = new RelayCommand(() => RequestEdit?.Invoke());
+            EditCommand = new RelayCommand(() =>
+            {
+                try
+                {
+                    System.IO.File.AppendAllText(
+                        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "palisades-android-perf.log"),
+                        $"{DateTime.Now:HH:mm:ss.fff} EditCommand fired name='{Name}' android={IsAndroidFolderContainer} subscribers={(RequestEdit?.GetInvocationList().Length ?? 0)}{Environment.NewLine}");
+                }
+                catch { }
+                RequestEdit?.Invoke();
+            });
             DuplicateCommand = new RelayCommand(() => RequestDuplicate?.Invoke());
             DeleteShortcutCommand = new RelayCommand(DeleteSelectedShortcut);
             UndoLastDeleteCommand = new RelayCommand(UndoLastDelete);
@@ -1213,6 +1619,7 @@ namespace Palisades.ViewModels
             _model.Shortcuts.CollectionChanged += (_, _) =>
             {
                 OnPropertyChanged(nameof(HeaderText));
+                OnPropertyChanged(nameof(TopFourShortcuts));
             };
         }
 
