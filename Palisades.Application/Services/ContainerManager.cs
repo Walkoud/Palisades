@@ -187,6 +187,24 @@ namespace Palisades.Services
             target.CollapsedHeight = source.CollapsedHeight;
             target.AutoHideOnEdge = source.AutoHideOnEdge;
             target.ContainerThemeName = source.ContainerThemeName;
+            target.AndroidPanelBackgroundColor = source.AndroidPanelBackgroundColor;
+            target.AndroidPanelGradientEnabled = source.AndroidPanelGradientEnabled;
+            target.AndroidPanelGradientEndColor = source.AndroidPanelGradientEndColor;
+            target.AndroidPanelGradientAngle = source.AndroidPanelGradientAngle;
+            target.AndroidPanelBackgroundOpacity = source.AndroidPanelBackgroundOpacity;
+            target.AndroidOpenOpacity = source.AndroidOpenOpacity;
+            target.AndroidClosedOpacity = source.AndroidClosedOpacity;
+            target.AndroidPanelCornerRadius = source.AndroidPanelCornerRadius;
+            target.AndroidPanelShowBorder = source.AndroidPanelShowBorder;
+            target.AndroidTitleTwoLine = source.AndroidTitleTwoLine;
+            target.AndroidOpenAnimation = source.AndroidOpenAnimation;
+            target.AndroidAnimationDurationMs = source.AndroidAnimationDurationMs;
+            target.AndroidBackdropMode = source.AndroidBackdropMode;
+            target.AndroidBackdropStyle = source.AndroidBackdropStyle;
+            target.AndroidBackdropColor = source.AndroidBackdropColor;
+            target.AndroidBackdropDim = source.AndroidBackdropDim;
+            target.AndroidTileShowBorder = source.AndroidTileShowBorder;
+            target.AndroidTileCornerRadius = source.AndroidTileCornerRadius;
         }
 
         public void Load()
@@ -211,6 +229,13 @@ namespace Palisades.Services
             {
                 if (c.AutoSortCategories.Count > 0)
                     c.IsAutoSortManaged = true;
+            }
+
+            // Backward compat: Android folder tiles render best with generous corner radius
+            foreach (var c in _containers)
+            {
+                if (c.IsAndroidFolderContainer && c.CornerRadius < 30)
+                    c.CornerRadius = 30;
             }
 
             ContainersChanged?.Invoke();
@@ -325,6 +350,33 @@ namespace Palisades.Services
                 UseShellContextMenu = source.UseShellContextMenu,
                 TitleHoverEffect = source.TitleHoverEffect,
                 IsSvgButtonContainer = source.IsSvgButtonContainer,
+                IsAndroidFolderContainer = source.IsAndroidFolderContainer,
+                AndroidOpenAtClick = source.AndroidOpenAtClick,
+                AndroidPanelWidth = source.AndroidPanelWidth,
+                AndroidPanelHeight = source.AndroidPanelHeight,
+                AndroidIconSize = source.AndroidIconSize,
+                AndroidShowHeader = source.AndroidShowHeader,
+                AndroidHeaderFontSize = source.AndroidHeaderFontSize,
+                AndroidShowLabel = source.AndroidShowLabel,
+                AndroidLabelGap = source.AndroidLabelGap,
+                AndroidPanelBackgroundColor = source.AndroidPanelBackgroundColor,
+                AndroidPanelGradientEnabled = source.AndroidPanelGradientEnabled,
+                AndroidPanelGradientEndColor = source.AndroidPanelGradientEndColor,
+                AndroidPanelGradientAngle = source.AndroidPanelGradientAngle,
+                AndroidPanelBackgroundOpacity = source.AndroidPanelBackgroundOpacity,
+                AndroidOpenOpacity = source.AndroidOpenOpacity,
+                AndroidClosedOpacity = source.AndroidClosedOpacity,
+                AndroidPanelCornerRadius = source.AndroidPanelCornerRadius,
+                AndroidPanelShowBorder = source.AndroidPanelShowBorder,
+                AndroidTitleTwoLine = source.AndroidTitleTwoLine,
+                AndroidOpenAnimation = source.AndroidOpenAnimation,
+                AndroidAnimationDurationMs = source.AndroidAnimationDurationMs,
+                AndroidBackdropMode = source.AndroidBackdropMode,
+                AndroidBackdropStyle = source.AndroidBackdropStyle,
+                AndroidBackdropColor = source.AndroidBackdropColor,
+                AndroidBackdropDim = source.AndroidBackdropDim,
+                AndroidTileShowBorder = source.AndroidTileShowBorder,
+                AndroidTileCornerRadius = source.AndroidTileCornerRadius,
                 IsCurtainMode = source.IsCurtainMode,
                 CurtainHeaderMode = source.CurtainHeaderMode,
                 CurtainOpenWidth = source.CurtainOpenWidth,
@@ -536,6 +588,13 @@ namespace Palisades.Services
                         var b = _containers[j];
 
                         if (!a.IsVisible || !b.IsVisible) continue;
+
+                        // Auto-hide containers collapse to a thin strip while keeping
+                        // full model dimensions — their full bounds are invisible, so
+                        // treating them as solid pushes other containers away from
+                        // empty space (e.g. dropping just below a collapsed container).
+                        if ((a.AutoHide && !a.IsCurtainMode) || (b.AutoHide && !b.IsCurtainMode))
+                            continue;
 
                         var rectA = new Rect(a.X, a.Y, a.Width, a.Height);
                         var rectB = new Rect(b.X, b.Y, b.Width, b.Height);

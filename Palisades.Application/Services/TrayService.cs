@@ -15,6 +15,7 @@ namespace Palisades.Services
         public event Action? ExitRequested;
         public event Action? ToggleDesktopIconsRequested;
         public event Action? InstallContextMenuRequested;
+        public event Action? RestartRequested;
 
         public TrayService()
         {
@@ -44,6 +45,8 @@ namespace Palisades.Services
             _menu.Items.Add(t["Tray_ToggleDesktopIcons"], null, (_, _) => ToggleDesktopIconsRequested?.Invoke());
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(t["Tray_InstallContextMenu"], null, (_, _) => InstallContextMenuRequested?.Invoke());
+            _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add(t["Tray_Restart"], null, (_, _) => RestartRequested?.Invoke());
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(t["Tray_Exit"], null, (_, _) => ExitRequested?.Invoke());
         }

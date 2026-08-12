@@ -174,11 +174,19 @@
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="CornerRadius" Value="0" />
                             </MultiDataTrigger>
+
+                            <!-- Android folder tile: no border, no chrome, clean rounded glass -->
+                            <DataTrigger Binding="{Binding IsAndroidFolderContainer}" Value="True">
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="CornerRadius" Value="{Binding CornerRadius}" />
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
             </Border.Style>
 
-        <Grid>
+        <Grid x:Name="ContentRoot">
             <Grid x:Name="NormalLayoutRoot">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -1465,6 +1473,78 @@
                     </ScrollViewer>
                 </Grid>
             </Grid>
+
+            <!-- Android Folder (launcher-style) closed tile -->
+            <Grid x:Name="AndroidLayoutRoot"
+                  MouseLeftButtonDown="AndroidTile_MouseLeftButtonDown">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                        <Setter Property="RenderTransform">
+                            <Setter.Value>
+                                <ScaleTransform ScaleX="1" ScaleY="1" />
+                            </Setter.Value>
+                        </Setter>
+                        <Setter Property="Visibility" Value="{Binding IsAndroidFolderContainer, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="1.05" ScaleY="1.05" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <!-- Hide the closed tile while the folder is open (trigger overrides the setter)
+                            REMOVED: Now handled by SetAndroidTileHidden with scale+opacity animation -->
+                            <!-- <DataTrigger Binding="{Binding IsAndroidFolderOpen}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger> -->
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+
+                <!-- Glass base clipped to the tile corner radius; tint follows the panel background color, rim follows AndroidTileShowBorder -->
+                <Border x:Name="AndroidTileGlass"
+                        Background="{Binding AndroidTileBackgroundBrush}"
+                        CornerRadius="{Binding AndroidTileCornerRadius}"
+                        BorderBrush="#2EFFFFFF"
+                        BorderThickness="{Binding AndroidTileShowBorder, Converter={StaticResource BorderThicknessConverter}}">
+                    <Grid>
+                        <!-- Frosted blur of the desktop behind the tile -->
+                        <Image x:Name="AndroidFrostImage"
+                               Stretch="Fill"
+                               IsHitTestVisible="False"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.Effect>
+                                <BlurEffect Radius="10" />
+                            </Image.Effect>
+                        </Image>
+                        <!-- Translucent tint over the frost -->
+                        <Border Background="#26000000" IsHitTestVisible="False" />
+                    </Grid>
+                </Border>
+
+                <!-- 2x2 mini grid of the first 4 shortcuts -->
+                <ItemsControl ItemsSource="{Binding TopFourShortcuts}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              IsHitTestVisible="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Width="26" Height="26" Margin="3">
+                                <Image Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       Source="{Binding IconPath, Converter={StaticResource IconNoArrowConverter}}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
             <!-- Resize handles -->
             <Grid x:Name="ResizeHandleGrid">
                 <Rectangle x:Name="ResizeLeft" Width="6" HorizontalAlignment="Left"
@@ -1500,6 +1580,50 @@
                            Fill="Transparent" />
             </Grid>
         </Grid>
+        </Border>
+
+        <!-- Android folder: name label under the closed tile -->
+        <Border x:Name="AndroidTileLabel"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Background="#A6000000"
+                CornerRadius="8"
+                Padding="8,3"
+                IsHitTestVisible="False"
+                RenderOptions.BitmapScalingMode="HighQuality">
+            <Border.RenderTransform>
+                <TranslateTransform Y="{Binding AndroidLabelTranslateY}" />
+            </Border.RenderTransform>
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="{Binding AndroidShowLabel, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsAndroidFolderOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <TextBlock Text="{Binding Name}"
+                       Foreground="White"
+                       FontFamily="Segoe UI"
+                       FontSize="11"
+                       TextAlignment="Center"
+                       MaxWidth="150">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="TextWrapping" Value="NoWrap" />
+                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding AndroidTitleTwoLine}" Value="True">
+                                <Setter Property="TextWrapping" Value="Wrap" />
+                                <Setter Property="TextTrimming" Value="None" />
+                                <Setter Property="MaxHeight" Value="30" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </Border>
     </Grid>
 </UserControl>

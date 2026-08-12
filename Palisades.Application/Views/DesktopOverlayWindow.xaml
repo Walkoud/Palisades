@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:Palisades.Converters"
+        xmlns:local="clr-namespace:Palisades.Views"
         ShowInTaskbar="False"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -11,8 +12,155 @@
         WindowState="Normal">
     <Window.Resources>
         <conv:PathToImageConverter x:Key="IconConverter" ShowArrow="True" />
+        <conv:PathToImageConverter x:Key="AndroidIconConverter" ShowArrow="True" IconSize="128" />
+        <conv:BorderThicknessConverter x:Key="BorderThicknessConv" />
+        <conv:OpacityPercentConverter x:Key="OpacityPercentConv" />
     </Window.Resources>
     <Grid>
         <Canvas x:Name="OverlayCanvas" />
+
+        <!-- Android-style app folder: open state (dark blurred backdrop + centered grid) -->
+        <Grid x:Name="AndroidFolderLayer" Visibility="Collapsed" Panel.ZIndex="50000">
+            <Grid x:Name="AndroidBackdropRoot">
+                <!-- Blur is pre-rendered into the capture in code; bilinear upscale keeps the per-frame fade cheap. -->
+                <Image x:Name="AndroidBackdropImage"
+                       Stretch="Fill"
+                       RenderOptions.BitmapScalingMode="LowQuality" />
+                <Border x:Name="AndroidBackdropDim" Background="#B3000000" MouseLeftButtonUp="AndroidBackdrop_MouseLeftButtonUp" />
+            </Grid>
+
+            <Border x:Name="AndroidPanel"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    CornerRadius="{Binding AndroidPanelCornerRadius}"
+                    Background="{Binding AndroidPanelBackgroundBrush}"
+                    BorderBrush="{Binding AndroidPanelBorderBrush}"
+                    BorderThickness="{Binding AndroidPanelShowBorder, Converter={StaticResource BorderThicknessConv}}"
+                    Opacity="{Binding AndroidOpenOpacity, Converter={StaticResource OpacityPercentConv}}"
+                    MouseLeftButtonUp="AndroidPanel_MouseLeftButtonUp">
+                <Border.Effect>
+                    <DropShadowEffect Color="Black" BlurRadius="40" ShadowDepth="6" Opacity="0.5" />
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="AndroidPanelTitle"
+                               FontFamily="Segoe UI" FontSize="{Binding AndroidHeaderFontSize}"
+                               FontWeight="SemiBold"
+                               Foreground="White" TextAlignment="Center"
+                               Margin="16,16,16,10"
+                               MouseLeftButtonDown="AndroidPanelTitle_MouseLeftButtonDown"
+                               Cursor="Hand">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextWrapping" Value="NoWrap" />
+                                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                <Setter Property="MaxHeight" Value="18" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AndroidTitleTwoLine}" Value="True">
+                                        <Setter Property="TextWrapping" Value="Wrap" />
+                                        <Setter Property="TextTrimming" Value="None" />
+                                        <Setter Property="MaxHeight" Value="44" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBox x:Name="AndroidTitleEditBox"
+                             Grid.Row="0"
+                             Visibility="Collapsed"
+                             FontFamily="Segoe UI" FontSize="18" FontWeight="SemiBold"
+                             Foreground="White" TextAlignment="Center"
+                             Background="#2D2D2D"
+                             BorderBrush="#3B82F6" BorderThickness="1"
+                             Padding="4,2" Margin="12,12,12,8"
+                             KeyDown="AndroidTitleEditBox_KeyDown"
+                             LostFocus="AndroidTitleEditBox_LostFocus" />
+                    <ScrollViewer x:Name="AndroidFolderScroller"
+                                  Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Margin="8,0,8,8"
+                                  PreviewMouseLeftButtonDown="AndroidScroller_PreviewMouseDown"
+                                  PreviewMouseMove="AndroidScroller_PreviewMouseMove"
+                                  PreviewMouseLeftButtonUp="AndroidScroller_PreviewMouseUp">
+                        <Grid>
+                            <ItemsControl x:Name="AndroidIconsList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="8"
+                                                CornerRadius="14"
+                                                Padding="10,8"
+                                                Cursor="Hand"
+                                                MouseRightButtonUp="AndroidIcon_MouseRightButtonUp">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#18FFFFFF" />
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Width="{Binding AndroidFolderIconSize, RelativeSource={RelativeSource AncestorType={x:Type local:DesktopOverlayWindow}}}">
+                                            <Grid Width="{Binding AndroidFolderIconSize, RelativeSource={RelativeSource AncestorType={x:Type local:DesktopOverlayWindow}}}"
+                                                  Height="{Binding AndroidFolderIconSize, RelativeSource={RelativeSource AncestorType={x:Type local:DesktopOverlayWindow}}}"
+                                                  HorizontalAlignment="Center">
+                                                <Image Stretch="Uniform"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                       Source="{Binding IconPath, Converter={StaticResource AndroidIconConverter}}" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       TextAlignment="Center"
+                                                       FontFamily="Segoe UI" FontSize="13"
+                                                       Foreground="White"
+                                                       Margin="0,6,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="TextWrapping" Value="NoWrap" />
+                                                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                                        <Setter Property="MaxHeight" Value="18" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding AndroidTwoLineNames, RelativeSource={RelativeSource AncestorType={x:Type local:DesktopOverlayWindow}}}" Value="True">
+                                                                <Setter Property="TextWrapping" Value="Wrap" />
+                                                                <Setter Property="TextTrimming" Value="None" />
+                                                                <Setter Property="MaxHeight" Value="34" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                            <Canvas x:Name="AndroidSelectionCanvas" IsHitTestVisible="False" Panel.ZIndex="10" />
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- Pre-rendered grow frames (see BuildAndroidGrowFrames): a plain 1:1 image
+                 blit per frame, no software RenderTransform scale. Scaling a cached bitmap
+                 through the software rasterizer costs ~40-60ms/frame at large on-screen
+                 sizes (measured SLOWFRAME at scale 0.86-0.95); swapping pre-scaled
+                 bitmaps is a cheap blit and stays smooth. -->
+            <Image x:Name="AndroidGrowImage"
+                   HorizontalAlignment="Left"
+                   VerticalAlignment="Top"
+                   Stretch="Fill"
+                   RenderOptions.BitmapScalingMode="LowQuality"
+                   IsHitTestVisible="False"
+                   Visibility="Collapsed" />
+        </Grid>
     </Grid>
 </Window>
