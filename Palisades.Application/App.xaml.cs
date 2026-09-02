@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -22,9 +24,21 @@ namespace Palisades
         private DesktopOverlayWindow? _overlayWindow;
         private readonly Dictionary<string, System.IO.FileSystemWatcher> _folderWatchers = new();
 
+        private const string MutexName = "Global\\Palisades_SingleInstance";
+        private Mutex? _mutex;
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+
+            // Kill any existing instance, then take over
+            _mutex = new Mutex(true, MutexName, out bool createdNew);
+            if (!createdNew)
+            {
+                KillExistingInstance();
+                _mutex.Dispose();
+                _mutex = new Mutex(true, MutexName, out _);
+            }
 
             TranslationService.Instance.Initialize();
 
@@ -76,6 +90,19 @@ namespace Palisades
             {
                 LogError(ex);
                 MessageBox.Show(string.Format(TranslationService.Instance["App_StartupError"], ex.Message), "Palisades", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static void KillExistingInstance()
+        {
+            var current = Process.GetCurrentProcess();
+            foreach (var proc in Process.GetProcessesByName("Palisades"))
+            {
+                if (proc.Id != current.Id)
+                {
+                    try { proc.Kill(); proc.WaitForExit(2000); }
+                    catch { }
+                }
             }
         }
 
@@ -813,7 +840,7 @@ namespace Palisades
             }
         }
 
-        private void RestartApplication()
+        public void RestartApplication()
         {
             try
             {

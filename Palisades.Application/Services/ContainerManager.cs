@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 using Newtonsoft.Json;
 using System.IO;
@@ -39,6 +40,18 @@ namespace Palisades.Services
             _iconsPosPath = Path.Combine(dir, "desktop_icons_positions.json");
             _notesPath = Path.Combine(dir, "notes.json");
             Directory.CreateDirectory(dir);
+
+            // First run: seed defaults from bundled template so new users start from a clean config
+            if (!File.Exists(_defaultsPath))
+            {
+                try
+                {
+                    string bundled = Path.Combine(AppContext.BaseDirectory, "Assets", "container_defaults.json");
+                    if (File.Exists(bundled))
+                        File.Copy(bundled, _defaultsPath);
+                }
+                catch { }
+            }
             LoadDesktopIconPositions();
         }
 
@@ -142,69 +155,42 @@ namespace Palisades.Services
                 ApplyModelTo(target, def);
         }
 
+        private static readonly PropertyInfo[] _containerProps =
+            typeof(ContainerModel).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.CanRead && p.CanWrite && p.Name != nameof(ContainerModel.Identifier))
+                .ToArray();
+
         public void ApplyModelTo(ContainerModel target, ContainerModel source)
         {
-            target.Opacity = source.Opacity;
-            target.IdleOpacity = source.IdleOpacity;
-            target.ActiveOpacity = source.ActiveOpacity;
-            target.Width = source.Width;
-            target.Height = source.Height;
-            target.FullHeight = source.FullHeight;
-            target.AutoHide = source.AutoHide;
-            target.AutoHideDelayMs = source.AutoHideDelayMs;
-            target.ShowTitle = source.ShowTitle;
-            target.ShowBorder = source.ShowBorder;
-            target.ShowCounter = source.ShowCounter;
-            target.RoundedCorners = source.RoundedCorners;
-            target.CornerRadius = source.CornerRadius;
-            target.TitleFontFamily = source.TitleFontFamily;
-            target.TitleFontSize = source.TitleFontSize;
-            target.TitleAlignment = source.TitleAlignment;
-            target.HeaderColor = source.HeaderColor;
-            target.BodyColor = source.BodyColor;
-            target.TitleColor = source.TitleColor;
-            target.LabelsColor = source.LabelsColor;
-            target.OpenOnDoubleClick = source.OpenOnDoubleClick;
-            target.UseShellContextMenu = source.UseShellContextMenu;
-            target.ShowShortcutArrow = source.ShowShortcutArrow;
-            target.ShowRecycleBin = source.ShowRecycleBin;
-            target.HeaderIconSize = source.HeaderIconSize;
-            target.ShortcutIconSize = source.ShortcutIconSize;
-            target.TwoLineShortcuts = source.TwoLineShortcuts;
-            target.TitleHoverEffect = source.TitleHoverEffect;
-            target.AnimationSpeedMs = source.AnimationSpeedMs;
-            target.FilterEnabled = source.FilterEnabled;
-            target.FilterType = source.FilterType;
-            target.FilterPattern = source.FilterPattern;
-            target.PrivateBoxAutoLockSeconds = source.PrivateBoxAutoLockSeconds;
-            target.IsCurtainMode = source.IsCurtainMode;
-            target.CurtainHeaderMode = source.CurtainHeaderMode;
-            target.CurtainOpenWidth = source.CurtainOpenWidth;
-            target.CurtainOpenHeight = source.CurtainOpenHeight;
-            target.CurtainShortcutIconSize = source.CurtainShortcutIconSize;
-            target.CurtainDirection = source.CurtainDirection;
-            target.IsLocked = source.IsLocked;
-            target.CollapsedHeight = source.CollapsedHeight;
-            target.AutoHideOnEdge = source.AutoHideOnEdge;
-            target.ContainerThemeName = source.ContainerThemeName;
-            target.AndroidPanelBackgroundColor = source.AndroidPanelBackgroundColor;
-            target.AndroidPanelGradientEnabled = source.AndroidPanelGradientEnabled;
-            target.AndroidPanelGradientEndColor = source.AndroidPanelGradientEndColor;
-            target.AndroidPanelGradientAngle = source.AndroidPanelGradientAngle;
-            target.AndroidPanelBackgroundOpacity = source.AndroidPanelBackgroundOpacity;
-            target.AndroidOpenOpacity = source.AndroidOpenOpacity;
-            target.AndroidClosedOpacity = source.AndroidClosedOpacity;
-            target.AndroidPanelCornerRadius = source.AndroidPanelCornerRadius;
-            target.AndroidPanelShowBorder = source.AndroidPanelShowBorder;
-            target.AndroidTitleTwoLine = source.AndroidTitleTwoLine;
-            target.AndroidOpenAnimation = source.AndroidOpenAnimation;
-            target.AndroidAnimationDurationMs = source.AndroidAnimationDurationMs;
-            target.AndroidBackdropMode = source.AndroidBackdropMode;
-            target.AndroidBackdropStyle = source.AndroidBackdropStyle;
-            target.AndroidBackdropColor = source.AndroidBackdropColor;
-            target.AndroidBackdropDim = source.AndroidBackdropDim;
-            target.AndroidTileShowBorder = source.AndroidTileShowBorder;
-            target.AndroidTileCornerRadius = source.AndroidTileCornerRadius;
+            foreach (var prop in _containerProps)
+            {
+                var value = prop.GetValue(source);
+
+                if (value is ObservableCollection<ShortcutItem> srcShortcuts)
+                {
+                    var targetShortcuts = (ObservableCollection<ShortcutItem>)prop.GetValue(target)!;
+                    targetShortcuts.Clear();
+                    foreach (var s in srcShortcuts)
+                        targetShortcuts.Add(s);
+                }
+                else if (value is Dictionary<string, PositionSnapshot> srcDict)
+                {
+                    var targetDict = (Dictionary<string, PositionSnapshot>)prop.GetValue(target)!;
+                    targetDict.Clear();
+                    foreach (var kv in srcDict)
+                        targetDict[kv.Key] = kv.Value;
+                }
+                else if (value is List<string> srcList)
+                {
+                    var targetList = (List<string>)prop.GetValue(target)!;
+                    targetList.Clear();
+                    targetList.AddRange(srcList);
+                }
+                else
+                {
+                    prop.SetValue(target, value);
+                }
+            }
         }
 
         public void Load()

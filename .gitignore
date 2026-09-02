@@ -11,6 +11,7 @@
 temp/
 backup/
 
+afaire.md
 
 # User-specific files
 *.rsuser
@@ -419,3 +420,6 @@ PublishTest/
 
 # Task tracking
 task.md
+
+# Personal config export (test artifact with user's shortcuts)
+Palisades_config_*.json

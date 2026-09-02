@@ -337,13 +337,23 @@
                             </Button>
                         </StackPanel>
 
-                        <Button x:Name="AppBtn" Grid.Row="2" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_AppSettings]}" CommandParameter="App" Style="{StaticResource SidebarBtnStyle}" Margin="0,0,0,16" Click="Tab_Click">
+                        <StackPanel Grid.Row="2">
+                            <Button x:Name="RebootBtn" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_Reboot]}" Style="{StaticResource SidebarBtnStyle}" Margin="0,0,0,8" Click="Reboot_Click">
+                                <Button.Tag>
+                                    <Viewbox Width="16" Height="16">
+                                        <Path Data="M 12,5 V 2 L 7,6 L 12,10 V 7 C 15.3,7 18,9.7 18,13 C 18,16.3 15.3,19 12,19 C 8.7,19 6,16.3 6,13 H 4 C 4,17.4 7.6,21 12,21 C 16.4,21 20,17.4 20,13 C 20,8.6 16.4,5 12,5 Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    </Viewbox>
+                                </Button.Tag>
+                            </Button>
+
+                            <Button x:Name="AppBtn" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_AppSettings]}" CommandParameter="App" Style="{StaticResource SidebarBtnStyle}" Margin="0,0,0,16" Click="Tab_Click">
                             <Button.Tag>
                                 <Viewbox Width="16" Height="16">
                                     <Path Data="M 19.1,12.9 C 19.2,12.3 19.2,11.7 19.1,11.1 L 21.2,9.5 C 21.4,9.3 21.4,9.0 21.3,8.8 L 19.3,5.3 C 19.2,5.1 18.9,5.0 18.7,5.1 L 16.2,6.1 C 15.7,5.7 15.1,5.4 14.5,5.1 L 14.1,2.5 C 14.1,2.2 13.9,2.0 13.6,2.0 L 9.6,2.0 C 9.3,2.0 9.1,2.2 9.1,2.5 L 8.7,5.1 C 8.1,5.4 7.5,5.7 7.0,6.1 L 4.5,5.1 C 4.3,5.0 4.0,5.1 3.9,5.3 L 1.9,8.8 C 1.8,9.0 1.8,9.3 2.0,9.5 L 4.1,11.1 C 4.0,11.7 4.0,12.3 4.1,12.9 L 2.0,14.5 C 1.8,14.7 1.8,15.0 1.9,15.2 L 3.9,18.7 C 4.0,18.9 4.3,19.0 4.5,18.9 L 7.0,17.9 C 7.5,18.3 8.1,18.6 8.7,18.9 L 9.1,21.5 C 9.1,21.8 9.3,22.0 9.6,22.0 L 13.6,22.0 C 13.9,22.0 14.1,21.8 14.1,21.5 L 14.5,18.9 C 15.1,18.6 15.7,18.3 16.2,17.9 L 18.7,18.9 C 18.9,19.0 19.2,18.9 19.3,18.7 L 21.3,15.2 C 21.4,15.0 21.4,14.7 21.2,14.5 L 19.1,12.9 Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                                 </Viewbox>
                             </Button.Tag>
                         </Button>
+                            </StackPanel>
                                     </Grid>
                                 </Border>
 
@@ -924,6 +934,16 @@
                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidIconSize]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
                                     <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="32" Maximum="120" Value="{Binding SelectedContainer.AndroidIconSize, Mode=TwoWay}" />
                                     <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidIconSize, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
+                                </Grid>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="45" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidIconGap]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <Slider Grid.Column="1" Style="{StaticResource ArcticSliderStyle}" Minimum="0" Maximum="40" Value="{Binding SelectedContainer.AndroidIconGap, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding SelectedContainer.AndroidIconGap, StringFormat={}{0:F0}}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12" />
                                 </Grid>
                                 <CheckBox IsChecked="{Binding SelectedContainer.AndroidShowHeader}" FontSize="12" Margin="0,0,0,8" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidShowHeader]}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 <Grid Margin="0,0,0,10" Visibility="{Binding SelectedContainer.AndroidShowHeader, Converter={StaticResource BoolToVisibility}}">
@@ -2204,6 +2224,25 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Update Check Card -->
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Updates_Title]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,12" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Updates_Current]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock x:Name="CurrentVersionText" Text="{Binding AppVersion}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Margin="6,0,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="UpdateStatusText" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Updates_Unknown]}" Foreground="#A3B3C7" VerticalAlignment="Center" FontSize="13" Margin="0,0,12,0" />
+                                    <TextBlock x:Name="UpdateStatusIcon" Text="" FontSize="16" VerticalAlignment="Center" Foreground="#22C55E" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Updates_Check]}" Click="CheckUpdate_Click" Padding="14,8" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" Margin="0,0,12,0"/>
+                                    <Button x:Name="DownloadUpdateBtn" Visibility="Collapsed" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Updates_Download]}" Click="DownloadUpdate_Click" Padding="14,8" Background="#1C3A2A" BorderBrush="#2C5A3A" Foreground="#86EFAC" Cursor="Hand"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <!-- About & Links Card -->
                         <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
                             <Grid>
@@ -2232,7 +2271,7 @@
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="Palisades" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiTextForegroundBrush}" />
                                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                            <TextBlock Text="Version 1.2.0" FontSize="12" Foreground="{DynamicResource GuiTextForegroundBrush}" />
+                                            <TextBlock Text="{Binding AppVersion, StringFormat=Version {0}}" FontSize="12" Foreground="{DynamicResource GuiTextForegroundBrush}" />
                                             <TextBlock Text=" • " FontSize="12" Foreground="#526475" Margin="4,0" />
                                             <TextBlock Text="Walkoud" FontSize="12" Foreground="{DynamicResource GuiAccentBrush}" />
                                         </StackPanel>

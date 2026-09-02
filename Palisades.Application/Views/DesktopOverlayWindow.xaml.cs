@@ -143,6 +143,15 @@ namespace Palisades.Views
             set => SetValue(AndroidTwoLineNamesProperty, value);
         }
 
+        /// <summary>Gap (px) between shortcuts in the open Android folder panel.</summary>
+        public static readonly DependencyProperty AndroidIconGapProperty =
+            DependencyProperty.Register(nameof(AndroidIconGap), typeof(double), typeof(DesktopOverlayWindow), new PropertyMetadata(8.0));
+        public double AndroidIconGap
+        {
+            get => (double)GetValue(AndroidIconGapProperty);
+            set => SetValue(AndroidIconGapProperty, value);
+        }
+
         private const int SWP_NOSIZE = 0x0001;
         private const int SWP_NOMOVE = 0x0002;
         private const int SWP_NOACTIVATE = 0x0010;
@@ -2535,6 +2544,7 @@ namespace Palisades.Views
                 AndroidPanelTitle.Visibility = vm.AndroidShowHeader ? Visibility.Visible : Visibility.Collapsed;
                 AndroidFolderIconSize = vm.AndroidIconSize;
                 AndroidTwoLineNames = vm.TwoLineShortcuts;
+                AndroidIconGap = vm.AndroidIconGap;
                 AndroidIconsList.ItemsSource = vm.Shortcuts;
 
                 AndroidPanel.Width = panelW;

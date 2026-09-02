@@ -264,6 +264,20 @@ namespace Palisades.ViewModels
             }
         }
 
+        public string AppVersion
+        {
+            get
+            {
+                try
+                {
+                    var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                    if (v != null) return $"{(v.Major > 0 ? v.Major : 1)}.{v.Minor}.{v.Build}";
+                }
+                catch { }
+                return "1.3.0";
+            }
+        }
+
         private ContainerViewModel? _applyTargetContainer;
         public ContainerViewModel? ApplyTargetContainer
         {
@@ -1097,46 +1111,7 @@ namespace Palisades.ViewModels
                         foreach (var model in data.Containers)
                         {
                             var created = _manager.CreateContainer(model.Name);
-                            created.X = model.X;
-                            created.Y = model.Y;
-                            created.Width = model.Width;
-                            created.Height = model.Height;
-                            // Restore the Android-style folder settings too — Export writes the
-                            // full ContainerModel, so the import must mirror it or an Android
-                            // folder comes back as a plain container.
-                            created.IsAndroidFolderContainer = model.IsAndroidFolderContainer;
-                            created.AndroidOpenAtClick = model.AndroidOpenAtClick;
-                            created.AndroidPanelWidth = model.AndroidPanelWidth;
-                            created.AndroidPanelHeight = model.AndroidPanelHeight;
-                            created.AndroidIconSize = model.AndroidIconSize;
-                            created.AndroidShowHeader = model.AndroidShowHeader;
-                            created.AndroidHeaderFontSize = model.AndroidHeaderFontSize;
-                            created.AndroidShowLabel = model.AndroidShowLabel;
-                            created.AndroidLabelGap = model.AndroidLabelGap;
-                            created.AndroidPanelBackgroundColor = model.AndroidPanelBackgroundColor;
-                            created.AndroidPanelGradientEnabled = model.AndroidPanelGradientEnabled;
-                            created.AndroidPanelGradientEndColor = model.AndroidPanelGradientEndColor;
-                            created.AndroidPanelGradientAngle = model.AndroidPanelGradientAngle;
-                            created.AndroidPanelBackgroundOpacity = model.AndroidPanelBackgroundOpacity;
-                            created.AndroidOpenOpacity = model.AndroidOpenOpacity;
-                            created.AndroidClosedOpacity = model.AndroidClosedOpacity;
-                            created.AndroidPanelCornerRadius = model.AndroidPanelCornerRadius;
-                            created.AndroidPanelShowBorder = model.AndroidPanelShowBorder;
-                            created.AndroidTitleTwoLine = model.AndroidTitleTwoLine;
-                            created.AndroidOpenAnimation = model.AndroidOpenAnimation;
-                            created.AndroidAnimationDurationMs = model.AndroidAnimationDurationMs;
-                            created.AndroidBackdropMode = model.AndroidBackdropMode;
-                            created.AndroidBackdropStyle = model.AndroidBackdropStyle;
-                            created.AndroidBackdropColor = model.AndroidBackdropColor;
-                            created.AndroidBackdropDim = model.AndroidBackdropDim;
-                            created.AndroidTileShowBorder = model.AndroidTileShowBorder;
-                            created.AndroidTileCornerRadius = model.AndroidTileCornerRadius;
-                            foreach (var s in model.Shortcuts)
-                            {
-                                if (!created.Shortcuts.Any(ex =>
-                                    ex.Name == s.Name && ex.TargetPath == s.TargetPath))
-                                    created.Shortcuts.Add(s);
-                            }
+                            ContainerManager.Instance.ApplyModelTo(created, model);
                         }
 
                         // Restore notes if present
@@ -1153,6 +1128,11 @@ namespace Palisades.ViewModels
 
                         MessageBox.Show(TranslationService.Instance["Dialog_ImportSuccess"],
                             TranslationService.Instance["Dialog_Import"], MessageBoxButton.OK, MessageBoxImage.Information);
+
+                        if (Application.Current is App app)
+                            app.RestartApplication();
+                        else
+                            Application.Current.Shutdown();
                     }
                 }
                 catch (Exception ex)

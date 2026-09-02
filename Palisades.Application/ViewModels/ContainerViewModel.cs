@@ -492,6 +492,12 @@ namespace Palisades.ViewModels
             set { _model.AndroidIconSize = Math.Clamp(value, 32, 120); OnPropertyChanged(); Save(); }
         }
 
+        public double AndroidIconGap
+        {
+            get => _model.AndroidIconGap;
+            set { _model.AndroidIconGap = Math.Clamp(value, 0, 40); OnPropertyChanged(); Save(); }
+        }
+
         public bool AndroidShowHeader
         {
             get => _model.AndroidShowHeader;

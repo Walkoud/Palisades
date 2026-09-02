@@ -65,16 +65,16 @@ namespace Palisades.Models
         public const double AndroidFolderTileSize = 96;
 
         /// <summary>Android folder: open the panel centered on the tile instead of the monitor center.</summary>
-        public bool AndroidOpenAtClick { get; set; } = false;
+        public bool AndroidOpenAtClick { get; set; } = true;
 
         /// <summary>Android folder: open-panel width (px), clamped to the screen.</summary>
-        public double AndroidPanelWidth { get; set; } = 640;
+        public double AndroidPanelWidth { get; set; } = 412.2839506172812;
 
         /// <summary>Android folder: open-panel height (px), clamped to the screen.</summary>
-        public double AndroidPanelHeight { get; set; } = 560;
+        public double AndroidPanelHeight { get; set; } = 479.7530864197537;
 
         /// <summary>Android folder: shortcut icon size (px) in the open panel.</summary>
-        public double AndroidIconSize { get; set; } = 72;
+        public double AndroidIconSize { get; set; } = 41.85185185185195;
 
         /// <summary>Android folder: show the title header in the open panel.</summary>
         public bool AndroidShowHeader { get; set; } = true;
@@ -83,22 +83,25 @@ namespace Palisades.Models
         public double AndroidHeaderFontSize { get; set; } = 18;
 
         /// <summary>Android folder: show the name label under the closed tile.</summary>
-        public bool AndroidShowLabel { get; set; }
+        public bool AndroidShowLabel { get; set; } = true;
+
+        /// <summary>Android folder: gap between shortcut icons inside the open panel (px).</summary>
+        public double AndroidIconGap { get; set; } = 8;
 
         /// <summary>Android folder: vertical gap (px) between the closed tile and the name label.</summary>
-        public double AndroidLabelGap { get; set; } = 14;
+        public double AndroidLabelGap { get; set; } = 4.200617283950643;
 
         /// <summary>Android folder: open-panel background color (hex string, e.g. "#F21F1F1F").</summary>
-        public string AndroidPanelBackgroundColor { get; set; } = "#F21F1F1F";
+        public string AndroidPanelBackgroundColor { get; set; } = "#F21E3A5F";
 
         /// <summary>Android folder: use a 2-color gradient for the open-panel background.</summary>
-        public bool AndroidPanelGradientEnabled { get; set; }
+        public bool AndroidPanelGradientEnabled { get; set; } = true;
 
         /// <summary>Android folder: gradient end color (null → derived darker shade of the start color).</summary>
         public string? AndroidPanelGradientEndColor { get; set; }
 
         /// <summary>Android folder: gradient angle in degrees (0..360).</summary>
-        public double AndroidPanelGradientAngle { get; set; }
+        public double AndroidPanelGradientAngle { get; set; } = 55.84487534626035;
 
         /// <summary>Android folder: background opacity in percent (0..100) for the open panel.</summary>
         public int AndroidPanelBackgroundOpacity { get; set; } = 95;
@@ -113,19 +116,19 @@ namespace Palisades.Models
         public double AndroidPanelCornerRadius { get; set; } = 28;
 
         /// <summary>Android folder: show the 1px border around the open panel.</summary>
-        public bool AndroidPanelShowBorder { get; set; } = true;
+        public bool AndroidPanelShowBorder { get; set; } = false;
 
         /// <summary>Android folder: allow the open-panel title to wrap on two lines.</summary>
-        public bool AndroidTitleTwoLine { get; set; }
+        public bool AndroidTitleTwoLine { get; set; } = true;
 
         /// <summary>Android folder: open/close animation style (Scale, Fade, Zoom, SlideUp, Elastic).</summary>
         public string AndroidOpenAnimation { get; set; } = "Scale";
 
-        /// <summary>Android folder: open/close animation duration in milliseconds.</summary>
+        /// <summary>Android folder: animation duration in milliseconds.</summary>
         public int AndroidAnimationDurationMs { get; set; } = 320;
 
         /// <summary>Android folder: backdrop covers the full screen or just the panel size (FullScreen, Panel).</summary>
-        public string AndroidBackdropMode { get; set; } = "FullScreen";
+        public string AndroidBackdropMode { get; set; } = "Panel";
 
         /// <summary>Android folder: backdrop behind the open panel — Color (solid fill), Blur (blurred wallpaper capture), or Darkening (unblurred wallpaper capture).</summary>
         public string AndroidBackdropStyle { get; set; } = "Color";
@@ -137,7 +140,7 @@ namespace Palisades.Models
         public int AndroidBackdropDim { get; set; } = 70;
 
         /// <summary>Android folder: show the 1px glass rim on the closed tile.</summary>
-        public bool AndroidTileShowBorder { get; set; } = true;
+        public bool AndroidTileShowBorder { get; set; } = false;
 
         /// <summary>Android folder: closed-tile corner radius (px).</summary>
         public double AndroidTileCornerRadius { get; set; } = 12;
