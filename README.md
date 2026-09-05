@@ -49,6 +49,23 @@ Palisades declutter your Windows desktop. Drop icons into organized containers, 
 
 **Plugins** — Plugin manager to enable/disable and configure gadgets and extensions.
 
+**Now Playing** — A live media widget that follows whatever plays on your PC. Pin it as a slim bar right in front of your taskbar. Five layouts (Classic, Compact, Fluent, Taskbar, Taskbar Slim), optional album cover, 12 accent colors, resizable, auto-hides in fullscreen.
+
+<p align="center">
+  <img src="documentation/medias/nowplaying_widget.png" width="450" alt="Now Playing widget"/>
+</p>
+<p align="center">
+  <img src="documentation/medias/taskbar_nowplaying.png" width="850" alt="Now Playing taskbar bar"/>
+</p>
+
+**Media focus** — With several sources playing (Spotify, browser, …), follow the active app automatically or pin one source from the widget menu or the dashboard. The choice survives reboots and is included in backup export/import.
+
+**Discord Rich Presence** — Show what you listen to on Discord, from any media on your PC: Spotify, YouTube, Chrome, anything. Fully customizable: title, artist, source app, elapsed timer, album cover, clickable links, presence buttons, private mode, per-app priority list with auto-fallback.
+
+<p align="center">
+  <img src="documentation/medias/discord-presence-profile-screenshot.png" width="300" alt="Discord Rich Presence"/>
+</p>
+
 **Filters** — Show only what you need. Filter a container by file type or custom search.
 
 **Start with Windows** — Option to launch automatically on boot, runs discreetly in the system tray.
