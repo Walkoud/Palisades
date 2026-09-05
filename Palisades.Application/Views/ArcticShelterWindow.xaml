@@ -385,6 +385,7 @@
 
                                     <!-- Premium New + Button -->
                                     <Button Grid.Column="1" VerticalAlignment="Bottom" Height="30" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NewButton]}" Click="NewButton_Click"
+                                            ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NewButtonTip]}"
                                             Background="#3B82F6" Foreground="White" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand" Padding="15,0">
                                         <Button.Resources>
                                             <Style TargetType="Border">
@@ -659,6 +660,66 @@
                                                         <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Interval_Medium]}" Tag="1.5" />
                                                         <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Interval_Slow]}" Tag="2.0" />
                                                         <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Interval_VerySlow]}" Tag="5.0" />
+                                                    </ComboBox>
+                                                </StackPanel>
+
+                                                <!-- Now Playing specific Basic Settings -->
+                                                <StackPanel Visibility="{Binding SelectedWidgetIsNowPlaying, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpSource]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                                    <Grid Margin="0,0,0,12">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <ComboBox SelectedValue="{Binding NowPlayingSourceId, Mode=TwoWay}" SelectedValuePath="AppId" DisplayMemberPath="DisplayName" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,6,0"
+                                                                  ItemsSource="{Binding NowPlayingSourceOptions}" />
+                                                        <Button Grid.Column="1" Content="⟳" Command="{Binding RefreshNowPlayingSourcesCommand}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Width="32" Height="28" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpSourceRefresh]}" />
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpLayout]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                                    <ComboBox SelectedValue="{Binding NowPlayingLayout, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,12">
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpLayout_Classic]}" Tag="Classic" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpLayout_Compact]}" Tag="Compact" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpLayout_Fluent]}" Tag="Fluent" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpLayout_Taskbar]}" Tag="Taskbar" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpLayout_TaskbarSlim]}" Tag="TaskbarSlim" />
+                                                    </ComboBox>
+
+                                                    <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpShowSeekBar]}" IsChecked="{Binding NowPlayingShowSeekBar, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                                    <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpShowControls]}" IsChecked="{Binding NowPlayingShowControls, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                                    <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpShowAppLabel]}" IsChecked="{Binding NowPlayingShowAppLabel, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                                    <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpShowCover]}" IsChecked="{Binding NowPlayingShowCover, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+
+                                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpAccentColor]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                                    <ComboBox SelectedValue="{Binding NowPlayingAccentColor, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,12">
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_IceBlue]}" Tag="#FF7DD3FC" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_White]}" Tag="#FFFFFFFF" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_MatrixGreen]}" Tag="#FF4AF626" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_AmberOrange]}" Tag="#FFFFB000" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_CyberRed]}" Tag="#FFFF3E3E" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_KawaiiPink]}" Tag="#FFFF71CE" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Purple]}" Tag="#FFA855F7" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Teal]}" Tag="#FF2DD4BF" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Gold]}" Tag="#FFFACC15" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Orange]}" Tag="#FFFB923C" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Rose]}" Tag="#FFFB7185" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Lime]}" Tag="#FFA3E635" />
+                                                    </ComboBox>
+
+                                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpButtonsColor]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                                    <ComboBox SelectedValue="{Binding NowPlayingButtonsColor, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,12">
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpButtons_Default]}" Tag="#A0FFFFFF" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_IceBlue]}" Tag="#FF7DD3FC" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_White]}" Tag="#FFFFFFFF" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_MatrixGreen]}" Tag="#FF4AF626" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_AmberOrange]}" Tag="#FFFFB000" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_CyberRed]}" Tag="#FFFF3E3E" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_KawaiiPink]}" Tag="#FFFF71CE" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Purple]}" Tag="#FFA855F7" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Teal]}" Tag="#FF2DD4BF" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Gold]}" Tag="#FFFACC15" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Orange]}" Tag="#FFFB923C" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Rose]}" Tag="#FFFB7185" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Lime]}" Tag="#FFA3E635" />
                                                     </ComboBox>
                                                 </StackPanel>
                                             </StackPanel>
@@ -2110,6 +2171,14 @@
                                         <ColumnDefinition Width="140" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_OnlyShellContextMenu]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <CheckBox Grid.Column="1" IsChecked="{Binding OnlyShellContextMenu}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowResizeHandle]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding ShowDesktopResizeHandle}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
@@ -2158,6 +2227,109 @@
                                     <CheckBox Grid.Column="1" IsChecked="{Binding IsStartupEnabled, Mode=OneWay}" Command="{Binding ToggleStartupCommand}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                             </StackPanel>
+                        </Border>
+
+                        <!-- Discord Rich Presence Card (collapsed by default) -->
+                        <Border Background="Transparent" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                            <Expander Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="13" IsExpanded="False">
+                                <Expander.Header>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPresence]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" />
+                                </Expander.Header>
+                                <StackPanel Margin="0,12,0,0">
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordEnable]}" IsChecked="{Binding DiscordPresenceEnabled, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="13" Margin="0,0,0,12" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowWhenIdle]}" IsChecked="{Binding DiscordShowWhenIdle, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowWhenPaused]}" IsChecked="{Binding DiscordShowWhenPaused, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowTitle]}" IsChecked="{Binding DiscordShowTitle, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowArtist]}" IsChecked="{Binding DiscordShowArtist, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowApp]}" IsChecked="{Binding DiscordShowApp, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowElapsed]}" IsChecked="{Binding DiscordShowElapsed, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowCover]}" IsChecked="{Binding DiscordShowCover, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPrivateMode]}" IsChecked="{Binding DiscordPrivateMode, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,12" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordButtonsEnabled]}" IsChecked="{Binding DiscordButtonsEnabled, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordButton1Label]}" Foreground="#526475" FontSize="10" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding DiscordButton1Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,6" />
+                                    <TextBlock Grid.Row="1" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordButton1Url]}" Foreground="#526475" FontSize="10" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding DiscordButton1Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,6" />
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordButton2Label]}" Foreground="#526475" FontSize="10" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding DiscordButton2Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,6" />
+                                    <TextBlock Grid.Row="1" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordButton2Url]}" Foreground="#526475" FontSize="10" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding DiscordButton2Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,6" />
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordStateUrl]}" Foreground="#526475" FontSize="10" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding DiscordStateUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,6" />
+                                    <TextBlock Grid.Row="1" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordDetailsUrl]}" Foreground="#526475" FontSize="10" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding DiscordDetailsUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,6" />
+                                </Grid>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordLargeUrl]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding DiscordLargeUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,12" />
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPriority]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                <ListBox ItemsSource="{Binding DiscordSourcePriorityItems}" SelectedItem="{Binding DiscordPrioritySelected, Mode=TwoWay}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="84" Margin="0,0,0,6">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock x:Name="PriorityText" Text="{Binding}" />
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding}" Value="*">
+                                                    <Setter TargetName="PriorityText" Property="Text" Value="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpSourceAuto]}" />
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox SelectedValue="{Binding DiscordPriorityAddId, Mode=TwoWay}" SelectedValuePath="AppId" DisplayMemberPath="DisplayName" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,6,0"
+                                              ItemsSource="{Binding DiscordPriorityAddOptions}" />
+                                    <Button Grid.Column="1" Content="＋" Command="{Binding DiscordPriorityAddCommand}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Width="32" Height="28" Margin="0,0,4,0" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPriorityAdd]}" />
+                                    <Button Grid.Column="2" Content="↑" Command="{Binding DiscordPriorityUpCommand}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Width="32" Height="28" Margin="0,0,4,0" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPriorityUp]}" />
+                                    <Button Grid.Column="3" Content="↓" Command="{Binding DiscordPriorityDownCommand}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Width="32" Height="28" Margin="0,0,4,0" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPriorityDown]}" />
+                                    <Button Grid.Column="4" Content="✕" Command="{Binding DiscordPriorityRemoveCommand}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Width="32" Height="28" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPriorityRemove]}" />
+                                </Grid>
+                                <Expander Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordAdvanced]}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,4">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordClientId]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DiscordClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,12" />
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordLargeImage]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DiscordLargeImage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,12" />
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordSmallImage]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DiscordSmallImage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" Height="28" Margin="0,0,0,4" />
+                                    </StackPanel>
+                                </Expander>
+                                </StackPanel>
+                            </Expander>
                         </Border>
 
                         <!-- GUI Theme Card -->
@@ -2380,6 +2552,14 @@
                                         <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClearAllSnapshots]}" Command="{Binding ClearAllSnapshotsCommand}" Padding="10,6" Background="#2C1A1A" BorderBrush="#3C2222" Foreground="#FCA5A5" Cursor="Hand" Margin="0,0,8,0"/>
                                         <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_CaptureSnapshot]}" Command="{Binding CreateSnapshotCommand}" Padding="12,6" Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand"/>
                                     </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,2,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoSnapshot]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                    <CheckBox Grid.Column="1" IsChecked="{Binding IsAutoSnapshotEnabled, Mode=TwoWay}" Style="{StaticResource ArcticToggleSwitchStyle}" ToolTip="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoSnapshotTip]}" />
                                 </Grid>
                                 <ItemsControl ItemsSource="{Binding Snapshots}" Margin="0,4,0,0">
                                     <ItemsControl.ItemTemplate>

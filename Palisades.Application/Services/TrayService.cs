@@ -16,6 +16,9 @@ namespace Palisades.Services
         public event Action? ToggleDesktopIconsRequested;
         public event Action? InstallContextMenuRequested;
         public event Action? RestartRequested;
+        public event Action? ToggleDiscordPresenceRequested;
+
+        private bool _presenceDisabledChecked;
 
         public TrayService()
         {
@@ -39,6 +42,14 @@ namespace Palisades.Services
             _menu.Items.Clear();
             _menu.Items.Add(t["Tray_OpenPalisades"], null, (_, _) => ShowMainWindowRequested?.Invoke());
             _menu.Items.Add(new ToolStripSeparator());
+            var presenceItem = new ToolStripMenuItem(t["Tray_DisablePresence"])
+            {
+                CheckOnClick = true,
+                Checked = _presenceDisabledChecked
+            };
+            presenceItem.Click += (_, _) => ToggleDiscordPresenceRequested?.Invoke();
+            _menu.Items.Add(presenceItem);
+            _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(t["Tray_NewContainer"], null, (_, _) => CreateContainerRequested?.Invoke());
             _menu.Items.Add(t["Tray_ShowHideAll"], null, (_, _) => ToggleContainersRequested?.Invoke());
             _menu.Items.Add(new ToolStripSeparator());
@@ -49,6 +60,19 @@ namespace Palisades.Services
             _menu.Items.Add(t["Tray_Restart"], null, (_, _) => RestartRequested?.Invoke());
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(t["Tray_Exit"], null, (_, _) => ExitRequested?.Invoke());
+        }
+
+        public void SetPresenceDisabledChecked(bool isChecked)
+        {
+            _presenceDisabledChecked = isChecked;
+            foreach (var item in _menu.Items)
+            {
+                if (item is ToolStripMenuItem mi && mi.Text == TranslationService.Instance["Tray_DisablePresence"])
+                {
+                    mi.Checked = isChecked;
+                    break;
+                }
+            }
         }
 
         public void SetIcon(string iconPath)

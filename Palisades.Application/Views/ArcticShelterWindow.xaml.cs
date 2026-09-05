@@ -89,6 +89,12 @@ namespace Palisades.Views
             SwitchToTab("Containers");
         }
 
+        public void ShowWidgetProperties(PluginGadgetItem item)
+        {
+            _viewModel.SelectedWidget = item;
+            SwitchToTab("Dashboard");
+        }
+
         private void ContainerCard_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is Border { DataContext: ContainerViewModel container })

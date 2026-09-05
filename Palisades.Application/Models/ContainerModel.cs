@@ -178,6 +178,52 @@ namespace Palisades.Models
         /// <summary>Show Recycle Bin shortcut on desktop overlay (default: false).</summary>
         public bool ShowRecycleBin { get; set; } = false;
 
+        /// <summary>Desktop overlay right-click always uses the native shell menu (default: false).</summary>
+        public bool OnlyShellContextMenu { get; set; } = false;
+
+        /// <summary>Discord Rich Presence enabled (default: true; needs a Client ID).</summary>
+        public bool DiscordPresenceEnabled { get; set; } = true;
+        /// <summary>Discord application Client ID (from discord.com/developers).</summary>
+        public string DiscordClientId { get; set; } = "1545537283749318669";
+        /// <summary>Discord source priority: app IDs top-first (empty = follow latest).</summary>
+        public System.Collections.Generic.List<string> DiscordSourcePriority { get; set; } = new System.Collections.Generic.List<string>();
+        /// <summary>Show presence when nothing is playing (default: false).</summary>
+        public bool DiscordShowWhenIdle { get; set; } = false;
+        /// <summary>Keep showing the track with a Paused marker when paused (default: true).</summary>
+        public bool DiscordShowWhenPaused { get; set; } = true;
+        /// <summary>Presence details = track title (default: true).</summary>
+        public bool DiscordShowTitle { get; set; } = true;
+        /// <summary>Presence state includes artist (default: true).</summary>
+        public bool DiscordShowArtist { get; set; } = true;
+        /// <summary>Presence state includes source app (default: true).</summary>
+        public bool DiscordShowApp { get; set; } = true;
+        /// <summary>Presence shows elapsed timer while playing (default: true).</summary>
+        public bool DiscordShowElapsed { get; set; } = true;
+        /// <summary>Presence shows the album cover (direct artwork URL, default: true).</summary>
+        public bool DiscordShowCover { get; set; } = true;
+        /// <summary>Discord art asset key for the large image (upload in dev portal).</summary>
+        public string DiscordLargeImage { get; set; } = "palisades";
+        /// <summary>Discord art asset key for the small image (empty = none).</summary>
+        public string DiscordSmallImage { get; set; } = string.Empty;
+        /// <summary>Discord presence private mode: generic text, no titles/cover (default: false).</summary>
+        public bool DiscordPrivateMode { get; set; } = false;
+        /// <summary>Show buttons on the Discord presence (default: true).</summary>
+        public bool DiscordButtonsEnabled { get; set; } = true;
+        /// <summary>Presence button 1 label (empty = hidden).</summary>
+        public string DiscordButton1Label { get; set; } = "Palisades";
+        /// <summary>Presence button 1 link.</summary>
+        public string DiscordButton1Url { get; set; } = "https://github.com/Walkoud/Palisades";
+        /// <summary>Presence button 2 label (empty = hidden).</summary>
+        public string DiscordButton2Label { get; set; } = string.Empty;
+        /// <summary>Presence button 2 link.</summary>
+        public string DiscordButton2Url { get; set; } = string.Empty;
+        /// <summary>Clickable link behind the state line (empty = none).</summary>
+        public string DiscordStateUrl { get; set; } = "https://github.com/Walkoud/Palisades";
+        /// <summary>Clickable link behind the details line (empty = none).</summary>
+        public string DiscordDetailsUrl { get; set; } = string.Empty;
+        /// <summary>Clickable link behind the cover image (empty = none).</summary>
+        public string DiscordLargeUrl { get; set; } = "https://github.com/Walkoud/Palisades";
+
         /// <summary>Header icon size (hamburger/chevron base grid size, 6-16).</summary>
         public int HeaderIconSize { get; set; } = 9;
 
