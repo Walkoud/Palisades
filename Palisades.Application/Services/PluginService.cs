@@ -55,6 +55,7 @@ namespace Palisades.Services
             RegisterPlugin(new ClockGadgetPlugin(), true);
             RegisterPlugin(new SystemMonitorPlugin(), true);
             RegisterPlugin(new PostItGadgetPlugin(), true);
+            RegisterPlugin(new NowPlayingPlugin(), true);
 
             // 2. Load external plugin assemblies
             LoadExternalPlugins();
