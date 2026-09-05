@@ -96,3 +96,7 @@ Palisades declutter your Windows desktop. Drop icons into organized containers, 
 ## Credits
 
 Inspired by [Twometer's NoFences](https://github.com/Twometer/NoFences) and [Stardock's Fences](https://www.stardock.com/products/fences/).
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/chart?repos=walkoud/palisades&type=date&legend=top-left)](https://www.star-history.com/?repos=walkoud%2Fpalisades&type=date&legend=top-left)
