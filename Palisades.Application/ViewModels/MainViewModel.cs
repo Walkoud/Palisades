@@ -142,6 +142,324 @@ namespace Palisades.ViewModels
             }
         }
 
+        public bool OnlyShellContextMenu
+        {
+            get => DefaultModel.OnlyShellContextMenu;
+            set
+            {
+                DefaultModel.OnlyShellContextMenu = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+            }
+        }
+
+        public bool DiscordPresenceEnabled
+        {
+            get => DefaultModel.DiscordPresenceEnabled;
+            set
+            {
+                DefaultModel.DiscordPresenceEnabled = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordClientId
+        {
+            get => DefaultModel.DiscordClientId;
+            set
+            {
+                DefaultModel.DiscordClientId = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordShowWhenIdle
+        {
+            get => DefaultModel.DiscordShowWhenIdle;
+            set
+            {
+                DefaultModel.DiscordShowWhenIdle = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordShowWhenPaused
+        {
+            get => DefaultModel.DiscordShowWhenPaused;
+            set
+            {
+                DefaultModel.DiscordShowWhenPaused = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordShowTitle
+        {
+            get => DefaultModel.DiscordShowTitle;
+            set
+            {
+                DefaultModel.DiscordShowTitle = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordShowArtist
+        {
+            get => DefaultModel.DiscordShowArtist;
+            set
+            {
+                DefaultModel.DiscordShowArtist = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordShowApp
+        {
+            get => DefaultModel.DiscordShowApp;
+            set
+            {
+                DefaultModel.DiscordShowApp = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordShowElapsed
+        {
+            get => DefaultModel.DiscordShowElapsed;
+            set
+            {
+                DefaultModel.DiscordShowElapsed = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordShowCover
+        {
+            get => DefaultModel.DiscordShowCover;
+            set
+            {
+                DefaultModel.DiscordShowCover = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordLargeImage
+        {
+            get => DefaultModel.DiscordLargeImage;
+            set
+            {
+                DefaultModel.DiscordLargeImage = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordSmallImage
+        {
+            get => DefaultModel.DiscordSmallImage;
+            set
+            {
+                DefaultModel.DiscordSmallImage = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordPrivateMode
+        {
+            get => DefaultModel.DiscordPrivateMode;
+            set
+            {
+                DefaultModel.DiscordPrivateMode = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public bool DiscordButtonsEnabled
+        {
+            get => DefaultModel.DiscordButtonsEnabled;
+            set
+            {
+                DefaultModel.DiscordButtonsEnabled = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordButton1Label
+        {
+            get => DefaultModel.DiscordButton1Label;
+            set
+            {
+                DefaultModel.DiscordButton1Label = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordButton1Url
+        {
+            get => DefaultModel.DiscordButton1Url;
+            set
+            {
+                DefaultModel.DiscordButton1Url = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordButton2Label
+        {
+            get => DefaultModel.DiscordButton2Label;
+            set
+            {
+                DefaultModel.DiscordButton2Label = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordButton2Url
+        {
+            get => DefaultModel.DiscordButton2Url;
+            set
+            {
+                DefaultModel.DiscordButton2Url = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordStateUrl
+        {
+            get => DefaultModel.DiscordStateUrl;
+            set
+            {
+                DefaultModel.DiscordStateUrl = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordDetailsUrl
+        {
+            get => DefaultModel.DiscordDetailsUrl;
+            set
+            {
+                DefaultModel.DiscordDetailsUrl = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        public string DiscordLargeUrl
+        {
+            get => DefaultModel.DiscordLargeUrl;
+            set
+            {
+                DefaultModel.DiscordLargeUrl = (value ?? "").Trim();
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                ApplyDiscordSettings();
+            }
+        }
+
+        private void ApplyDiscordSettings()
+        {
+            try
+            {
+                Services.DiscordPresenceService.Instance.ApplySettings(
+                    DefaultModel.DiscordPresenceEnabled,
+                    DefaultModel.DiscordClientId,
+                    DefaultModel.DiscordShowWhenIdle,
+                    DefaultModel.DiscordShowWhenPaused,
+                    DefaultModel.DiscordShowTitle,
+                    DefaultModel.DiscordShowArtist,
+                    DefaultModel.DiscordShowApp,
+                    DefaultModel.DiscordShowElapsed,
+                    DefaultModel.DiscordShowCover,
+                    DefaultModel.DiscordLargeImage,
+                    DefaultModel.DiscordSmallImage,
+                    DefaultModel.DiscordPrivateMode,
+                    DefaultModel.DiscordButtonsEnabled,
+                    DefaultModel.DiscordButton1Label,
+                    DefaultModel.DiscordButton1Url,
+                    DefaultModel.DiscordButton2Label,
+                    DefaultModel.DiscordButton2Url,
+                    DefaultModel.DiscordStateUrl,
+                    DefaultModel.DiscordDetailsUrl,
+                    DefaultModel.DiscordLargeUrl,
+                    DefaultModel.DiscordSourcePriority);
+            }
+            catch { }
+        }
+
+        public System.Collections.ObjectModel.ObservableCollection<string> DiscordSourcePriorityItems { get; }
+            = new System.Collections.ObjectModel.ObservableCollection<string>();
+
+        private string? _discordPrioritySelected;
+        public string? DiscordPrioritySelected
+        {
+            get => _discordPrioritySelected;
+            set { _discordPrioritySelected = value; OnPropertyChanged(); }
+        }
+
+        private string _discordPriorityAddId = "";
+        public string DiscordPriorityAddId
+        {
+            get => _discordPriorityAddId;
+            set { _discordPriorityAddId = value ?? ""; OnPropertyChanged(); }
+        }
+
+        public System.Windows.Input.ICommand DiscordPriorityAddCommand { get; private set; } = null!;
+        public System.Windows.Input.ICommand DiscordPriorityRemoveCommand { get; private set; } = null!;
+        public System.Windows.Input.ICommand DiscordPriorityUpCommand { get; private set; } = null!;
+        public System.Windows.Input.ICommand DiscordPriorityDownCommand { get; private set; } = null!;
+
+        private void ReloadDiscordPriority()
+        {
+            DiscordSourcePriorityItems.Clear();
+            foreach (var id in DefaultModel.DiscordSourcePriority)
+                if (!string.IsNullOrWhiteSpace(id) && !DiscordSourcePriorityItems.Contains(id))
+                    DiscordSourcePriorityItems.Add(id);
+        }
+
+        private void SaveDiscordPriority()
+        {
+            DefaultModel.DiscordSourcePriority = DiscordSourcePriorityItems.ToList();
+            ContainerManager.Instance.SaveDefaults(DefaultModel);
+            ApplyDiscordSettings();
+        }
+
         public bool ShowFileExtensions
         {
             get
@@ -264,6 +582,20 @@ namespace Palisades.ViewModels
             }
         }
 
+        public string AppVersion
+        {
+            get
+            {
+                try
+                {
+                    var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                    if (v != null) return $"{(v.Major > 0 ? v.Major : 1)}.{v.Minor}.{v.Build}";
+                }
+                catch { }
+                return "1.3.0";
+            }
+        }
+
         private ContainerViewModel? _applyTargetContainer;
         public ContainerViewModel? ApplyTargetContainer
         {
@@ -318,6 +650,7 @@ namespace Palisades.ViewModels
                 OnPropertyChanged(nameof(IsWidgetSelected));
                 OnPropertyChanged(nameof(SelectedWidgetIsClock));
                 OnPropertyChanged(nameof(SelectedWidgetIsSystemMonitor));
+                OnPropertyChanged(nameof(SelectedWidgetIsNowPlaying));
                 RefreshSelectedWidgetSettings();
             }
         }
@@ -325,6 +658,7 @@ namespace Palisades.ViewModels
         public bool IsWidgetSelected => SelectedWidget != null;
         public bool SelectedWidgetIsClock => SelectedWidget != null && SelectedWidget.GadgetType.Equals("Clock", StringComparison.OrdinalIgnoreCase);
         public bool SelectedWidgetIsSystemMonitor => SelectedWidget != null && SelectedWidget.GadgetType.Equals("SystemMonitor", StringComparison.OrdinalIgnoreCase);
+        public bool SelectedWidgetIsNowPlaying => SelectedWidget != null && SelectedWidget.GadgetType.Equals("NowPlaying", StringComparison.OrdinalIgnoreCase);
 
         private bool _isRefreshingSettings;
 
@@ -414,12 +748,190 @@ namespace Palisades.ViewModels
             }
         }
 
+        // Now Playing settings fields
+        private string _nowPlayingLayout = "Classic";
+        public string NowPlayingLayout
+        {
+            get => _nowPlayingLayout;
+            set
+            {
+                _nowPlayingLayout = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _nowPlayingShowSeekBar = true;
+        public bool NowPlayingShowSeekBar
+        {
+            get => _nowPlayingShowSeekBar;
+            set
+            {
+                _nowPlayingShowSeekBar = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _nowPlayingShowControls = true;
+        public bool NowPlayingShowControls
+        {
+            get => _nowPlayingShowControls;
+            set
+            {
+                _nowPlayingShowControls = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _nowPlayingShowAppLabel = true;
+        public bool NowPlayingShowAppLabel
+        {
+            get => _nowPlayingShowAppLabel;
+            set
+            {
+                _nowPlayingShowAppLabel = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _nowPlayingShowCover = true;
+        public bool NowPlayingShowCover
+        {
+            get => _nowPlayingShowCover;
+            set
+            {
+                _nowPlayingShowCover = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private string _nowPlayingAccentColor = "#FF7DD3FC";
+        public string NowPlayingAccentColor
+        {
+            get => _nowPlayingAccentColor;
+            set
+            {
+                _nowPlayingAccentColor = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private string _nowPlayingButtonsColor = "#A0FFFFFF";
+        public string NowPlayingButtonsColor
+        {
+            get => _nowPlayingButtonsColor;
+            set
+            {
+                _nowPlayingButtonsColor = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        // Carried across refresh → save so the media-source pin survives dashboard edits.
+        private string _nowPlayingSourceId = "";
+        public string NowPlayingSourceId
+        {
+            get => _nowPlayingSourceId;
+            set
+            {
+                _nowPlayingSourceId = value ?? "";
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        public class NowPlayingSourceOption
+        {
+            public string AppId { get; set; } = "";
+            public string DisplayName { get; set; } = "";
+        }
+
+        public System.Collections.ObjectModel.ObservableCollection<NowPlayingSourceOption> NowPlayingSourceOptions { get; }
+            = new System.Collections.ObjectModel.ObservableCollection<NowPlayingSourceOption>();
+
+        // Add-combo for the Discord priority list: same live sessions but the
+        // "Automatic" entry means "anything else" ("*" wildcard, positionable).
+        public System.Collections.ObjectModel.ObservableCollection<NowPlayingSourceOption> DiscordPriorityAddOptions { get; }
+            = new System.Collections.ObjectModel.ObservableCollection<NowPlayingSourceOption>();
+
+        public System.Windows.Input.ICommand RefreshNowPlayingSourcesCommand { get; private set; } = null!;
+
+        private async System.Threading.Tasks.Task RefreshNowPlayingSourcesAsync()
+        {
+            try
+            {
+                string selected = _nowPlayingSourceId;
+                NowPlayingSourceOptions.Clear();
+                NowPlayingSourceOptions.Add(new NowPlayingSourceOption
+                {
+                    AppId = "",
+                    DisplayName = Services.TranslationService.Instance["Db_NpSourceAuto"]
+                });
+                DiscordPriorityAddOptions.Clear();
+                DiscordPriorityAddOptions.Add(new NowPlayingSourceOption
+                {
+                    AppId = "*",
+                    DisplayName = Services.TranslationService.Instance["Db_NpSourceAuto"]
+                });
+                var mgr = await Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                foreach (var s in mgr.GetSessions())
+                {
+                    string appId = "";
+                    bool playing = false;
+                    string title = "";
+                    try { appId = s.SourceAppUserModelId ?? ""; } catch { continue; }
+                    if (string.IsNullOrEmpty(appId)) continue;
+                    try { playing = s.GetPlaybackInfo()?.PlaybackStatus == Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing; } catch { }
+                    try { title = (await s.TryGetMediaPropertiesAsync())?.Title ?? ""; } catch { }
+                    string name = appId;
+                    if (name.Contains('.')) name = name.Substring(0, name.LastIndexOf('.'));
+                    if (!string.IsNullOrEmpty(title) && title.Length > 30) title = title.Substring(0, 30) + "…";
+                    NowPlayingSourceOptions.Add(new NowPlayingSourceOption
+                    {
+                        AppId = appId,
+                        DisplayName = (playing ? "▶ " : "") + name + (string.IsNullOrEmpty(title) ? "" : " — " + title)
+                    });
+                    DiscordPriorityAddOptions.Add(new NowPlayingSourceOption
+                    {
+                        AppId = appId,
+                        DisplayName = (playing ? "▶ " : "") + name + (string.IsNullOrEmpty(title) ? "" : " — " + title)
+                    });
+                }
+                // Pinned app currently absent → keep a waiting entry so the pin stays visible.
+                if (!string.IsNullOrEmpty(selected) && !NowPlayingSourceOptions.Any(o => o.AppId == selected))
+                {
+                    string name = selected;
+                    if (name.Contains('.')) name = name.Substring(0, name.LastIndexOf('.'));
+                    NowPlayingSourceOptions.Add(new NowPlayingSourceOption { AppId = selected, DisplayName = "▶ " + name });
+                }
+            }
+            catch { }
+        }
+
         public class ClockSettings
         {
             public bool ShowSeconds { get; set; } = true;
             public bool Is24Hour { get; set; } = true;
             public string Color { get; set; } = "#7DD3FC";
             public double FontSize { get; set; } = 36;
+        }
+
+        public class NowPlayingSettings
+        {
+            public string Layout { get; set; } = "Classic";
+            public bool ShowSeekBar { get; set; } = true;
+            public bool ShowControls { get; set; } = true;
+            public bool ShowAppLabel { get; set; } = true;
+            public bool ShowCover { get; set; } = true;
+            public string AccentColor { get; set; } = "#FF7DD3FC";
+            public string ButtonsColor { get; set; } = "#A0FFFFFF";
+            public string ForcedSourceAppId { get; set; } = "";
         }
 
         public class SysMonSettings
@@ -468,6 +980,30 @@ namespace Palisades.ViewModels
                 }
                 catch { _isRefreshingSettings = false; }
             }
+            else if (SelectedWidgetIsNowPlaying)
+            {
+                try
+                {
+                    var settings = new NowPlayingSettings();
+                    if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                    {
+                        settings = Newtonsoft.Json.JsonConvert.DeserializeObject<NowPlayingSettings>(SelectedWidget.CustomData) ?? new NowPlayingSettings();
+                    }
+                    _isRefreshingSettings = true;
+                    NowPlayingLayout = settings.Layout;
+                    NowPlayingShowSeekBar = settings.ShowSeekBar;
+                    NowPlayingShowControls = settings.ShowControls;
+                    NowPlayingShowAppLabel = settings.ShowAppLabel;
+                    NowPlayingShowCover = settings.ShowCover;
+                    NowPlayingAccentColor = string.IsNullOrEmpty(settings.AccentColor) ? "#FF7DD3FC" : settings.AccentColor;
+                    NowPlayingButtonsColor = string.IsNullOrEmpty(settings.ButtonsColor) ? "#A0FFFFFF" : settings.ButtonsColor;
+                    _nowPlayingSourceId = settings.ForcedSourceAppId ?? "";
+                    OnPropertyChanged(nameof(NowPlayingSourceId));
+                    _ = RefreshNowPlayingSourcesAsync();
+                    _isRefreshingSettings = false;
+                }
+                catch { _isRefreshingSettings = false; }
+            }
         }
 
         private void SaveSelectedWidgetCustomData()
@@ -492,6 +1028,21 @@ namespace Palisades.ViewModels
                     ShowCpu = SysMonShowCpu,
                     ShowRam = SysMonShowRam,
                     Interval = SysMonInterval
+                };
+                SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
+            }
+            else if (SelectedWidgetIsNowPlaying)
+            {
+                var settings = new NowPlayingSettings
+                {
+                    Layout = NowPlayingLayout,
+                    ShowSeekBar = NowPlayingShowSeekBar,
+                    ShowControls = NowPlayingShowControls,
+                    ShowAppLabel = NowPlayingShowAppLabel,
+                    ShowCover = NowPlayingShowCover,
+                    AccentColor = NowPlayingAccentColor,
+                    ButtonsColor = NowPlayingButtonsColor,
+                    ForcedSourceAppId = _nowPlayingSourceId
                 };
                 SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
             }
@@ -753,6 +1304,42 @@ namespace Palisades.ViewModels
 
             CreateContainerCommand = new RelayCommand(() => CreateContainer());
             DeleteContainerCommand = new RelayCommand<ContainerViewModel>(DeleteContainer);
+            RefreshNowPlayingSourcesCommand = new RelayCommand(() => _ = RefreshNowPlayingSourcesAsync());
+            DiscordPriorityAddCommand = new RelayCommand(() =>
+            {
+                string id = (DiscordPriorityAddId ?? "").Trim();
+                if (!string.IsNullOrEmpty(id) && !DiscordSourcePriorityItems.Contains(id))
+                {
+                    DiscordSourcePriorityItems.Add(id);
+                    SaveDiscordPriority();
+                }
+            });
+            DiscordPriorityRemoveCommand = new RelayCommand(() =>
+            {
+                if (!string.IsNullOrEmpty(DiscordPrioritySelected) && DiscordSourcePriorityItems.Contains(DiscordPrioritySelected))
+                {
+                    DiscordSourcePriorityItems.Remove(DiscordPrioritySelected);
+                    SaveDiscordPriority();
+                }
+            });
+            DiscordPriorityUpCommand = new RelayCommand(() =>
+            {
+                int i = !string.IsNullOrEmpty(DiscordPrioritySelected) ? DiscordSourcePriorityItems.IndexOf(DiscordPrioritySelected) : -1;
+                if (i > 0)
+                {
+                    DiscordSourcePriorityItems.Move(i, i - 1);
+                    SaveDiscordPriority();
+                }
+            });
+            DiscordPriorityDownCommand = new RelayCommand(() =>
+            {
+                int i = !string.IsNullOrEmpty(DiscordPrioritySelected) ? DiscordSourcePriorityItems.IndexOf(DiscordPrioritySelected) : -1;
+                if (i >= 0 && i < DiscordSourcePriorityItems.Count - 1)
+                {
+                    DiscordSourcePriorityItems.Move(i, i + 1);
+                    SaveDiscordPriority();
+                }
+            });
 
             // Quick Actions commands
             CreateNormalContainerCommand = new RelayCommand(() => {
@@ -1097,46 +1684,7 @@ namespace Palisades.ViewModels
                         foreach (var model in data.Containers)
                         {
                             var created = _manager.CreateContainer(model.Name);
-                            created.X = model.X;
-                            created.Y = model.Y;
-                            created.Width = model.Width;
-                            created.Height = model.Height;
-                            // Restore the Android-style folder settings too — Export writes the
-                            // full ContainerModel, so the import must mirror it or an Android
-                            // folder comes back as a plain container.
-                            created.IsAndroidFolderContainer = model.IsAndroidFolderContainer;
-                            created.AndroidOpenAtClick = model.AndroidOpenAtClick;
-                            created.AndroidPanelWidth = model.AndroidPanelWidth;
-                            created.AndroidPanelHeight = model.AndroidPanelHeight;
-                            created.AndroidIconSize = model.AndroidIconSize;
-                            created.AndroidShowHeader = model.AndroidShowHeader;
-                            created.AndroidHeaderFontSize = model.AndroidHeaderFontSize;
-                            created.AndroidShowLabel = model.AndroidShowLabel;
-                            created.AndroidLabelGap = model.AndroidLabelGap;
-                            created.AndroidPanelBackgroundColor = model.AndroidPanelBackgroundColor;
-                            created.AndroidPanelGradientEnabled = model.AndroidPanelGradientEnabled;
-                            created.AndroidPanelGradientEndColor = model.AndroidPanelGradientEndColor;
-                            created.AndroidPanelGradientAngle = model.AndroidPanelGradientAngle;
-                            created.AndroidPanelBackgroundOpacity = model.AndroidPanelBackgroundOpacity;
-                            created.AndroidOpenOpacity = model.AndroidOpenOpacity;
-                            created.AndroidClosedOpacity = model.AndroidClosedOpacity;
-                            created.AndroidPanelCornerRadius = model.AndroidPanelCornerRadius;
-                            created.AndroidPanelShowBorder = model.AndroidPanelShowBorder;
-                            created.AndroidTitleTwoLine = model.AndroidTitleTwoLine;
-                            created.AndroidOpenAnimation = model.AndroidOpenAnimation;
-                            created.AndroidAnimationDurationMs = model.AndroidAnimationDurationMs;
-                            created.AndroidBackdropMode = model.AndroidBackdropMode;
-                            created.AndroidBackdropStyle = model.AndroidBackdropStyle;
-                            created.AndroidBackdropColor = model.AndroidBackdropColor;
-                            created.AndroidBackdropDim = model.AndroidBackdropDim;
-                            created.AndroidTileShowBorder = model.AndroidTileShowBorder;
-                            created.AndroidTileCornerRadius = model.AndroidTileCornerRadius;
-                            foreach (var s in model.Shortcuts)
-                            {
-                                if (!created.Shortcuts.Any(ex =>
-                                    ex.Name == s.Name && ex.TargetPath == s.TargetPath))
-                                    created.Shortcuts.Add(s);
-                            }
+                            ContainerManager.Instance.ApplyModelTo(created, model);
                         }
 
                         // Restore notes if present
@@ -1153,6 +1701,11 @@ namespace Palisades.ViewModels
 
                         MessageBox.Show(TranslationService.Instance["Dialog_ImportSuccess"],
                             TranslationService.Instance["Dialog_Import"], MessageBoxButton.OK, MessageBoxImage.Information);
+
+                        if (Application.Current is App app)
+                            app.RestartApplication();
+                        else
+                            Application.Current.Shutdown();
                     }
                 }
                 catch (Exception ex)
@@ -1261,6 +1814,17 @@ namespace Palisades.ViewModels
             var loaded = ContainerManager.Instance.LoadDefaults();
             if (loaded != null)
                 DefaultModel = loaded;
+
+            // Backfill the default Discord Client ID for configs saved before it existed.
+            if (string.IsNullOrWhiteSpace(DefaultModel.DiscordClientId))
+            {
+                DefaultModel.DiscordClientId = "1545537283749318669";
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+            }
+
+            ApplyDiscordSettings();
+            ReloadDiscordPriority();
+            _ = RefreshNowPlayingSourcesAsync();
 
             if (DefaultModel.IsAutoSortEnabled)
                 AutoSortManager.Instance.Start();

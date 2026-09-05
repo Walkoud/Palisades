@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -22,9 +24,21 @@ namespace Palisades
         private DesktopOverlayWindow? _overlayWindow;
         private readonly Dictionary<string, System.IO.FileSystemWatcher> _folderWatchers = new();
 
+        private const string MutexName = "Global\\Palisades_SingleInstance";
+        private Mutex? _mutex;
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+
+            // Kill any existing instance, then take over
+            _mutex = new Mutex(true, MutexName, out bool createdNew);
+            if (!createdNew)
+            {
+                KillExistingInstance();
+                _mutex.Dispose();
+                _mutex = new Mutex(true, MutexName, out _);
+            }
 
             TranslationService.Instance.Initialize();
 
@@ -76,6 +90,19 @@ namespace Palisades
             {
                 LogError(ex);
                 MessageBox.Show(string.Format(TranslationService.Instance["App_StartupError"], ex.Message), "Palisades", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static void KillExistingInstance()
+        {
+            var current = Process.GetCurrentProcess();
+            foreach (var proc in Process.GetProcessesByName("Palisades"))
+            {
+                if (proc.Id != current.Id)
+                {
+                    try { proc.Kill(); proc.WaitForExit(2000); }
+                    catch { }
+                }
             }
         }
 
@@ -280,6 +307,21 @@ namespace Palisades
             _trayService.ToggleDesktopIconsRequested += () => SafeDispatch(ToggleDesktopIcons);
             _trayService.InstallContextMenuRequested += () => SafeDispatch(InstallDesktopContextMenu);
             _trayService.RestartRequested += () => Dispatcher.BeginInvoke(new Action(RestartApplication));
+            _trayService.ToggleDiscordPresenceRequested += () => SafeDispatch(() =>
+            {
+                if (_mainViewModel != null)
+                    _mainViewModel.DiscordPresenceEnabled = !_mainViewModel.DiscordPresenceEnabled;
+            });
+
+            if (_mainViewModel != null)
+            {
+                _trayService.SetPresenceDisabledChecked(!_mainViewModel.DiscordPresenceEnabled);
+                _mainViewModel.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(MainViewModel.DiscordPresenceEnabled) && _mainViewModel != null)
+                        _trayService.SetPresenceDisabledChecked(!_mainViewModel.DiscordPresenceEnabled);
+                };
+            }
 
             string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Ressources", "icon.ico");
             if (File.Exists(iconPath))
@@ -389,6 +431,20 @@ namespace Palisades
                 _arcticWindow.Show();
                 _arcticWindow.Activate();
             }
+        }
+
+        public ArcticShelterWindow? GetDashboardWindow()
+        {
+            if (_arcticWindow != null && _arcticWindow.IsLoaded)
+                return _arcticWindow;
+
+            if (_mainViewModel != null)
+            {
+                _arcticWindow = new ArcticShelterWindow(_mainViewModel);
+                _arcticWindow.Show();
+                _arcticWindow.Activate();
+            }
+            return _arcticWindow;
         }
 
         private void CreateContainerFromTray()
@@ -813,7 +869,7 @@ namespace Palisades
             }
         }
 
-        private void RestartApplication()
+        public void RestartApplication()
         {
             try
             {
@@ -914,6 +970,7 @@ namespace Palisades
         }
 
         private string _lastScreenSignature = ContainerManager.GetScreenSignature();
+        private DateTime _lastAutoSnapshotUtc = DateTime.MinValue;
 
         private void OnDisplaySettingsChanged(object? sender, EventArgs e)
         {
@@ -934,10 +991,15 @@ namespace Palisades
                         ContainerManager.Instance.RestorePositionsForScreen(newSig);
                     }
 
-                    // Create auto-snapshot (if enabled)
+                    // Create auto-snapshot (if enabled). Guarded twice: only when the
+                    // screen signature really changed (spurious events carry nothing new),
+                    // and at most once per minute (Windows fires display events in bursts
+                    // of 2-5 for a single resolution/monitor change).
                     var def = ContainerManager.Instance.LoadDefaults();
-                    if (def?.AutoSnapshotEnabled != false)
+                    if (def?.AutoSnapshotEnabled != false && oldSig != newSig &&
+                        (DateTime.UtcNow - _lastAutoSnapshotUtc) >= TimeSpan.FromMinutes(1))
                     {
+                        _lastAutoSnapshotUtc = DateTime.UtcNow;
                         int count = 1;
                         foreach (var s in SnapshotManager.Instance.Snapshots)
                             if (s.Type == "Auto") count++;

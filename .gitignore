@@ -11,6 +11,9 @@
 temp/
 backup/
 
+afaire.md
+aide_moi_gemini.md
+todo.md
 
 # User-specific files
 *.rsuser
@@ -419,3 +422,6 @@ PublishTest/
 
 # Task tracking
 task.md
+
+# Personal config export (test artifact with user's shortcuts)
+Palisades_config_*.json

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -88,6 +89,12 @@ namespace Palisades.Views
             SwitchToTab("Containers");
         }
 
+        public void ShowWidgetProperties(PluginGadgetItem item)
+        {
+            _viewModel.SelectedWidget = item;
+            SwitchToTab("Dashboard");
+        }
+
         private void ContainerCard_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is Border { DataContext: ContainerViewModel container })
@@ -143,6 +150,12 @@ namespace Palisades.Views
         {
             if (sender is Button btn && btn.CommandParameter is string tabName)
                 SwitchToTab(tabName);
+        }
+
+        private void Reboot_Click(object sender, RoutedEventArgs e)
+        {
+            if (Application.Current is App app)
+                app.RestartApplication();
         }
 
         private void OpenPluginsFolder_Click(object sender, RoutedEventArgs e)
@@ -442,6 +455,85 @@ namespace Palisades.Views
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://buymeacoffee.com/walkoud", UseShellExecute = true });
             }
             catch { }
+        }
+
+        private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateStatusText.Text = TranslationService.Instance["Db_Updates_Checking"];
+            UpdateStatusIcon.Text = "";
+            DownloadUpdateBtn.Visibility = Visibility.Collapsed;
+
+            string latest = await FetchLatestReleaseTagAsync();
+            if (string.IsNullOrEmpty(latest))
+            {
+                UpdateStatusText.Text = TranslationService.Instance["Db_Updates_Failed"];
+                return;
+            }
+
+            var current = GetCurrentVersion();
+            int cmp = CompareVersions(current, latest);
+            if (cmp >= 0)
+            {
+                UpdateStatusText.Text = string.Format(TranslationService.Instance["Db_Updates_UpToDate"], latest);
+                UpdateStatusIcon.Text = "✔";
+            }
+            else
+            {
+                UpdateStatusText.Text = string.Format(TranslationService.Instance["Db_Updates_Available"], latest);
+                UpdateStatusIcon.Text = "⬇";
+                UpdateStatusIcon.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#38BDF8"));
+                DownloadUpdateBtn.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void DownloadUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "https://github.com/Walkoud/Palisades/releases/latest", UseShellExecute = true });
+            }
+            catch { }
+        }
+
+        private static async Task<string?> FetchLatestReleaseTagAsync()
+        {
+            try
+            {
+                using var client = new System.Net.Http.HttpClient();
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Palisades/1.3.0");
+                var json = await client.GetStringAsync("https://api.github.com/repos/Walkoud/Palisades/releases/latest");
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("tag_name", out var tag))
+                    return tag.GetString();
+            }
+            catch { }
+            return null;
+        }
+
+        private static string GetCurrentVersion()
+        {
+            try
+            {
+                var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                if (v != null) return $"{v.Major}.{v.Minor}.{v.Build}";
+            }
+            catch { }
+            return "1.3.0";
+        }
+
+        private static int CompareVersions(string a, string b)
+        {
+            a = a.TrimStart('v');
+            b = b.TrimStart('v');
+            var pa = a.Split('.').Select(s => int.TryParse(s, out var n) ? n : 0).ToArray();
+            var pb = b.Split('.').Select(s => int.TryParse(s, out var n) ? n : 0).ToArray();
+            for (int i = 0; i < Math.Max(pa.Length, pb.Length); i++)
+            {
+                int va = i < pa.Length ? pa[i] : 0;
+                int vb = i < pb.Length ? pb[i] : 0;
+                if (va != vb) return va.CompareTo(vb);
+            }
+            return 0;
         }
 
         private void DefaultSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

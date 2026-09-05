@@ -65,16 +65,16 @@ namespace Palisades.Models
         public const double AndroidFolderTileSize = 96;
 
         /// <summary>Android folder: open the panel centered on the tile instead of the monitor center.</summary>
-        public bool AndroidOpenAtClick { get; set; } = false;
+        public bool AndroidOpenAtClick { get; set; } = true;
 
         /// <summary>Android folder: open-panel width (px), clamped to the screen.</summary>
-        public double AndroidPanelWidth { get; set; } = 640;
+        public double AndroidPanelWidth { get; set; } = 412.2839506172812;
 
         /// <summary>Android folder: open-panel height (px), clamped to the screen.</summary>
-        public double AndroidPanelHeight { get; set; } = 560;
+        public double AndroidPanelHeight { get; set; } = 479.7530864197537;
 
         /// <summary>Android folder: shortcut icon size (px) in the open panel.</summary>
-        public double AndroidIconSize { get; set; } = 72;
+        public double AndroidIconSize { get; set; } = 41.85185185185195;
 
         /// <summary>Android folder: show the title header in the open panel.</summary>
         public bool AndroidShowHeader { get; set; } = true;
@@ -83,22 +83,25 @@ namespace Palisades.Models
         public double AndroidHeaderFontSize { get; set; } = 18;
 
         /// <summary>Android folder: show the name label under the closed tile.</summary>
-        public bool AndroidShowLabel { get; set; }
+        public bool AndroidShowLabel { get; set; } = true;
+
+        /// <summary>Android folder: gap between shortcut icons inside the open panel (px).</summary>
+        public double AndroidIconGap { get; set; } = 8;
 
         /// <summary>Android folder: vertical gap (px) between the closed tile and the name label.</summary>
-        public double AndroidLabelGap { get; set; } = 14;
+        public double AndroidLabelGap { get; set; } = 4.200617283950643;
 
         /// <summary>Android folder: open-panel background color (hex string, e.g. "#F21F1F1F").</summary>
-        public string AndroidPanelBackgroundColor { get; set; } = "#F21F1F1F";
+        public string AndroidPanelBackgroundColor { get; set; } = "#F21E3A5F";
 
         /// <summary>Android folder: use a 2-color gradient for the open-panel background.</summary>
-        public bool AndroidPanelGradientEnabled { get; set; }
+        public bool AndroidPanelGradientEnabled { get; set; } = true;
 
         /// <summary>Android folder: gradient end color (null → derived darker shade of the start color).</summary>
         public string? AndroidPanelGradientEndColor { get; set; }
 
         /// <summary>Android folder: gradient angle in degrees (0..360).</summary>
-        public double AndroidPanelGradientAngle { get; set; }
+        public double AndroidPanelGradientAngle { get; set; } = 55.84487534626035;
 
         /// <summary>Android folder: background opacity in percent (0..100) for the open panel.</summary>
         public int AndroidPanelBackgroundOpacity { get; set; } = 95;
@@ -113,19 +116,19 @@ namespace Palisades.Models
         public double AndroidPanelCornerRadius { get; set; } = 28;
 
         /// <summary>Android folder: show the 1px border around the open panel.</summary>
-        public bool AndroidPanelShowBorder { get; set; } = true;
+        public bool AndroidPanelShowBorder { get; set; } = false;
 
         /// <summary>Android folder: allow the open-panel title to wrap on two lines.</summary>
-        public bool AndroidTitleTwoLine { get; set; }
+        public bool AndroidTitleTwoLine { get; set; } = true;
 
         /// <summary>Android folder: open/close animation style (Scale, Fade, Zoom, SlideUp, Elastic).</summary>
         public string AndroidOpenAnimation { get; set; } = "Scale";
 
-        /// <summary>Android folder: open/close animation duration in milliseconds.</summary>
+        /// <summary>Android folder: animation duration in milliseconds.</summary>
         public int AndroidAnimationDurationMs { get; set; } = 320;
 
         /// <summary>Android folder: backdrop covers the full screen or just the panel size (FullScreen, Panel).</summary>
-        public string AndroidBackdropMode { get; set; } = "FullScreen";
+        public string AndroidBackdropMode { get; set; } = "Panel";
 
         /// <summary>Android folder: backdrop behind the open panel — Color (solid fill), Blur (blurred wallpaper capture), or Darkening (unblurred wallpaper capture).</summary>
         public string AndroidBackdropStyle { get; set; } = "Color";
@@ -137,7 +140,7 @@ namespace Palisades.Models
         public int AndroidBackdropDim { get; set; } = 70;
 
         /// <summary>Android folder: show the 1px glass rim on the closed tile.</summary>
-        public bool AndroidTileShowBorder { get; set; } = true;
+        public bool AndroidTileShowBorder { get; set; } = false;
 
         /// <summary>Android folder: closed-tile corner radius (px).</summary>
         public double AndroidTileCornerRadius { get; set; } = 12;
@@ -174,6 +177,52 @@ namespace Palisades.Models
 
         /// <summary>Show Recycle Bin shortcut on desktop overlay (default: false).</summary>
         public bool ShowRecycleBin { get; set; } = false;
+
+        /// <summary>Desktop overlay right-click always uses the native shell menu (default: false).</summary>
+        public bool OnlyShellContextMenu { get; set; } = false;
+
+        /// <summary>Discord Rich Presence enabled (default: true; needs a Client ID).</summary>
+        public bool DiscordPresenceEnabled { get; set; } = true;
+        /// <summary>Discord application Client ID (from discord.com/developers).</summary>
+        public string DiscordClientId { get; set; } = "1545537283749318669";
+        /// <summary>Discord source priority: app IDs top-first (empty = follow latest).</summary>
+        public System.Collections.Generic.List<string> DiscordSourcePriority { get; set; } = new System.Collections.Generic.List<string>();
+        /// <summary>Show presence when nothing is playing (default: false).</summary>
+        public bool DiscordShowWhenIdle { get; set; } = false;
+        /// <summary>Keep showing the track with a Paused marker when paused (default: true).</summary>
+        public bool DiscordShowWhenPaused { get; set; } = true;
+        /// <summary>Presence details = track title (default: true).</summary>
+        public bool DiscordShowTitle { get; set; } = true;
+        /// <summary>Presence state includes artist (default: true).</summary>
+        public bool DiscordShowArtist { get; set; } = true;
+        /// <summary>Presence state includes source app (default: true).</summary>
+        public bool DiscordShowApp { get; set; } = true;
+        /// <summary>Presence shows elapsed timer while playing (default: true).</summary>
+        public bool DiscordShowElapsed { get; set; } = true;
+        /// <summary>Presence shows the album cover (direct artwork URL, default: true).</summary>
+        public bool DiscordShowCover { get; set; } = true;
+        /// <summary>Discord art asset key for the large image (upload in dev portal).</summary>
+        public string DiscordLargeImage { get; set; } = "palisades";
+        /// <summary>Discord art asset key for the small image (empty = none).</summary>
+        public string DiscordSmallImage { get; set; } = string.Empty;
+        /// <summary>Discord presence private mode: generic text, no titles/cover (default: false).</summary>
+        public bool DiscordPrivateMode { get; set; } = false;
+        /// <summary>Show buttons on the Discord presence (default: true).</summary>
+        public bool DiscordButtonsEnabled { get; set; } = true;
+        /// <summary>Presence button 1 label (empty = hidden).</summary>
+        public string DiscordButton1Label { get; set; } = "Palisades";
+        /// <summary>Presence button 1 link.</summary>
+        public string DiscordButton1Url { get; set; } = "https://github.com/Walkoud/Palisades";
+        /// <summary>Presence button 2 label (empty = hidden).</summary>
+        public string DiscordButton2Label { get; set; } = string.Empty;
+        /// <summary>Presence button 2 link.</summary>
+        public string DiscordButton2Url { get; set; } = string.Empty;
+        /// <summary>Clickable link behind the state line (empty = none).</summary>
+        public string DiscordStateUrl { get; set; } = "https://github.com/Walkoud/Palisades";
+        /// <summary>Clickable link behind the details line (empty = none).</summary>
+        public string DiscordDetailsUrl { get; set; } = string.Empty;
+        /// <summary>Clickable link behind the cover image (empty = none).</summary>
+        public string DiscordLargeUrl { get; set; } = "https://github.com/Walkoud/Palisades";
 
         /// <summary>Header icon size (hamburger/chevron base grid size, 6-16).</summary>
         public int HeaderIconSize { get; set; } = 9;

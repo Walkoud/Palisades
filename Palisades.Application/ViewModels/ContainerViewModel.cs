@@ -492,6 +492,12 @@ namespace Palisades.ViewModels
             set { _model.AndroidIconSize = Math.Clamp(value, 32, 120); OnPropertyChanged(); Save(); }
         }
 
+        public double AndroidIconGap
+        {
+            get => _model.AndroidIconGap;
+            set { _model.AndroidIconGap = Math.Clamp(value, 0, 40); OnPropertyChanged(); Save(); }
+        }
+
         public bool AndroidShowHeader
         {
             get => _model.AndroidShowHeader;
@@ -1409,6 +1415,9 @@ namespace Palisades.ViewModels
         public ICommand DuplicateCommand { get; }
         public ICommand DeleteShortcutCommand { get; }
         public ICommand UndoLastDeleteCommand { get; }
+        public ICommand CopyShortcutCommand { get; }
+        public ICommand CutShortcutCommand { get; }
+        public ICommand PasteShortcutCommand { get; }
         public ICommand ChangeFolderPortalPathCommand { get; }
         public ICommand RecenterCommand { get; }
         public ICommand ResizeToIconMultiplesCommand { get; }
@@ -1547,6 +1556,9 @@ namespace Palisades.ViewModels
             DuplicateCommand = new RelayCommand(() => RequestDuplicate?.Invoke());
             DeleteShortcutCommand = new RelayCommand(DeleteSelectedShortcut);
             UndoLastDeleteCommand = new RelayCommand(UndoLastDelete);
+            CopyShortcutCommand = new RelayCommand(CopySelectedShortcuts);
+            CutShortcutCommand = new RelayCommand(CutSelectedShortcuts);
+            PasteShortcutCommand = new RelayCommand(PasteShortcuts);
             ChangeFolderPortalPathCommand = new RelayCommand(() => FolderPortalPathChanged?.Invoke(_model.FolderPortalPath));
             RecenterCommand = new RelayCommand(() => RequestRecenter?.Invoke());
             ResizeToIconMultiplesCommand = new RelayCommand(ResizeToIconMultiples);
@@ -1956,6 +1968,92 @@ namespace Palisades.ViewModels
 
         internal static (ShortcutItem? Item, int Index, ContainerViewModel? Source)? LastDeleted { get; set; }
 
+        private List<ShortcutItem> GetSelectedForClipboard()
+        {
+            if (SelectedShortcuts.Count > 0)
+                return SelectedShortcuts.ToList();
+            if (SelectedShortcut != null && Shortcuts.Contains(SelectedShortcut))
+                return new List<ShortcutItem> { SelectedShortcut };
+            return new List<ShortcutItem>();
+        }
+
+        private void CopySelectedShortcuts()
+        {
+            var items = GetSelectedForClipboard();
+            if (items.Count == 0) return;
+            var paths = items
+                .Select(s => string.IsNullOrEmpty(s.ShortcutPath) ? s.TargetPath : s.ShortcutPath)
+                .Where(p => !string.IsNullOrEmpty(p) && (System.IO.File.Exists(p) || System.IO.Directory.Exists(p)))
+                .Distinct()
+                .ToArray();
+            if (paths.Length == 0) return;
+            Palisades.Helpers.SystemClipboardUtil.SetFileDrop(paths);
+        }
+
+        private void CutSelectedShortcuts()
+        {
+            CopySelectedShortcuts();
+            var items = GetSelectedForClipboard();
+            foreach (var s in items)
+                Shortcuts.Remove(s);
+            Save();
+        }
+
+        private void PasteShortcuts()
+        {
+            if (!Clipboard.ContainsData(DataFormats.FileDrop)) return;
+            var paths = (Clipboard.GetData(DataFormats.FileDrop) as string[]) ?? Array.Empty<string>();
+            if (paths.Length == 0) return;
+            foreach (var path in paths)
+            {
+                var item = CreateItemFromPath(path);
+                if (item == null) continue;
+                if (Shortcuts.Any(s => s.TargetPath == item.TargetPath && s.Name == item.Name))
+                    continue;
+                Shortcuts.Add(item);
+            }
+            Save();
+        }
+
+        private static ShortcutItem? CreateItemFromPath(string path)
+        {
+            try
+            {
+                if (path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                    return ShortcutItem.FromLnk(path);
+                if (path.EndsWith(".url", StringComparison.OrdinalIgnoreCase))
+                    return ShortcutItem.FromUrl(path);
+
+                bool isDir = System.IO.File.GetAttributes(path).HasFlag(System.IO.FileAttributes.Directory);
+                if (isDir)
+                {
+                    var dir = new DirectoryInfo(path);
+                    return new ShortcutItem
+                    {
+                        Name = dir.Name,
+                        TargetPath = dir.FullName,
+                        IconPath = dir.FullName,
+                        ShortcutPath = dir.FullName,
+                        WorkingDirectory = dir.Parent?.FullName ?? ""
+                    };
+                }
+                else
+                {
+                    var file = new FileInfo(path);
+                    return new ShortcutItem
+                    {
+                        Name = Path.GetFileNameWithoutExtension(file.Name),
+                        TargetPath = file.FullName,
+                        IconPath = file.FullName,
+                        ShortcutPath = file.FullName,
+                        WorkingDirectory = file.DirectoryName ?? ""
+                    };
+                }
+            }
+            catch { }
+            return null;
+        }
+
         private void DeleteSelectedShortcut()
         {
             if (SelectedShortcut != null)
@@ -2054,3 +2152,4 @@ namespace Palisades.ViewModels
         }
     }
 }
+

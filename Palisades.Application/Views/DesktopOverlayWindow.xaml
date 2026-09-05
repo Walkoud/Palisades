@@ -15,6 +15,8 @@
         <conv:PathToImageConverter x:Key="AndroidIconConverter" ShowArrow="True" IconSize="128" />
         <conv:BorderThicknessConverter x:Key="BorderThicknessConv" />
         <conv:OpacityPercentConverter x:Key="OpacityPercentConv" />
+        <conv:DoubleMulConverter x:Key="DoubleMulConverter" />
+        <conv:DoubleToThicknessConverter x:Key="DoubleToThicknessConverter" />
     </Window.Resources>
     <Grid>
         <Canvas x:Name="OverlayCanvas" />
@@ -57,12 +59,11 @@
                             <Style TargetType="TextBlock">
                                 <Setter Property="TextWrapping" Value="NoWrap" />
                                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-                                <Setter Property="MaxHeight" Value="18" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding AndroidTitleTwoLine}" Value="True">
                                         <Setter Property="TextWrapping" Value="Wrap" />
                                         <Setter Property="TextTrimming" Value="None" />
-                                        <Setter Property="MaxHeight" Value="44" />
+                                        <Setter Property="MaxHeight" Value="{Binding AndroidHeaderFontSize, Converter={StaticResource DoubleMulConverter}, ConverterParameter=2.4}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -95,7 +96,7 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Margin="8"
+                                        <Border Margin="{Binding AndroidIconGap, RelativeSource={RelativeSource AncestorType={x:Type local:DesktopOverlayWindow}}, Converter={StaticResource DoubleToThicknessConverter}}"
                                                 CornerRadius="14"
                                                 Padding="10,8"
                                                 Cursor="Hand"

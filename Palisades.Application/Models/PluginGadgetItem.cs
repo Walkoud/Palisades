@@ -35,6 +35,65 @@ namespace Palisades.Models
         private string _headerBorderColor = "#20FFFFFF";
         private string _titleColor = "#7DD3FC";
         private double _titleFontSize = 11.0;
+        private bool _isLocked;
+
+        public bool IsLocked
+        {
+            get => _isLocked;
+            set { _isLocked = value; OnPropertyChanged(); }
+        }
+
+        private bool _dockToTaskbar;
+
+        public bool DockToTaskbar
+        {
+            get => _dockToTaskbar;
+            set { _dockToTaskbar = value; OnPropertyChanged(); }
+        }
+
+        private double _barLeft = double.NaN;
+
+        /// <summary>Taskbar-bar window left (DIPs). NaN = auto-place over the taskbar.</summary>
+        public double BarLeft
+        {
+            get => _barLeft;
+            set { _barLeft = value; OnPropertyChanged(); }
+        }
+
+        private double _barTop = double.NaN;
+
+        /// <summary>Taskbar-bar window top (DIPs). NaN = auto-place over the taskbar.</summary>
+        public double BarTop
+        {
+            get => _barTop;
+            set { _barTop = value; OnPropertyChanged(); }
+        }
+
+        private bool _barShowResizeHandle;
+
+        public bool BarShowResizeHandle
+        {
+            get => _barShowResizeHandle;
+            set { _barShowResizeHandle = value; OnPropertyChanged(); }
+        }
+
+        private bool _barFullWidth = true;
+
+        /// <summary>Taskbar-bar spans the full screen width like the taskbar (default: true).</summary>
+        public bool BarFullWidth
+        {
+            get => _barFullWidth;
+            set { _barFullWidth = value; OnPropertyChanged(); }
+        }
+
+        private bool _barHideFullscreen = true;
+
+        /// <summary>Taskbar-bar auto-hides while a fullscreen app/video/game is foreground.</summary>
+        public bool BarHideFullscreen
+        {
+            get => _barHideFullscreen;
+            set { _barHideFullscreen = value; OnPropertyChanged(); }
+        }
 
         public Guid Id
         {

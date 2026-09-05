@@ -18,6 +18,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Palisades.Converters;
+using Palisades.Helpers;
 using Palisades.Models;
 using Palisades.Plugins;
 using Palisades.Services;
@@ -143,12 +144,22 @@ namespace Palisades.Views
             set => SetValue(AndroidTwoLineNamesProperty, value);
         }
 
+        /// <summary>Gap (px) between shortcuts in the open Android folder panel.</summary>
+        public static readonly DependencyProperty AndroidIconGapProperty =
+            DependencyProperty.Register(nameof(AndroidIconGap), typeof(double), typeof(DesktopOverlayWindow), new PropertyMetadata(8.0));
+        public double AndroidIconGap
+        {
+            get => (double)GetValue(AndroidIconGapProperty);
+            set => SetValue(AndroidIconGapProperty, value);
+        }
+
         private const int SWP_NOSIZE = 0x0001;
         private const int SWP_NOMOVE = 0x0002;
         private const int SWP_NOACTIVATE = 0x0010;
         private const int SWP_SHOWWINDOW = 0x0040;
         private const int SW_RESTORE = 9;
 
+        private static readonly IntPtr HWND_TOPMOST = (IntPtr)(-1);
         private static readonly IntPtr HWND_BOTTOM = (IntPtr)1;
         private static readonly IntPtr HWND_NOTOPMOST = (IntPtr)(-2);
         private const int SWP_NOZORDER = 0x0004;
@@ -165,6 +176,9 @@ namespace Palisades.Views
         private LowLevelMouseProcDelegate? _hookProc;
 
         private const int VK_DELETE = 0x2E;
+        private const int VK_C = 0x43;   // Ctrl+C copy
+        private const int VK_X = 0x58;   // Ctrl+X cut
+        private const int VK_V = 0x56;   // Ctrl+V paste
 
         // Global keyboard hook – runs on dedicated thread with own message pump
         private delegate IntPtr LowLevelKeyboardProcDelegate(int nCode, IntPtr wParam, IntPtr lParam);
@@ -193,6 +207,15 @@ namespace Palisades.Views
         private PathToImageConverter _iconConverter = new() { ShowArrow = true };
         private static readonly Brush _invisibleBrush = new SolidColorBrush(Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF));
         private static readonly Brush _selectionBrush = new SolidColorBrush(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF));
+        private static readonly Brush _copyFlashBrush = new SolidColorBrush(Color.FromArgb(0x70, 0x3B, 0x82, 0xF6));
+        private static readonly Brush _cutFlashBrush = new SolidColorBrush(Color.FromArgb(0x70, 0xFF, 0x5F, 0x56));
+
+        private DispatcherTimer? _copyFlashTimer;
+        private Border? _copiedToast;
+        private DispatcherTimer? _copiedToastTimer;
+
+        private readonly HashSet<string> _cutIconPaths = new(StringComparer.OrdinalIgnoreCase);
+        private DispatcherTimer? _cutPollTimer;
 
         private const double GridCellWidth = 88;
         private const double GridCellHeight = 96;
@@ -209,6 +232,8 @@ namespace Palisades.Views
             Unloaded += (_, _) =>
             {
                 _explorerCheckTimer?.Stop();
+                try { _nowPlayingBarWindow?.Close(); } catch { }
+                _nowPlayingBarWindow = null;
                 UninstallHook();
             };
 
@@ -287,9 +312,21 @@ namespace Palisades.Views
         private void OverlayCanvas_DragOver(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(typeof(ShortcutItem)))
+            {
                 e.Effects = DragDropEffects.Move;
+            }
+            else if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+                bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+                if (ctrl) e.Effects = DragDropEffects.Copy;
+                else if (shift) e.Effects = DragDropEffects.Move;
+                else e.Effects = DragDropEffects.Copy | DragDropEffects.Move;
+            }
             else
+            {
                 e.Effects = DragDropEffects.None;
+            }
             e.Handled = true;
         }
 
@@ -310,7 +347,220 @@ namespace Palisades.Views
                     }
                 }
                 e.Handled = true;
+                return;
             }
+
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+                if (files != null && files.Length > 0)
+                {
+                    var dropPt = e.GetPosition(OverlayCanvas);
+                    if (!IsOverContainer(dropPt))
+                        PlaceExternalFilesOnDesktop(files, e);
+                }
+                e.Handled = true;
+            }
+        }
+
+        private void PlaceExternalFilesOnDesktop(string[] files, DragEventArgs e)
+        {
+            string desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+            bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            bool move;
+            if (ctrl) move = false;
+            else if (shift) move = true;
+            else
+            {
+                string desktopRoot = System.IO.Path.GetPathRoot(desktopDir) ?? "";
+                move = true;
+                foreach (var f in files)
+                {
+                    try
+                    {
+                        if (!string.Equals(System.IO.Path.GetPathRoot(f), desktopRoot, StringComparison.OrdinalIgnoreCase))
+                        { move = false; break; }
+                    }
+                    catch { }
+                }
+            }
+
+            var pt = e.GetPosition(OverlayCanvas);
+            PlaceFilesOnDesktop(files, pt, move);
+            e.Effects = move ? DragDropEffects.Move : DragDropEffects.Copy;
+        }
+
+        private void PlaceFilesOnDesktop(string[] files, Point canvasPt, bool move)
+        {
+            string desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            int i = 0;
+            foreach (var src in files)
+            {
+                string? target;
+                try { target = GetUniqueDesktopTarget(desktopDir, src); }
+                catch { continue; }
+                if (target == null) continue;
+
+                bool ok = false;
+                try
+                {
+                    if (Directory.Exists(src))
+                    {
+                        if (move)
+                            Microsoft.VisualBasic.FileIO.FileSystem.MoveDirectory(src, target,
+                                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                                Microsoft.VisualBasic.FileIO.UICancelOption.ThrowException);
+                        else
+                            Microsoft.VisualBasic.FileIO.FileSystem.CopyDirectory(src, target,
+                                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs);
+                    }
+                    else
+                    {
+                        if (move)
+                            Microsoft.VisualBasic.FileIO.FileSystem.MoveFile(src, target,
+                                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                                Microsoft.VisualBasic.FileIO.UICancelOption.ThrowException);
+                        else
+                            Microsoft.VisualBasic.FileIO.FileSystem.CopyFile(src, target,
+                                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs);
+                    }
+                    ok = true;
+                }
+                catch (Exception ex)
+                {
+                    App.Log("DesktopPlace failed src=" + src + " err=" + ex.Message);
+                }
+
+                if (ok)
+                {
+                    double x = SnapToGrid(canvasPt.X, GridCellWidth, GridOriginX) + (i % 4) * GridCellWidth;
+                    double y = SnapToGrid(canvasPt.Y, GridCellHeight, GridOriginY) + (i / 4) * GridCellHeight;
+                    ContainerManager.Instance.SetDesktopIconPosition(target, x, y);
+                    App.Log("DesktopPlace placed=" + target + " move=" + move);
+                    i++;
+                }
+            }
+
+            if (i > 0)
+                ContainerManager.Instance.RefreshUnassignedShortcuts();
+        }
+
+        private void PasteIntoDesktopAt(Point canvasPt)
+        {
+            if (!Clipboard.ContainsData(DataFormats.FileDrop)) return;
+            var files = Clipboard.GetData(DataFormats.FileDrop) as string[];
+            if (files == null || files.Length == 0) return;
+            bool move = SystemClipboardUtil.ClipboardHasMoveEffect();
+            PlaceFilesOnDesktop(files, canvasPt, move);
+        }
+
+        private void ShowOverlayIconContextMenu(Point canvasPt)
+        {
+            var menu = new ContextMenu();
+            menu.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            menu.Foreground = new SolidColorBrush(Color.FromRgb(0xEE, 0xEE, 0xEE));
+            menu.BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+            menu.BorderThickness = new Thickness(1);
+
+            bool single = _selectedIcons.Count == 1;
+            ShortcutItem? hit = _selectedIcons.FirstOrDefault();
+
+            if (single && hit != null)
+            {
+                var openItem = new MenuItem { Header = "Open" };
+                openItem.Click += (_, _) => LaunchItem(hit);
+                menu.Items.Add(openItem);
+
+                var renameItem = new MenuItem { Header = "Rename" };
+                renameItem.Click += (_, _) =>
+                {
+                    var rp = !string.IsNullOrEmpty(hit.ShortcutPath) ? hit.ShortcutPath : hit.TargetPath;
+                    if (!string.IsNullOrEmpty(rp))
+                        RenameIconInline(rp);
+                };
+                menu.Items.Add(renameItem);
+            }
+
+            var copyItem = new MenuItem { Header = "Copy" };
+            copyItem.Click += (_, _) =>
+            {
+                if (CopyOverlayIconsToSystemClipboard())
+                {
+                    ClearCutState(undim: true);
+                    FlashOverlaySelection(_copyFlashBrush);
+                    ShowCopyFeedbackToast("Copied !", Color.FromRgb(0x3B, 0x82, 0xF6));
+                }
+            };
+            menu.Items.Add(copyItem);
+
+            var cutItem = new MenuItem { Header = "Cut" };
+            cutItem.Click += (_, _) =>
+            {
+                if (CutOverlayIconsToSystemClipboard())
+                {
+                    FlashOverlaySelection(_cutFlashBrush);
+                    ShowCopyFeedbackToast("Cut !", Color.FromRgb(0xFF, 0x5F, 0x56));
+                    var dimTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+                    dimTimer.Tick += (s2, e2) =>
+                    {
+                        dimTimer.Stop();
+                        DimCutIcons();
+                    };
+                    dimTimer.Start();
+                }
+            };
+            menu.Items.Add(cutItem);
+
+            var pasteItem = new MenuItem { Header = "Paste" };
+            pasteItem.IsEnabled = Clipboard.ContainsData(DataFormats.FileDrop);
+            pasteItem.Click += (_, _) => PasteIntoDesktopAt(canvasPt);
+            menu.Items.Add(pasteItem);
+
+            menu.Items.Add(new Separator());
+
+            var deleteItem = new MenuItem { Header = "Delete" };
+            deleteItem.Click += (_, _) => DeleteSelectedOverlayIcons();
+            menu.Items.Add(deleteItem);
+
+            if (single && hit != null)
+            {
+                var moreItem = new MenuItem { Header = "More shell options..." };
+                moreItem.Click += (_, _) =>
+                {
+                    string menuPath = !string.IsNullOrEmpty(hit.ShortcutPath)
+                        ? hit.ShortcutPath
+                        : hit.TargetPath;
+                    double screenX = (Left + canvasPt.X) * _dpiScaleX;
+                    double screenY = (Top + canvasPt.Y) * _dpiScaleY;
+                    _isContextMenuOpen = true;
+                    ContainerControl.ShellContextMenu.ShowMenu(
+                        _overlayHwnd, menuPath, (int)screenX, (int)screenY);
+                    _isContextMenuOpen = false;
+                    ContainerManager.Instance.SyncDeletedShortcuts();
+                    ContainerManager.Instance.RefreshUnassignedShortcuts();
+                };
+                menu.Items.Add(moreItem);
+            }
+
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            menu.IsOpen = true;
+        }
+
+        private static string? GetUniqueDesktopTarget(string desktopDir, string srcPath)
+        {
+            string name = System.IO.Path.GetFileName(srcPath);
+            if (string.IsNullOrEmpty(name)) return null;
+            string candidate = System.IO.Path.Combine(desktopDir, name);
+            if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+            string baseName = System.IO.Path.GetFileNameWithoutExtension(name);
+            string ext = System.IO.Path.GetExtension(name);
+            for (int n = 2; n < 1000; n++)
+            {
+                candidate = System.IO.Path.Combine(desktopDir, $"{baseName} ({n}){ext}");
+                if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+            }
+            return null;
         }
 
         public void RebuildDesktopIcons()
@@ -348,6 +598,16 @@ namespace Palisades.Views
                     return;
 
                 DeleteSelectedOverlayIcons();
+            }
+            else if (e.Key == Key.F2 && _activeRenameTextBox == null && _selectedIcons.Count == 1)
+            {
+                var target = _selectedIcons.First();
+                var rp = !string.IsNullOrEmpty(target.ShortcutPath) ? target.ShortcutPath : target.TargetPath;
+                if (!string.IsNullOrEmpty(rp))
+                {
+                    RenameIconInline(rp);
+                    e.Handled = true;
+                }
             }
         }
 
@@ -478,6 +738,76 @@ namespace Palisades.Views
                 kvp.Value.Background = sel
                     ? _selectionBrush
                     : _invisibleBrush;
+            }
+        }
+
+        private void FlashOverlaySelection(Brush flashBrush)
+        {
+            foreach (var kvp in _iconElements)
+            {
+                var item = kvp.Value.Tag as ShortcutItem;
+                if (item != null && _selectedIcons.Contains(item))
+                    kvp.Value.Background = flashBrush;
+            }
+            _copyFlashTimer?.Stop();
+            _copyFlashTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+            _copyFlashTimer.Tick += (s, e) =>
+            {
+                _copyFlashTimer.Stop();
+                UpdateSelectionVisual();
+            };
+            _copyFlashTimer.Start();
+        }
+
+        private void ShowCopyFeedbackToast(string text, Color accent)
+        {
+            HideCopyFeedbackToast();
+            var toast = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x1B, 0x24, 0x2E)),
+                BorderBrush = new SolidColorBrush(accent),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    FontSize = 12,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(accent),
+                    Margin = new Thickness(10, 5, 10, 5)
+                },
+                IsHitTestVisible = false
+            };
+            Canvas.SetZIndex(toast, 100000);
+            if (GetCursorPos(out POINT pt))
+            {
+                var cp = OverlayCanvas.PointFromScreen(new Point(pt.X, pt.Y));
+                Canvas.SetLeft(toast, cp.X + 16);
+                Canvas.SetTop(toast, cp.Y - 20);
+            }
+            else
+            {
+                Canvas.SetLeft(toast, 20);
+                Canvas.SetTop(toast, 20);
+            }
+            _copiedToast = toast;
+            OverlayCanvas.Children.Add(toast);
+            _copiedToastTimer?.Stop();
+            _copiedToastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+            _copiedToastTimer.Tick += (s, e) =>
+            {
+                _copiedToastTimer.Stop();
+                HideCopyFeedbackToast();
+            };
+            _copiedToastTimer.Start();
+        }
+
+        private void HideCopyFeedbackToast()
+        {
+            if (_copiedToast != null)
+            {
+                OverlayCanvas.Children.Remove(_copiedToast);
+                _copiedToast = null;
             }
         }
 
@@ -824,10 +1154,227 @@ namespace Palisades.Views
                             }
                         }
                     }
+
+                    // Copy / Cut of container/overlay icons (Ctrl+C / Ctrl+X). Ctrl+V is left untouched
+                    // so it reaches the target app (e.g. Explorer). Only intercept when the
+                    // pointer is over our overlay/desktop so we never steal Ctrl+C from another app.
+                    bool ctrlDown = (GetAsyncKeyState(0x11) & 0x8000) != 0;
+                    if (ctrlDown && (kb.vkCode == VK_C || kb.vkCode == VK_X))
+                    {
+                        var win = _instance;
+                        if (win != null && win._activeRenameTextBox == null)
+                        {
+                            bool overOverlay = false;
+                            if (GetCursorPos(out POINT cp))
+                            {
+                                IntPtr hwndUnder = WindowFromPoint(cp);
+                                overOverlay = hwndUnder == win._overlayHwnd;
+                            }
+                            if (overOverlay)
+                            {
+                                var key = kb.vkCode == VK_C ? Key.C : Key.X;
+                                bool handled = false;
+                                win.Dispatcher.Invoke(new Action(() => handled = win.RouteClipboardCopy(key)));
+                                if (handled)
+                                    return (IntPtr)1; // swallow
+                            }
+                        }
+                    }
                 }
                 catch { }
             }
             return CallNextHookEx(_globalKbHookId, nCode, wParam, lParam);
+        }
+
+        private static bool IsDesktopOrOverlayForeground(DesktopOverlayWindow win)
+        {
+            IntPtr fg = GetForegroundWindow();
+            if (fg == IntPtr.Zero) return false;
+            if (fg == win._overlayHwnd) return true;
+            var buf = new System.Text.StringBuilder(256);
+            GetClassName(fg, buf, 256);
+            string cls = buf.ToString();
+            return cls is "Progman" or "WorkerW";
+        }
+
+        private static string GetForegroundClassName()
+        {
+            IntPtr fg = GetForegroundWindow();
+            if (fg == IntPtr.Zero) return "<zero>";
+            var buf = new System.Text.StringBuilder(256);
+            GetClassName(fg, buf, 256);
+            string cls = buf.ToString();
+            return string.IsNullOrEmpty(cls) ? "<empty>" : cls;
+        }
+
+private bool RouteClipboardCopy(Key key)
+        {
+            // Priority 1: icons selected directly on the desktop overlay.
+            if (_selectedIcons.Count > 0)
+            {
+                if (key == Key.X)
+                {
+                    if (CutOverlayIconsToSystemClipboard())
+                    {
+                        FlashOverlaySelection(_cutFlashBrush);
+                        ShowCopyFeedbackToast("Cut !", Color.FromRgb(0xFF, 0x5F, 0x56));
+                        var dimTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+                        dimTimer.Tick += (s2, e2) =>
+                        {
+                            dimTimer.Stop();
+                            DimCutIcons();
+                        };
+                        dimTimer.Start();
+                    }
+                }
+                else
+                {
+                    if (CopyOverlayIconsToSystemClipboard())
+                    {
+                        ClearCutState(undim: true);
+                        FlashOverlaySelection(_copyFlashBrush);
+                        ShowCopyFeedbackToast("Copied !", Color.FromRgb(0x3B, 0x82, 0xF6));
+                    }
+                }
+                return true;
+            }
+
+            // Priority 2: icons selected inside the container under the mouse.
+            if (GetCursorPos(out POINT pt))
+            {
+                var canvasPos = OverlayCanvas.PointFromScreen(new Point(pt.X, pt.Y));
+                var ctrl = GetContainerAt(canvasPos);
+                var vm = ctrl?.DataContext as ContainerViewModel;
+                if (vm != null)
+                {
+                    if (key == Key.X) vm.CutShortcutCommand.Execute(null);
+                    else vm.CopyShortcutCommand.Execute(null);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool CopyOverlayIconsToSystemClipboard()
+        {
+            var allPaths = new List<string>();
+            foreach (var s in _selectedIcons)
+            {
+                var p = string.IsNullOrEmpty(s.ShortcutPath) ? s.TargetPath : s.ShortcutPath;
+                if (!string.IsNullOrEmpty(p))
+                    allPaths.Add(p);
+            }
+            var validPaths = allPaths
+                .Where(p => File.Exists(p) || Directory.Exists(p))
+                .Distinct()
+                .ToArray();
+            App.Log("OverlayCopy all=" + allPaths.Count + " valid=" + validPaths.Length);
+            foreach (var p in allPaths) App.Log("  path=" + p);
+            if (validPaths.Length == 0) return false;
+            var ok = SystemClipboardUtil.SetFileDrop(validPaths);
+            App.Log("OverlayCopy SetFileDrop=" + ok);
+            return ok;
+        }
+
+        private bool CutOverlayIconsToSystemClipboard()
+        {
+            var allPaths = new List<string>();
+            foreach (var s in _selectedIcons)
+            {
+                var p = string.IsNullOrEmpty(s.ShortcutPath) ? s.TargetPath : s.ShortcutPath;
+                if (!string.IsNullOrEmpty(p))
+                    allPaths.Add(p);
+            }
+            var validPaths = allPaths
+                .Where(p => File.Exists(p) || Directory.Exists(p))
+                .Distinct()
+                .ToArray();
+            App.Log("OverlayCut all=" + allPaths.Count + " valid=" + validPaths.Length);
+            if (validPaths.Length == 0) return false;
+            var ok = SystemClipboardUtil.SetFileDrop(validPaths, move: true);
+            App.Log("OverlayCut SetFileDrop(move)=" + ok);
+            if (ok)
+            {
+                ClearCutState(undim: false);
+                foreach (var p in validPaths) _cutIconPaths.Add(p);
+                StartCutPoll();
+            }
+            return ok;
+        }
+
+        private void ClearCutState(bool undim)
+        {
+            if (undim)
+            {
+                foreach (var kvp in _iconElements)
+                {
+                    if (kvp.Value.Opacity < 1)
+                        kvp.Value.Opacity = 1;
+                }
+            }
+            _cutIconPaths.Clear();
+            _cutPollTimer?.Stop();
+            _cutPollTimer = null;
+        }
+
+        private void DimCutIcons()
+        {
+            foreach (var kvp in _iconElements)
+            {
+                var item = kvp.Value.Tag as ShortcutItem;
+                if (item == null) continue;
+                var p = string.IsNullOrEmpty(item.ShortcutPath) ? item.TargetPath : item.ShortcutPath;
+                if (p != null && _cutIconPaths.Contains(p))
+                    kvp.Value.Opacity = 0.45;
+            }
+        }
+
+        private void StartCutPoll()
+        {
+            _cutPollTimer?.Stop();
+            _cutPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _cutPollTimer.Tick += (s, e) => PollCutMoves();
+            _cutPollTimer.Start();
+        }
+
+        private void PollCutMoves()
+        {
+            if (_cutIconPaths.Count == 0)
+            {
+                _cutPollTimer?.Stop();
+                _cutPollTimer = null;
+                return;
+            }
+            bool changed = false;
+            foreach (var path in _cutIconPaths.ToList())
+            {
+                if (!File.Exists(path) && !Directory.Exists(path))
+                {
+                    _cutIconPaths.Remove(path);
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                var gone = _selectedIcons
+                    .Where(s =>
+                    {
+                        var p = string.IsNullOrEmpty(s.ShortcutPath) ? s.TargetPath : s.ShortcutPath;
+                        return !string.IsNullOrEmpty(p) && !File.Exists(p) && !Directory.Exists(p);
+                    })
+                    .ToList();
+                foreach (var g in gone) _selectedIcons.Remove(g);
+                _selectedDeleteCount = _selectedIcons.Count;
+                ContainerManager.Instance.RefreshUnassignedShortcuts();
+                RebuildDesktopIcons();
+                UpdateSelectionVisual();
+                DimCutIcons();
+                if (_cutIconPaths.Count == 0)
+                {
+                    _cutPollTimer?.Stop();
+                    _cutPollTimer = null;
+                }
+            }
         }
 
         private void CancelDragOrRectSelect()
@@ -958,6 +1505,13 @@ namespace Palisades.Views
                     _selectedDeleteCount = 1;
                     _selectedIcons.Add(hitItem);
                     UpdateSelectionVisual();
+                }
+
+                bool onlyShell = _mainViewModel != null && _mainViewModel.OnlyShellContextMenu;
+                if (!onlyShell)
+                {
+                    ShowOverlayIconContextMenu(canvasPt);
+                    return;
                 }
 
                 string menuPath = !string.IsNullOrEmpty(hitItem.ShortcutPath)
@@ -1416,13 +1970,79 @@ namespace Palisades.Views
                     existing.HeaderBorderColor = item.HeaderBorderColor;
                     existing.TitleColor = item.TitleColor;
                     existing.TitleFontSize = item.TitleFontSize;
+                    existing.DockToTaskbar = item.DockToTaskbar;
 
                     if (wrapper.Width != item.Width) wrapper.Width = item.Width;
                     if (wrapper.Height != item.Height) wrapper.Height = item.Height;
                     if (Canvas.GetLeft(wrapper) != item.X) Canvas.SetLeft(wrapper, item.X);
                     if (Canvas.GetTop(wrapper) != item.Y) Canvas.SetTop(wrapper, item.Y);
+                    wrapper.Visibility = (existing.GadgetType == "NowPlaying" && existing.DockToTaskbar)
+                        ? Visibility.Collapsed : Visibility.Visible;
                 }
             }
+
+            RefreshNowPlayingPin();
+        }
+
+        private NowPlayingBarWindow? _nowPlayingBarWindow;
+
+        public bool IsNowPlayingBarOpen => _nowPlayingBarWindow != null;
+
+        private bool _refreshingPin;
+
+        /// <summary>
+        /// Single source of truth for the Now Playing taskbar pin: the pinned gadget
+        /// hides from the overlay and its settings live in a topmost bar in front of
+        /// the taskbar. Unpinning restores the overlay widget and closes the bar.
+        /// </summary>
+        public void RefreshNowPlayingPin()
+        {
+            if (_refreshingPin) return; // GadgetsChanged reentrancy guard (severe freeze otherwise)
+            _refreshingPin = true;
+            try
+            {
+                // One-time cleanup of the legacy standalone bar state file.
+                try
+                {
+                    string legacy = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "Palisades", "taskbarbar.json");
+                    if (File.Exists(legacy)) File.Delete(legacy);
+                }
+                catch { }
+
+                PluginGadgetWrapper? pinned = null;
+                foreach (var w in _gadgetControls.Values)
+                {
+                    bool isPinnedNp = w.GadgetItem.GadgetType == "NowPlaying" && w.GadgetItem.DockToTaskbar;
+                    w.Visibility = isPinnedNp ? Visibility.Collapsed : Visibility.Visible;
+                    if (isPinnedNp && pinned == null) pinned = w;
+                }
+
+                if (pinned != null)
+                {
+                    if (_nowPlayingBarWindow == null)
+                    {
+                        _nowPlayingBarWindow = new NowPlayingBarWindow(pinned.GadgetItem);
+                        _nowPlayingBarWindow.Closed += (_, _) => _nowPlayingBarWindow = null;
+                        _nowPlayingBarWindow.Show();
+                    }
+                    else
+                    {
+                        _nowPlayingBarWindow.Rebind(pinned.GadgetItem);
+                    }
+                }
+                else if (_nowPlayingBarWindow != null)
+                {
+                    var bar = _nowPlayingBarWindow;
+                    _nowPlayingBarWindow = null;
+                    try { bar.Close(); } catch { }
+                }
+                // No save here: callers persist. (SaveGadgets raises GadgetsChanged →
+                // SyncGadgets → Refresh: saving here would loop forever.)
+            }
+            catch { }
+            finally { _refreshingPin = false; }
         }
 
         public void AddGadgetControl(PluginGadgetItem item)
@@ -1443,6 +2063,8 @@ namespace Palisades.Views
                 _gadgetControls[item.Id] = wrapper;
                 OverlayCanvas.Children.Add(wrapper);
                 Canvas.SetZIndex(wrapper, 99);
+                if (item.GadgetType == "NowPlaying" && item.DockToTaskbar)
+                    wrapper.Visibility = Visibility.Collapsed;
             }
             catch (Exception ex)
             {
@@ -1521,6 +2143,8 @@ namespace Palisades.Views
             {
                 AddGadgetControl(g);
             }
+
+            RefreshNowPlayingPin();
         }
 
         #endregion
@@ -1715,7 +2339,7 @@ namespace Palisades.Views
                 case WM_WINDOWPOSCHANGING:
                 {
                     var wp = Marshal.PtrToStructure<WINDOWPOS>(lParam);
-                    wp.hwndInsertAfter = HWND_BOTTOM;
+                    wp.hwndInsertAfter = _raiseOverlay ? HWND_TOPMOST : HWND_BOTTOM;
                     wp.flags &= ~SWP_HIDEWINDOW;
                     wp.flags &= ~SWP_NOZORDER;
                     Marshal.StructureToPtr(wp, lParam, true);
@@ -1854,6 +2478,7 @@ namespace Palisades.Views
         private TextBox? _activeRenameTextBox;
         private Action? _activeRenameCommitAction;
         private bool _activationEnabled;
+        private bool _raiseOverlay;
 
         private void EnableWindowActivation()
         {
@@ -1883,6 +2508,18 @@ namespace Palisades.Views
                 int exStyle = GetWindowLong(_overlayHwnd, GWL_EXSTYLE);
                 SetWindowLong(_overlayHwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE);
                 _activationEnabled = false;
+            }
+            catch { }
+        }
+
+        private void ResetOverlayZ()
+        {
+            _raiseOverlay = false;
+            DisableWindowActivation();
+            try
+            {
+                if (_overlayHwnd == IntPtr.Zero) return;
+                SetWindowPos(_overlayHwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             }
             catch { }
         }
@@ -1924,6 +2561,15 @@ namespace Palisades.Views
             stack.Children.Add(textBox);
 
             EnableWindowActivation();
+            _raiseOverlay = true;
+
+            try
+            {
+                if (_overlayHwnd != IntPtr.Zero)
+                    SetWindowPos(_overlayHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+            }
+            catch { }
+            ForceForeground();
 
             textBox.Focus();
             textBox.SelectAll();
@@ -1938,7 +2584,7 @@ namespace Palisades.Views
                 _activeRenameTextBox = null;
                 _activeRenameCommitAction = null;
 
-                DisableWindowActivation();
+                ResetOverlayZ();
 
                 string newName = textBox.Text.Trim();
                 if (!string.IsNullOrEmpty(newName) && newName != item.DisplayName)
@@ -2001,7 +2647,7 @@ namespace Palisades.Views
                     isFinished = true;
                     _activeRenameTextBox = null;
                     _activeRenameCommitAction = null;
-                    DisableWindowActivation();
+                    ResetOverlayZ();
                     RebuildDesktopIcons();
                 }
             };
@@ -2096,6 +2742,12 @@ namespace Palisades.Views
                     Canvas.SetTop(ctrl, vm.Y - OverlayOffsetY);
                 }
             }
+            foreach (var wrapper in _gadgetControls.Values)
+            {
+                if (wrapper.GadgetItem.GadgetType == "NowPlaying" && wrapper.GadgetItem.DockToTaskbar)
+                    wrapper.Visibility = Visibility.Collapsed;
+            }
+            try { _nowPlayingBarWindow?.RefreshGeometry(); } catch { }
         }
 
         #region Container management
@@ -2535,6 +3187,7 @@ namespace Palisades.Views
                 AndroidPanelTitle.Visibility = vm.AndroidShowHeader ? Visibility.Visible : Visibility.Collapsed;
                 AndroidFolderIconSize = vm.AndroidIconSize;
                 AndroidTwoLineNames = vm.TwoLineShortcuts;
+                AndroidIconGap = vm.AndroidIconGap;
                 AndroidIconsList.ItemsSource = vm.Shortcuts;
 
                 AndroidPanel.Width = panelW;
@@ -3376,6 +4029,14 @@ namespace Palisades.Views
             AndroidTitleEditBox.Text = vm.Name;
             AndroidTitleEditBox.Visibility = Visibility.Visible;
             EnableWindowActivation();
+            _raiseOverlay = true;
+            try
+            {
+                if (_overlayHwnd != IntPtr.Zero)
+                    SetWindowPos(_overlayHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+            }
+            catch { }
+            ForceForeground();
             AndroidTitleEditBox.Focus();
             AndroidTitleEditBox.SelectAll();
             _isAndroidRenameActive = true;
@@ -3389,7 +4050,7 @@ namespace Palisades.Views
             _isAndroidRenameActive = false;
             _activeRenameTextBox = null;
             _activeRenameCommitAction = null;
-            DisableWindowActivation();
+            ResetOverlayZ();
             AndroidTitleEditBox.Visibility = Visibility.Collapsed;
 
             var vm = _androidFolderVm;
@@ -3404,7 +4065,7 @@ namespace Palisades.Views
             _isAndroidRenameActive = false;
             _activeRenameTextBox = null;
             _activeRenameCommitAction = null;
-            DisableWindowActivation();
+            ResetOverlayZ();
             AndroidTitleEditBox.Visibility = Visibility.Collapsed;
         }
 
@@ -3907,6 +4568,9 @@ namespace Palisades.Views
             public int Y;
         }
 
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT lpPoint);
+
         [StructLayout(LayoutKind.Sequential)]
         private struct MSLLHOOKSTRUCT
         {
@@ -4024,6 +4688,9 @@ namespace Palisades.Views
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll")]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
         private void ActivateDesktopWindow()
         {
             IntPtr progman = FindWindow("Progman", null);
@@ -4031,6 +4698,32 @@ namespace Palisades.Views
             {
                 SetForegroundWindow(progman);
             }
+        }
+
+        private void ForceForeground()
+        {
+            try
+            {
+                if (_overlayHwnd == IntPtr.Zero) return;
+
+                IntPtr fg = GetForegroundWindow();
+                if (fg == _overlayHwnd)
+                {
+                    SetForegroundWindow(_overlayHwnd);
+                    return;
+                }
+
+                uint fgThread = GetWindowThreadProcessId(fg, out _);
+                uint myThread = GetWindowThreadProcessId(_overlayHwnd, out _);
+                if (fgThread != 0 && fgThread != myThread)
+                    AttachThreadInput(myThread, fgThread, true);
+
+                SetForegroundWindow(_overlayHwnd);
+
+                if (fgThread != 0 && fgThread != myThread)
+                    AttachThreadInput(myThread, fgThread, false);
+            }
+            catch { }
         }
 
         private bool IsDesktopPoint(POINT screenPt)
@@ -4407,3 +5100,4 @@ namespace Palisades.Views
         #endregion
     }
 }
+

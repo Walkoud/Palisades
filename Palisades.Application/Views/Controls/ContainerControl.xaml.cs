@@ -2665,10 +2665,7 @@ namespace Palisades.Views.Controls
                     {
                         try
                         {
-                            var data = new DataObject();
-                            data.SetData(DataFormats.FileDrop, new[] { target });
-                            data.SetData(DataFormats.Text, target);
-                            Clipboard.SetDataObject(data);
+                            Palisades.Helpers.SystemClipboardUtil.SetFileDrop(new[] { target });
                         }
                         catch { }
                     };

@@ -121,6 +121,9 @@
     <UserControl.InputBindings>
         <KeyBinding Key="Delete" Command="{Binding DeleteShortcutCommand}" />
         <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoLastDeleteCommand}" />
+        <KeyBinding Key="C" Modifiers="Control" Command="{Binding CopyShortcutCommand}" />
+        <KeyBinding Key="X" Modifiers="Control" Command="{Binding CutShortcutCommand}" />
+        <KeyBinding Key="V" Modifiers="Control" Command="{Binding PasteShortcutCommand}" />
     </UserControl.InputBindings>
 
     <Grid Margin="7">
@@ -366,6 +369,14 @@
                                         <Setter Property="Opacity" Value="0" />
                                         <Setter Property="IsHitTestVisible" Value="False" />
                                     </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsHovered}" Value="False" />
+                                            <Condition Binding="{Binding AutoHide}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Opacity" Value="0" />
+                                        <Setter Property="IsHitTestVisible" Value="False" />
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
@@ -500,6 +511,14 @@
                                         <Setter Property="Opacity" Value="0" />
                                         <Setter Property="IsHitTestVisible" Value="False" />
                                     </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsHovered}" Value="False" />
+                                            <Condition Binding="{Binding AutoHide}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Opacity" Value="0" />
+                                        <Setter Property="IsHitTestVisible" Value="False" />
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>

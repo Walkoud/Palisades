@@ -413,5 +413,26 @@ namespace Palisades.Models
 
             return string.Empty;
         }
+
+        /// <summary>
+        /// Create an independent copy of this shortcut (for copy/paste).
+        /// </summary>
+        public ShortcutItem Clone()
+        {
+            return new ShortcutItem
+            {
+                Name = Name,
+                TargetPath = TargetPath,
+                Arguments = Arguments,
+                IconPath = IconPath,
+                ShortcutPath = ShortcutPath,
+                IconIndex = IconIndex,
+                WorkingDirectory = WorkingDirectory,
+                IsUrl = IsUrl,
+                UrlTarget = UrlTarget,
+                SvgContent = SvgContent,
+                Hotkey = Hotkey
+            };
+        }
     }
 }

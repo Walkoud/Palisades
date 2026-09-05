@@ -8,7 +8,7 @@
 #else
   #define MyAppVersion AppVer
 #endif
-#define MyAppPublisher "StouderIO"
+#define MyAppPublisher "Walkoud"
 #define MyAppURL "https://github.com/Walkoud/Palisades"
 #define MyAppExeName "Palisades.exe"
 
