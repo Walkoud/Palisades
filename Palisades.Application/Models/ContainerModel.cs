@@ -180,6 +180,8 @@ namespace Palisades.Models
 
         /// <summary>Desktop overlay right-click always uses the native shell menu (default: false).</summary>
         public bool OnlyShellContextMenu { get; set; } = false;
+        /// <summary>Snap containers to edges/grid while dragging (default: true; ALT disables temporarily).</summary>
+        public bool SnapEnabled { get; set; } = true;
 
         /// <summary>Discord Rich Presence enabled (default: true; needs a Client ID).</summary>
         public bool DiscordPresenceEnabled { get; set; } = true;
@@ -251,6 +253,8 @@ namespace Palisades.Models
         public int CurtainShortcutIconSize { get; set; } = 50;
         /// <summary>Curtain open direction: "LeftToRight" or "RightToLeft".</summary>
         public string CurtainDirection { get; set; } = "LeftToRight";
+        /// <summary>Curtain stays open without hover when true (chevron pin).</summary>
+        public bool IsCurtainPinned { get; set; }
 
         // Private Box (AES-256)
         /// <summary>SHA256 hash of the container password (empty = no password).</summary>

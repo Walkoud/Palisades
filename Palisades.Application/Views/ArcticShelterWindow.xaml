@@ -30,6 +30,9 @@
             <conv:HalfWidthConverter x:Key="HalfWidth" />
             <conv:FilePathToImageConverter x:Key="FilePathToImage" />
             <conv:SvgToImageConverter x:Key="SvgToImageConverter" />
+            <conv:ColorToBrushConverter x:Key="ColorToBrush" />
+            <conv:DoubleToCornerRadiusConverter x:Key="DoubleToCornerRadius" />
+            <conv:ColorConverter x:Key="StringToBrush" />
 
             <Style x:Key="ArcticSliderStyle" TargetType="Slider">
                 <Setter Property="Stylus.IsPressAndHoldEnabled" Value="false" />
@@ -393,7 +396,7 @@
                                             </Style>
                                         </Button.Resources>
                                         <Button.ContextMenu>
-                                            <ContextMenu Background="#1E1E1E" Foreground="White" BorderBrush="#333" BorderThickness="1">
+                                            <ContextMenu Background="#1E1E1E" Foreground="White" BorderBrush="#333" BorderThickness="1" Opened="NewMenu_Opened">
                                                 <ContextMenu.Resources>
                                                     <Style TargetType="MenuItem">
                                                         <Setter Property="Foreground" Value="White" />
@@ -404,9 +407,7 @@
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidFolder]}" Command="{Binding CreateAndroidFolderContainerCommand}" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_FolderPortal]}" Command="{Binding CreateFolderPortalCommand}" />
                                                 <Separator Background="#333" />
-                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItNote]}" Command="{Binding SpawnPostItCommand}" />
-                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockGadget]}" Command="{Binding SpawnClockCommand}" />
-                                                <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SystemMonitor]}" Command="{Binding SpawnSysMonCommand}" />
+                                                <MenuItem x:Name="NewWidgetsMenu" Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NewWidgets]}" />
                                             </ContextMenu>
                                         </Button.ContextMenu>
                                     </Button>
@@ -459,7 +460,17 @@
                                                         <TextBlock Grid.Column="1" Text="{Binding Shortcuts.Count}" Foreground="#526475" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                                         <Button Grid.Column="2" Content="✕" Foreground="#526475" FontSize="10" Background="Transparent" BorderThickness="0" Cursor="Hand" VerticalAlignment="Center" Command="{Binding DeleteCommand}"/>
                                                     </Grid>
-                                                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Shortcuts}">
+                                                    <ItemsControl Grid.Row="1" ItemsSource="{Binding TopFourShortcuts}">
+                                                        <ItemsControl.Style>
+                                                            <Style TargetType="ItemsControl">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAndroidFolderContainer}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ItemsControl.Style>
                                                         <ItemsControl.ItemsPanel>
                                                             <ItemsPanelTemplate>
                                                                 <WrapPanel Orientation="Horizontal"/>
@@ -532,6 +543,58 @@
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
+                                                    <!-- Android folder real-look preview -->
+                                                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,4,0,0">
+                                                        <StackPanel.Style>
+                                                            <Style TargetType="StackPanel">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAndroidFolderContainer}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </StackPanel.Style>
+                                                        <Border Width="96" Height="96" Padding="10"
+                                                                Background="{Binding AndroidPanelBackgroundColor, Converter={StaticResource StringToBrush}}"
+                                                                CornerRadius="{Binding AndroidTileCornerRadius, Converter={StaticResource DoubleToCornerRadius}}">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="BorderBrush" Value="#40FFFFFF" />
+                                                                    <Setter Property="BorderThickness" Value="0" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding AndroidTileShowBorder}" Value="True">
+                                                                            <Setter Property="BorderThickness" Value="1" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <ItemsControl ItemsSource="{Binding Shortcuts}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <UniformGrid Columns="3" />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Image Source="{Binding TargetPath, Converter={StaticResource IconConverter}}" Stretch="Uniform" Width="20" Height="20" Margin="2" RenderOptions.BitmapScalingMode="HighQuality" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Name}" FontSize="10" Foreground="{DynamicResource GuiTextForegroundBrush}" TextAlignment="Center" Width="110" TextTrimming="CharacterEllipsis" Margin="0,4,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding AndroidShowLabel}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -628,7 +691,13 @@
                                                 <TextBox Text="{Binding SelectedWidget.Title, UpdateSourceTrigger=PropertyChanged}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="White" Height="28" Padding="6,2" Margin="0,0,0,12" BorderThickness="1" />
 
                                                 <!-- Hide Header Checkbox -->
-                                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_HideHeaderBar]}" IsChecked="{Binding SelectedWidget.HideHeader, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,12" />
+                                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_HideHeaderBar]}" IsChecked="{Binding SelectedWidget.HideHeader, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+
+                                                <!-- Lock Widget Checkbox -->
+                                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_LockWidget]}" IsChecked="{Binding SelectedWidget.IsLocked, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+
+                                                <!-- Pin to taskbar (Now Playing only) -->
+                                                <CheckBox Visibility="{Binding SelectedWidgetIsNowPlaying, Converter={StaticResource BoolToVisibility}}" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PinToTaskbar]}" IsChecked="{Binding SelectedWidgetPinned, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,12" />
 
                                                 <!-- Clock specific Basic Settings -->
                                                 <StackPanel Visibility="{Binding SelectedWidgetIsClock, Converter={StaticResource BoolToVisibility}}">
@@ -688,6 +757,7 @@
                                                     <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpShowControls]}" IsChecked="{Binding NowPlayingShowControls, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
                                                     <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpShowAppLabel]}" IsChecked="{Binding NowPlayingShowAppLabel, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
                                                     <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpShowCover]}" IsChecked="{Binding NowPlayingShowCover, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                                    <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpDarkMode]}" IsChecked="{Binding NowPlayingDarkMode, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
 
                                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpAccentColor]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
                                                     <ComboBox SelectedValue="{Binding NowPlayingAccentColor, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,12">
@@ -720,6 +790,48 @@
                                                         <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Orange]}" Tag="#FFFB923C" />
                                                         <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Rose]}" Tag="#FFFB7185" />
                                                         <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Lime]}" Tag="#FFA3E635" />
+                                                    </ComboBox>
+
+                                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpTextColor]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                                    <ComboBox SelectedValue="{Binding NowPlayingTextColor, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,12">
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NpButtons_Default]}" Tag="#FFF0F0F0" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_IceBlue]}" Tag="#FF7DD3FC" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_White]}" Tag="#FFFFFFFF" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_MatrixGreen]}" Tag="#FF4AF626" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_AmberOrange]}" Tag="#FFFFB000" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_CyberRed]}" Tag="#FFFF3E3E" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_KawaiiPink]}" Tag="#FFFF71CE" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Purple]}" Tag="#FFA855F7" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Teal]}" Tag="#FF2DD4BF" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Gold]}" Tag="#FFFACC15" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Orange]}" Tag="#FFFB923C" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Rose]}" Tag="#FFFB7185" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Lime]}" Tag="#FFA3E635" />
+                                                    </ComboBox>
+                                                </StackPanel>
+
+                                                <!-- Post-it specific Basic Settings (same palette as the hamburger menu) -->
+                                                <StackPanel Visibility="{Binding SelectedWidgetIsPostIt, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBackground]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                                    <ComboBox SelectedValue="{Binding PostItBackgroundColor, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,12">
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_Yellow]}" Tag="#FFE39C" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_Pink]}" Tag="#FFCCD5" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_Green]}" Tag="#D4ECD5" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_Blue]}" Tag="#CFE8FC" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_Purple]}" Tag="#ECD4FC" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_Dark]}" Tag="#FF2B2B2B" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_DarkBlue]}" Tag="#FF1E3A5F" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_DarkPurple]}" Tag="#FF3A1E5F" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItBg_DarkGreen]}" Tag="#FF1E4A3A" />
+                                                    </ComboBox>
+
+                                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItTextColor]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                                    <ComboBox SelectedValue="{Binding PostItTextColor, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,12">
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItTx_Black]}" Tag="#000000" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItTx_Red]}" Tag="#EF4444" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItTx_Blue]}" Tag="#3B82F6" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItTx_Green]}" Tag="#10B981" />
+                                                        <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_PostItTx_White]}" Tag="#FFFFFF" />
                                                     </ComboBox>
                                                 </StackPanel>
                                             </StackPanel>
@@ -948,7 +1060,7 @@
                                         <ColumnDefinition Width="100" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ButtonName]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ButtonName]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <TextBox Grid.Column="1" Text="{Binding SelectedContainer.Name, UpdateSourceTrigger=PropertyChanged}" BorderBrush="{DynamicResource GuiBorderBrush}" Padding="8,5" FontSize="13" />
                                 </Grid>
                                 <StackPanel Orientation="Horizontal">
@@ -2140,10 +2252,10 @@
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoSortNew]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,16" />
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoSortNew]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoSortNew]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding IsAutoSortEnabled}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,14" Visibility="{Binding IsAutoSortEnabled, Converter={StaticResource BoolToVisibility}}">
@@ -2152,50 +2264,59 @@
                                 </StackPanel>
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowShortcutArrows]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowShortcutArrows]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding ShowDesktopShortcutArrow}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowRecycleBin]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowRecycleBin]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding ShowRecycleBin}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_OnlyShellContextMenu]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_OnlyShellContextMenu]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding OnlyShellContextMenu}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
-                                <Grid Margin="0,0,0,14">
+                                <Grid Margin="0,0,0,4">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowResizeHandle]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SnapEnabled]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
+                                    <CheckBox Grid.Column="1" IsChecked="{Binding SnapEnabled}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
+                                </Grid>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SnapHint]}" Foreground="#526475" FontSize="10" Margin="0,0,0,14" TextWrapping="Wrap" />
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowResizeHandle]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding ShowDesktopResizeHandle}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowFileExtensions]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ShowFileExtensions]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding ShowFileExtensions}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoSaveConfig]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AutoSaveConfig]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding IsAutoSnapshotEnabled}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                             </StackPanel>
@@ -2209,10 +2330,10 @@
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ApplicationSettings]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,16" />
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Lang_Label]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Lang_Label]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <ComboBox Grid.Column="1" Width="200" HorizontalAlignment="Left" SelectedIndex="{Binding LanguageIndex}" SelectionChanged="LanguageCombo_SelectionChanged" Background="{DynamicResource GuiBackgroundMainBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Padding="8,4">
                                         <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Lang_English]}" Tag="en" />
                                         <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Lang_French]}" Tag="fr" />
@@ -2220,22 +2341,25 @@
                                 </Grid>
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[ActionsMenu_StartWithWindows]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[ActionsMenu_StartWithWindows]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <CheckBox Grid.Column="1" IsChecked="{Binding IsStartupEnabled, Mode=OneWay}" Command="{Binding ToggleStartupCommand}" Style="{StaticResource ArcticToggleSwitchStyle}"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
 
-                        <!-- Discord Rich Presence Card (collapsed by default) -->
-                        <Border Background="Transparent" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
-                            <Expander Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="13" IsExpanded="False">
-                                <Expander.Header>
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPresence]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" />
-                                </Expander.Header>
-                                <StackPanel Margin="0,12,0,0">
+                        <!-- Discord Rich Presence Card -->
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                            <StackPanel>
+                                <Button Background="Transparent" BorderThickness="0" Padding="0" HorizontalContentAlignment="Left" Cursor="Hand" Click="DiscordCard_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="DiscordArrow" Text="▸" Foreground="{DynamicResource GuiAccentBrush}" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordPresence]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <StackPanel x:Name="DiscordContent" Visibility="Collapsed" Margin="0,12,0,0">
                                 <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordEnable]}" IsChecked="{Binding DiscordPresenceEnabled, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="13" Margin="0,0,0,12" />
                                 <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowWhenIdle]}" IsChecked="{Binding DiscordShowWhenIdle, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
                                 <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_DiscordShowWhenPaused]}" IsChecked="{Binding DiscordShowWhenPaused, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
@@ -2329,7 +2453,7 @@
                                     </StackPanel>
                                 </Expander>
                                 </StackPanel>
-                            </Expander>
+                            </StackPanel>
                         </Border>
 
                         <!-- GUI Theme Card -->
@@ -2338,10 +2462,10 @@
                                 <TextBlock Text="GUI Theme" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,16" />
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Background Color" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="Background Color" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <ComboBox Grid.Column="1" Width="220" HorizontalAlignment="Left"
                                               SelectedValue="{Binding GuiBackgroundColor}" SelectedValuePath="Tag"
                                               Background="{DynamicResource GuiBackgroundMainBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Padding="8,4">
@@ -2361,10 +2485,10 @@
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="200" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Text Color" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="Text Color" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <ComboBox Grid.Column="1" Width="220" HorizontalAlignment="Left"
                                               SelectedValue="{Binding GuiTextColor}" SelectedValuePath="Tag"
                                               Background="{DynamicResource GuiBackgroundMainBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" Padding="8,4">
@@ -2401,7 +2525,7 @@
                             <StackPanel>
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Updates_Title]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,12" />
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Updates_Current]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" />
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Updates_Current]}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" TextWrapping="Wrap" />
                                     <TextBlock x:Name="CurrentVersionText" Text="{Binding AppVersion}" Foreground="{DynamicResource GuiTextForegroundBrush}" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Margin="6,0,0,0" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">

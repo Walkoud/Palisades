@@ -277,8 +277,8 @@ namespace Palisades.Plugins
                 BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
                 BorderThickness = new Thickness(1)
             };
-            string[] bgColors = { "#FFE39C", "#FFCCD5", "#D4ECD5", "#CFE8FC", "#ECD4FC" };
-            string[] bgTooltips = { "Yellow Notes", "Pink Notes", "Green Notes", "Blue Notes", "Purple Notes" };
+            string[] bgColors = { "#FFE39C", "#FFCCD5", "#D4ECD5", "#CFE8FC", "#ECD4FC", "#FF2B2B2B", "#FF1E3A5F", "#FF3A1E5F", "#FF1E4A3A" };
+            string[] bgTooltips = { "Yellow Notes", "Pink Notes", "Green Notes", "Blue Notes", "Purple Notes", "Dark Notes", "Dark Blue Notes", "Dark Purple Notes", "Dark Green Notes" };
             for (int i = 0; i < bgColors.Length; i++)
             {
                 string col = bgColors[i];
@@ -314,6 +314,69 @@ namespace Palisades.Plugins
                 bgContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
                 bgContextMenu.IsOpen = true;
             };
+
+            // --- Second hamburger for default text color (top right) ---
+            var textMenuButton = new Button
+            {
+                Content = "A",
+                FontWeight = FontWeights.Bold,
+                Width = 24,
+                Height = 24,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = new SolidColorBrush(Color.FromArgb(0x90, 0, 0, 0)),
+                Cursor = Cursors.Hand,
+                FontSize = 12,
+                ToolTip = "Text Color",
+                Style = btnStyle,
+                Margin = new Thickness(0, 2, 32, 0)
+            };
+
+            var textContextMenu = new ContextMenu
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0xF0, 0x1E, 0x1E, 0x1E)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1)
+            };
+            string[] textMenuColors = { "#000000", "#EF4444", "#3B82F6", "#10B981", "#FFFFFF" };
+            string[] textMenuTooltips = { "Black Text", "Red Text", "Blue Text", "Green Text", "White Text" };
+            for (int i = 0; i < textMenuColors.Length; i++)
+            {
+                string col = textMenuColors[i];
+                var mi = new MenuItem
+                {
+                    Header = textMenuTooltips[i],
+                    Foreground = Brushes.White,
+                    Height = 28,
+                    Focusable = false
+                };
+                var preview = new Border
+                {
+                    Width = 14, Height = 14,
+                    CornerRadius = new CornerRadius(7),
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(col)),
+                    BorderBrush = Brushes.White,
+                    BorderThickness = new Thickness(1),
+                    Margin = new Thickness(0, 0, 6, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                mi.Icon = preview;
+                mi.Click += (s, e) =>
+                {
+                    _textColor = col;
+                    ApplyTextColor(col);
+                    TriggerSave();
+                };
+                textContextMenu.Items.Add(mi);
+            }
+            textMenuButton.Click += (s, e) =>
+            {
+                textContextMenu.PlacementTarget = textMenuButton;
+                textContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                textContextMenu.IsOpen = true;
+            };
+            _headerGrid.Children.Add(textMenuButton);
             _headerGrid.Children.Add(bgMenuButton);
 
             // --- Floating Glassmorphic Toolbar (bottom) ---
@@ -437,8 +500,8 @@ namespace Palisades.Plugins
             toolbarPanel.Children.Add(CreateSeparator());
 
             // Text Color buttons
-            string[] textColors = { "#000000", "#EF4444", "#3B82F6", "#10B981" };
-            string[] textColorTooltips = { "Black", "Red", "Blue", "Green" };
+            string[] textColors = { "#000000", "#EF4444", "#3B82F6", "#10B981", "#FFFFFF" };
+            string[] textColorTooltips = { "Black", "Red", "Blue", "Green", "White" };
             for (int i = 0; i < textColors.Length; i++)
             {
                 string col = textColors[i];
@@ -625,6 +688,18 @@ namespace Palisades.Plugins
             };
         }
 
+        /// <summary>Applies the default text color (runs without explicit color inherit it).</summary>
+        private void ApplyTextColor(string hexColor)
+        {
+            try
+            {
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hexColor));
+                _richTextBox.Foreground = brush;
+                _richTextBox.CaretBrush = brush;
+            }
+            catch { }
+        }
+
         private void SetSelectionTextColor(Color color)
         {
             _richTextBox.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, new SolidColorBrush(color));
@@ -646,6 +721,7 @@ namespace Palisades.Plugins
                     _fontFamily = settings.FontFamily;
 
                     ApplyBackground(_backgroundColor);
+                    ApplyTextColor(_textColor);
 
                     string currentXaml = GetXamlText();
                     if (!_richTextBox.IsFocused && settings.XamlText != currentXaml)

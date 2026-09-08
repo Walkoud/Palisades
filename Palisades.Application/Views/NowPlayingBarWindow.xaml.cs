@@ -34,7 +34,9 @@ namespace Palisades.Views
             public bool ShowCover { get; set; } = true;
             public string AccentColor { get; set; } = "#FF7DD3FC";
             public string ButtonsColor { get; set; } = "#A0FFFFFF";
+            public string TextColor { get; set; } = "#FFF0F0F0";
             public string ForcedSourceAppId { get; set; } = "";
+            public bool DarkMode { get; set; }
         }
 
         private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
@@ -225,7 +227,7 @@ namespace Palisades.Views
                 }
                 else
                 {
-                    double w = Math.Clamp(_item.Width, 280, 1200);
+                    double w = Math.Clamp(_item.Width, 200, 1200);
                     if (Math.Abs(Width - w) > 0.5) Width = w;
                 }
             }
@@ -276,7 +278,7 @@ namespace Palisades.Views
 
         private void ApplyGripVisibility()
         {
-            bool show = _item?.BarShowResizeHandle == true && _item?.BarFullWidth != true;
+            bool show = _item?.BarShowResizeHandle == true && _item?.BarFullWidth != true && _item?.IsLocked != true;
             _resizeGrip.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -304,6 +306,7 @@ namespace Palisades.Views
                     ApplySize();
                     break;
                 case nameof(PluginGadgetItem.BarShowResizeHandle):
+                case nameof(PluginGadgetItem.IsLocked):
                     ApplyGripVisibility();
                     break;
                 case nameof(PluginGadgetItem.BarFullWidth):
@@ -509,13 +512,32 @@ namespace Palisades.Views
 
         private void Frame_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // Drag the bar by its background; never hijack clicks on transport buttons.
+            // Never hijack clicks on transport buttons or the resize grip.
             DependencyObject? d = e.OriginalSource as DependencyObject;
             while (d != null)
             {
                 if (d is Button) return;
+                if (ReferenceEquals(d, _resizeGrip)) return;
                 d = VisualTreeHelper.GetParent(d);
             }
+            // Locked bar: no drag (double-click toggle still available).
+            if (_item?.IsLocked == true) return;
+            // Double-click toggles full-width strip vs resizable card.
+            if (e.ClickCount == 2)
+            {
+                try
+                {
+                    if (_item != null)
+                    {
+                        _item.BarFullWidth = !_item.BarFullWidth;
+                        FindOverlay()?.SaveGadgetsToDisk();
+                    }
+                }
+                catch { }
+                e.Handled = true;
+                return;
+            }
+            // Drag the bar by its background (buttons/grip already filtered above).
             try
             {
                 DragMove();
@@ -546,8 +568,17 @@ namespace Palisades.Views
             if (!_resizing) return;
             try
             {
+                // PointToScreen returns physical pixels but Width is in DIPs:
+                // divide by the DPI scale or resizing runs 1.25-1.5x too fast.
+                double dpiX = 1.0;
+                try
+                {
+                    var dpi = VisualTreeHelper.GetDpi(this);
+                    if (dpi.DpiScaleX > 0) dpiX = dpi.DpiScaleX;
+                }
+                catch { }
                 Point p = PointToScreen(e.GetPosition(this));
-                Width = Math.Clamp(_resizeStartWidth + (p.X - _resizeStart.X), 280, 1200);
+                Width = Math.Clamp(_resizeStartWidth + (p.X - _resizeStart.X) / dpiX, 200, 1200);
             }
             catch { }
         }
@@ -597,6 +628,10 @@ namespace Palisades.Views
             coverItem.Click += (_, _) => { s.ShowCover = !s.ShowCover; WriteSettings(s); ApplySettingsToView(); };
             menu.Items.Add(coverItem);
 
+            var darkItem = new MenuItem { Header = tr["Widget_Ctx_NpDarkMode"], IsCheckable = true, IsChecked = s.DarkMode };
+            darkItem.Click += (_, _) => { s.DarkMode = !s.DarkMode; WriteSettings(s); ApplySettingsToView(); };
+            menu.Items.Add(darkItem);
+
             var seekItem = new MenuItem { Header = tr["Widget_Ctx_NpShowSeekBar"], IsCheckable = true, IsChecked = s.ShowSeekBar };
             seekItem.Click += (_, _) => { s.ShowSeekBar = !s.ShowSeekBar; WriteSettings(s); ApplySettingsToView(); };
             menu.Items.Add(seekItem);
@@ -633,6 +668,18 @@ namespace Palisades.Views
             }
             menu.Items.Add(buttonsMenu);
 
+            var textMenu = new MenuItem { Header = tr["Widget_Ctx_NpTextColor"] };
+            string[] txtNames = { tr["Widget_Ctx_NpButtons_Default"], tr["Widget_Ctx_Col_IceBlue"], tr["Widget_Ctx_Col_White"], tr["Widget_Ctx_Col_Matrix"], tr["Widget_Ctx_Col_Amber"], tr["Widget_Ctx_Col_Cyber"], tr["Widget_Ctx_Col_KawaiiPink"], tr["Widget_Ctx_Col_Purple"], tr["Widget_Ctx_Col_Teal"], tr["Widget_Ctx_Col_Gold"], tr["Widget_Ctx_Col_Orange"], tr["Widget_Ctx_Col_Rose"], tr["Widget_Ctx_Col_Lime"] };
+            string[] txtHex = { "#FFF0F0F0", "#FF7DD3FC", "#FFFFFFFF", "#FF4AF626", "#FFFFB000", "#FFFF3E3E", "#FFFF71CE", "#FFA855F7", "#FF2DD4BF", "#FFFACC15", "#FFFB923C", "#FFFB7185", "#FFA3E635" };
+            for (int i = 0; i < txtNames.Length; i++)
+            {
+                string code = txtHex[i];
+                var colItem = new MenuItem { Header = txtNames[i], IsCheckable = true, IsChecked = (s.TextColor ?? "").Equals(code, StringComparison.OrdinalIgnoreCase) };
+                colItem.Click += (_, _) => { s.TextColor = code; WriteSettings(s); ApplySettingsToView(); };
+                textMenu.Items.Add(colItem);
+            }
+            menu.Items.Add(textMenu);
+
             menu.Items.Add(new Separator());
 
             var resizeItem = new MenuItem { Header = tr["Widget_Ctx_NpBarResize"], IsCheckable = true, IsChecked = _item?.BarShowResizeHandle == true };
@@ -667,11 +714,26 @@ namespace Palisades.Views
             {
                 if (_item == null) return;
                 _item.DockToTaskbar = false;
-                _item.IsLocked = false;
                 FindOverlay()?.SaveGadgetsToDisk();
                 FindOverlay()?.RefreshNowPlayingPin();
             };
             menu.Items.Add(unpinItem);
+
+            var editItem = new MenuItem { Header = tr["Widget_Ctx_EditProperties"] };
+            editItem.Click += (_, _) =>
+            {
+                if (_item == null) return;
+                var app = Application.Current as App;
+                var win = app?.GetDashboardWindow();
+                if (win == null) return;
+                win.Show();
+                if (win.WindowState == WindowState.Minimized)
+                    win.WindowState = WindowState.Normal;
+                win.ShowWidgetPropertiesById(_item.Id);
+                win.Activate();
+                win.Focus();
+            };
+            menu.Items.Add(editItem);
 
             menu.IsOpen = true;
             e.Handled = true;

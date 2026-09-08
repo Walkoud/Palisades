@@ -95,6 +95,12 @@ namespace Palisades.Views
             SwitchToTab("Dashboard");
         }
 
+        public void ShowWidgetPropertiesById(Guid id)
+        {
+            if (_viewModel.SelectWidgetById(id))
+                SwitchToTab("Dashboard");
+        }
+
         private void ContainerCard_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is Border { DataContext: ContainerViewModel container })
@@ -1473,6 +1479,45 @@ namespace Palisades.Views
                 btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
                 btn.ContextMenu.IsOpen = true;
             }
+        }
+
+        private void DiscordCard_Click(object sender, RoutedEventArgs e)
+        {
+            bool show = DiscordContent.Visibility != Visibility.Visible;
+            DiscordContent.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            DiscordArrow.Text = show ? "▾" : "▸";
+        }
+
+        // Widgets submenu enumerated live from PluginService: newly registered
+        // gadgets appear here (and in the draw-to-create menu) with no code change.
+        private void NewMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                NewWidgetsMenu.Items.Clear();
+                NewWidgetsMenu.Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E));
+                NewWidgetsMenu.BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33));
+                foreach (var plugin in Palisades.Services.PluginService.Instance.Plugins.Where(p => p.IsEnabled && p.Context != null))
+                {
+                    foreach (var gadget in plugin.Context.Gadgets)
+                    {
+                        string pid = plugin.Plugin.Id;
+                        string gtype = gadget.GadgetType;
+                        var item = new MenuItem
+                        {
+                            Header = gadget.Name,
+                            Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+                            BorderBrush = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                            Foreground = Brushes.White
+                        };
+                        item.Click += (_, _) => _viewModel.SpawnGadget(pid, gtype);
+                        NewWidgetsMenu.Items.Add(item);
+                    }
+                }
+                if (NewWidgetsMenu.Items.Count == 0)
+                    NewWidgetsMenu.Items.Add(new MenuItem { Header = "—", IsEnabled = false });
+            }
+            catch { }
         }
 
         private bool _isUpdatingFields = false;

@@ -229,8 +229,8 @@ namespace Palisades.Views.Controls
                 {
                     // Pin = hide overlay widget, show the taskbar bar with this gadget's
                     // options (Widget Customization). Unpin restores the widget.
+                    // Lock stays independent (dashboard or Lock menu item).
                     GadgetItem.DockToTaskbar = !GadgetItem.DockToTaskbar;
-                    GadgetItem.IsLocked = GadgetItem.DockToTaskbar;
                     SaveGadgetSettings();
                     (Window.GetWindow(this) as DesktopOverlayWindow)?.RefreshNowPlayingPin();
                 };
@@ -304,7 +304,9 @@ namespace Palisades.Views.Controls
             public bool ShowCover { get; set; } = true;
             public string AccentColor { get; set; } = "#FF7DD3FC";
             public string ButtonsColor { get; set; } = "#A0FFFFFF";
+            public string TextColor { get; set; } = "#FFF0F0F0";
             public string ForcedSourceAppId { get; set; } = "";
+            public bool DarkMode { get; set; }
         }
 
         private void BuildClockCustomMenu(MenuItem parent)
@@ -583,6 +585,15 @@ namespace Palisades.Views.Controls
             };
             parent.Items.Add(coverItem);
 
+            // Dark mode (black pill background)
+            var darkItem = new MenuItem { Header = tr["Widget_Ctx_NpDarkMode"], IsCheckable = true, IsChecked = settings.DarkMode };
+            darkItem.Click += (s, e) =>
+            {
+                settings.DarkMode = !settings.DarkMode;
+                SaveNowPlayingSettings(settings);
+            };
+            parent.Items.Add(darkItem);
+
             // Accent color submenu (seek bar + play button)
             var accentMenu = new MenuItem { Header = tr["Widget_Ctx_NpAccentColor"] };
             string[] colorNames = { tr["Widget_Ctx_Col_IceBlue"], tr["Widget_Ctx_Col_White"], tr["Widget_Ctx_Col_Matrix"], tr["Widget_Ctx_Col_Amber"], tr["Widget_Ctx_Col_Cyber"], tr["Widget_Ctx_Col_KawaiiPink"], tr["Widget_Ctx_Col_Purple"], tr["Widget_Ctx_Col_Teal"], tr["Widget_Ctx_Col_Gold"], tr["Widget_Ctx_Col_Orange"], tr["Widget_Ctx_Col_Rose"], tr["Widget_Ctx_Col_Lime"] };
@@ -616,6 +627,23 @@ namespace Palisades.Views.Controls
                 buttonsMenu.Items.Add(colItem);
             }
             parent.Items.Add(buttonsMenu);
+
+            // Text color submenu (title full, artist/app dimmed)
+            var textMenu = new MenuItem { Header = tr["Widget_Ctx_NpTextColor"] };
+            string[] txtNames = { tr["Widget_Ctx_NpButtons_Default"], tr["Widget_Ctx_Col_IceBlue"], tr["Widget_Ctx_Col_White"], tr["Widget_Ctx_Col_Matrix"], tr["Widget_Ctx_Col_Amber"], tr["Widget_Ctx_Col_Cyber"], tr["Widget_Ctx_Col_KawaiiPink"], tr["Widget_Ctx_Col_Purple"], tr["Widget_Ctx_Col_Teal"], tr["Widget_Ctx_Col_Gold"], tr["Widget_Ctx_Col_Orange"], tr["Widget_Ctx_Col_Rose"], tr["Widget_Ctx_Col_Lime"] };
+            string[] txtHex = { "#FFF0F0F0", "#FF7DD3FC", "#FFFFFFFF", "#FF4AF626", "#FFFFB000", "#FFFF3E3E", "#FFFF71CE", "#FFA855F7", "#FF2DD4BF", "#FFFACC15", "#FFFB923C", "#FFFB7185", "#FFA3E635" };
+            for (int i = 0; i < txtNames.Length; i++)
+            {
+                string code = txtHex[i];
+                var colItem = new MenuItem { Header = txtNames[i], IsCheckable = true, IsChecked = settings.TextColor.Equals(code, StringComparison.OrdinalIgnoreCase) };
+                colItem.Click += (s, e) =>
+                {
+                    settings.TextColor = code;
+                    SaveNowPlayingSettings(settings);
+                };
+                textMenu.Items.Add(colItem);
+            }
+            parent.Items.Add(textMenu);
         }
 
         private NowPlayingSettings GetNowPlayingSettings()
