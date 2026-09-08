@@ -153,6 +153,17 @@ namespace Palisades.ViewModels
             }
         }
 
+        public bool SnapEnabled
+        {
+            get => DefaultModel.SnapEnabled;
+            set
+            {
+                DefaultModel.SnapEnabled = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+            }
+        }
+
         public bool DiscordPresenceEnabled
         {
             get => DefaultModel.DiscordPresenceEnabled;
@@ -651,14 +662,42 @@ namespace Palisades.ViewModels
                 OnPropertyChanged(nameof(SelectedWidgetIsClock));
                 OnPropertyChanged(nameof(SelectedWidgetIsSystemMonitor));
                 OnPropertyChanged(nameof(SelectedWidgetIsNowPlaying));
+                OnPropertyChanged(nameof(SelectedWidgetIsPostIt));
+                OnPropertyChanged(nameof(SelectedWidgetPinned));
                 RefreshSelectedWidgetSettings();
             }
+        }
+
+        /// <summary>Selects the dashboard's own widget instance by id (so edits and
+        /// saves stay on one object — e.g. from the taskbar bar menu).</summary>
+        public bool SelectWidgetById(Guid id)
+        {
+            var w = _activeWidgets.FirstOrDefault(x => x.Id == id);
+            if (w == null) return false;
+            SelectedWidget = w;
+            return true;
         }
 
         public bool IsWidgetSelected => SelectedWidget != null;
         public bool SelectedWidgetIsClock => SelectedWidget != null && SelectedWidget.GadgetType.Equals("Clock", StringComparison.OrdinalIgnoreCase);
         public bool SelectedWidgetIsSystemMonitor => SelectedWidget != null && SelectedWidget.GadgetType.Equals("SystemMonitor", StringComparison.OrdinalIgnoreCase);
         public bool SelectedWidgetIsNowPlaying => SelectedWidget != null && SelectedWidget.GadgetType.Equals("NowPlaying", StringComparison.OrdinalIgnoreCase);
+        public bool SelectedWidgetIsPostIt => SelectedWidget != null && SelectedWidget.GadgetType.Equals("PostIt", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Pin selected Now Playing widget to the taskbar (dashboard entry point).</summary>
+        public bool SelectedWidgetPinned
+        {
+            get => SelectedWidget?.DockToTaskbar == true;
+            set
+            {
+                if (SelectedWidget == null) return;
+                SelectedWidget.DockToTaskbar = value;
+                OnPropertyChanged();
+                var overlay = System.Windows.Application.Current.Windows.OfType<Window>()
+                    .FirstOrDefault(w => w is DesktopOverlayWindow) as DesktopOverlayWindow;
+                overlay?.RefreshNowPlayingPin();
+            }
+        }
 
         private bool _isRefreshingSettings;
 
@@ -833,6 +872,30 @@ namespace Palisades.ViewModels
             }
         }
 
+        private string _nowPlayingTextColor = "#FFF0F0F0";
+        public string NowPlayingTextColor
+        {
+            get => _nowPlayingTextColor;
+            set
+            {
+                _nowPlayingTextColor = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _nowPlayingDarkMode;
+        public bool NowPlayingDarkMode
+        {
+            get => _nowPlayingDarkMode;
+            set
+            {
+                _nowPlayingDarkMode = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
         // Carried across refresh → save so the media-source pin survives dashboard edits.
         private string _nowPlayingSourceId = "";
         public string NowPlayingSourceId
@@ -931,7 +994,9 @@ namespace Palisades.ViewModels
             public bool ShowCover { get; set; } = true;
             public string AccentColor { get; set; } = "#FF7DD3FC";
             public string ButtonsColor { get; set; } = "#A0FFFFFF";
+            public string TextColor { get; set; } = "#FFF0F0F0";
             public string ForcedSourceAppId { get; set; } = "";
+            public bool DarkMode { get; set; }
         }
 
         public class SysMonSettings
@@ -939,6 +1004,39 @@ namespace Palisades.ViewModels
             public bool ShowCpu { get; set; } = true;
             public bool ShowRam { get; set; } = true;
             public double Interval { get; set; } = 1.5;
+        }
+
+        public class PostItSettings
+        {
+            public string XamlText { get; set; } = "";
+            public string BackgroundColor { get; set; } = "#FFE39C";
+            public string TextColor { get; set; } = "#000000";
+            public double FontSize { get; set; } = 14;
+            public string FontFamily { get; set; } = "Segoe UI";
+        }
+
+        private string _postItBackgroundColor = "#FFE39C";
+        public string PostItBackgroundColor
+        {
+            get => _postItBackgroundColor;
+            set
+            {
+                _postItBackgroundColor = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private string _postItTextColor = "#000000";
+        public string PostItTextColor
+        {
+            get => _postItTextColor;
+            set
+            {
+                _postItTextColor = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
         }
 
         private void RefreshSelectedWidgetSettings()
@@ -997,9 +1095,27 @@ namespace Palisades.ViewModels
                     NowPlayingShowCover = settings.ShowCover;
                     NowPlayingAccentColor = string.IsNullOrEmpty(settings.AccentColor) ? "#FF7DD3FC" : settings.AccentColor;
                     NowPlayingButtonsColor = string.IsNullOrEmpty(settings.ButtonsColor) ? "#A0FFFFFF" : settings.ButtonsColor;
+                    NowPlayingTextColor = string.IsNullOrEmpty(settings.TextColor) ? "#FFF0F0F0" : settings.TextColor;
+                    NowPlayingDarkMode = settings.DarkMode;
                     _nowPlayingSourceId = settings.ForcedSourceAppId ?? "";
                     OnPropertyChanged(nameof(NowPlayingSourceId));
                     _ = RefreshNowPlayingSourcesAsync();
+                    _isRefreshingSettings = false;
+                }
+                catch { _isRefreshingSettings = false; }
+            }
+            else if (SelectedWidgetIsPostIt)
+            {
+                try
+                {
+                    var settings = new PostItSettings();
+                    if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                    {
+                        settings = Newtonsoft.Json.JsonConvert.DeserializeObject<PostItSettings>(SelectedWidget.CustomData) ?? new PostItSettings();
+                    }
+                    _isRefreshingSettings = true;
+                    PostItBackgroundColor = string.IsNullOrEmpty(settings.BackgroundColor) ? "#FFE39C" : settings.BackgroundColor;
+                    PostItTextColor = string.IsNullOrEmpty(settings.TextColor) ? "#000000" : settings.TextColor;
                     _isRefreshingSettings = false;
                 }
                 catch { _isRefreshingSettings = false; }
@@ -1042,8 +1158,24 @@ namespace Palisades.ViewModels
                     ShowCover = NowPlayingShowCover,
                     AccentColor = NowPlayingAccentColor,
                     ButtonsColor = NowPlayingButtonsColor,
-                    ForcedSourceAppId = _nowPlayingSourceId
+                    TextColor = NowPlayingTextColor,
+                    ForcedSourceAppId = _nowPlayingSourceId,
+                    DarkMode = NowPlayingDarkMode
                 };
+                SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
+            }
+            else if (SelectedWidgetIsPostIt)
+            {
+                // Preserve XamlText/FontSize/FontFamily: only colors come from the dashboard.
+                var settings = new PostItSettings();
+                try
+                {
+                    if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                        settings = Newtonsoft.Json.JsonConvert.DeserializeObject<PostItSettings>(SelectedWidget.CustomData) ?? new PostItSettings();
+                }
+                catch { }
+                settings.BackgroundColor = PostItBackgroundColor;
+                settings.TextColor = PostItTextColor;
                 SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
             }
 
@@ -1103,6 +1235,13 @@ namespace Palisades.ViewModels
                     existing.HeaderBorderColor = item.HeaderBorderColor;
                     existing.TitleColor = item.TitleColor;
                     existing.TitleFontSize = item.TitleFontSize;
+                    existing.IsLocked = item.IsLocked;
+                    existing.DockToTaskbar = item.DockToTaskbar;
+                    existing.BarLeft = item.BarLeft;
+                    existing.BarTop = item.BarTop;
+                    existing.BarShowResizeHandle = item.BarShowResizeHandle;
+                    existing.BarFullWidth = item.BarFullWidth;
+                    existing.BarHideFullscreen = item.BarHideFullscreen;
                     existing.PropertyChanged += Widget_PropertyChanged;
                 }
             }
@@ -1997,6 +2136,12 @@ namespace Palisades.ViewModels
             }
 
             overlay.SpawnGadget(pluginId, gadgetType);
+        }
+
+        /// <summary>Spawns any registered gadget (used by the dynamic New+ widgets menu).</summary>
+        public void SpawnGadget(string pluginId, string gadgetType)
+        {
+            SpawnBuiltInGadget(pluginId, gadgetType);
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

@@ -22,6 +22,7 @@ namespace Palisades.Views.Controls
         private readonly ContainerViewModel _vm = null!;
         private Canvas? _parentCanvas;
         private bool _isDragging;
+        private bool _snapEnabledForDrag = true;
         private Point _dragStartCanvas;
         private double _dragStartLeft;
         private double _dragStartTop;
@@ -432,9 +433,7 @@ namespace Palisades.Views.Controls
             if (Resources["ShortcutsView"] is System.Windows.Data.CollectionViewSource cvs && cvs.View != null)
                 cvs.View.Filter = FilterShortcut;
 
-            // Set initial chevron rotation if visually collapsed on load
-            if (_vm.IsVisuallyCollapsed && ChevronPath?.RenderTransform is RotateTransform rt)
-                rt.Angle = 180;
+            // Chevron angle is data-bound (ChevronAngle); no manual init needed.
 
             // Re-dock after close animation completes (fix position drift)
             _vm.RequestReDock += () =>
@@ -1001,6 +1000,8 @@ namespace Palisades.Views.Controls
         {
             if (_vm.IsLocked || _parentCanvas == null) return;
             _isDragging = true;
+            try { _snapEnabledForDrag = ContainerManager.Instance.LoadDefaults()?.SnapEnabled ?? true; }
+            catch { _snapEnabledForDrag = true; }
             _vm.IsHovered = false;
             if (_vm.IsCurtainMode)
             {
@@ -1045,6 +1046,8 @@ namespace Palisades.Views.Controls
         {
             if (_vm.IsLocked || _parentCanvas == null || _vm.IsAndroidFolderOpen) return;
             _isDragging = true;
+            try { _snapEnabledForDrag = ContainerManager.Instance.LoadDefaults()?.SnapEnabled ?? true; }
+            catch { _snapEnabledForDrag = true; }
             _vm.IsDragging = true;
             _vm.IsHovered = false;
 
@@ -1153,7 +1156,7 @@ namespace Palisades.Views.Controls
                 double snapY = proposedTop;
 
                 bool altPressed = Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.RightAlt);
-                if (altPressed)
+                if (altPressed || !_snapEnabledForDrag)
                 {
                     ClearSnap();
                 }
@@ -2640,6 +2643,21 @@ namespace Palisades.Views.Controls
                     contextMenu.Items.Add(openLocationItem);
                 }
 
+                // Run as administrator
+                if (!string.IsNullOrEmpty(target) && File.Exists(target))
+                {
+                    var runAsItem = new MenuItem { Header = "Run as administrator" };
+                    runAsItem.Click += (_, _) =>
+                    {
+                        try
+                        {
+                            ShellContextMenu.RunAsAdmin(target, item.Arguments, item.WorkingDirectory);
+                        }
+                        catch { }
+                    };
+                    contextMenu.Items.Add(runAsItem);
+                }
+
                 if (!string.IsNullOrEmpty(target))
                 {
                     contextMenu.Items.Add(new Separator());
@@ -3250,8 +3268,43 @@ namespace Palisades.Views.Controls
             [DllImport("dwmapi.dll")]
             private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 
-            public static string? ShowMenu(IntPtr ownerHwnd, string filePath, int x, int y, bool isBackground = false, bool interceptDelete = false)
+            /// <summary>Launches a file elevated (UAC prompt). Works for .exe/.lnk/.bat/etc.</summary>
+            public static void RunAsAdmin(string? targetPath, string? arguments = null, string? workingDir = null)
             {
+                if (string.IsNullOrEmpty(targetPath)) return;
+                try
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = targetPath,
+                        UseShellExecute = true,
+                        Verb = "runas"
+                    };
+                    if (!string.IsNullOrEmpty(arguments))
+                        psi.Arguments = arguments;
+                    if (!string.IsNullOrEmpty(workingDir))
+                        psi.WorkingDirectory = workingDir;
+                    System.Diagnostics.Process.Start(psi);
+                }
+                catch { }
+            }
+
+            public const int SysCmdDisplaySettings = 0x8001;
+            public const int SysCmdPersonalize = 0x8002;
+
+            public static string? ShowMenu(IntPtr ownerHwnd, string filePath, int x, int y, bool isBackground = false, bool interceptDelete = false, string? sysItemDisplay = null, string? sysItemPersonalize = null)
+            {
+                // Clamp the anchor into the monitor work area: near the taskbar (or with
+                // a wrong DPI scale) an off-screen anchor makes Windows cancel the menu
+                // instantly with no click ("disappears immediately").
+                try
+                {
+                    var wa = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(x, y)).WorkingArea;
+                    x = Math.Clamp(x, wa.Left + 2, Math.Max(wa.Left + 2, wa.Right - 48));
+                    y = Math.Clamp(y, wa.Top + 2, Math.Max(wa.Top + 2, wa.Bottom - 48));
+                }
+                catch { }
+
                 // Create a clean HwndSource for COM isolation (GetUIObjectOf).
                 using var source = new HwndSource(new HwndSourceParameters("MenuHost", 0, 0)
                 {
@@ -3310,6 +3363,20 @@ namespace Palisades.Views.Controls
                                 {
                                     ctxMenu.QueryContextMenu(hMenu, 0, 1, 0x7FFF, CMF_NORMAL);
 
+                                    // Optional system items on top (own ID range, no collision
+                                    // with shell ids 1..0x7FFF): Display settings + Personalize.
+                                    uint sysPos = 0;
+                                    if (!string.IsNullOrEmpty(sysItemDisplay))
+                                    {
+                                        InsertMenu(hMenu, sysPos++, MF_BYPOSITION | MF_STRING, (UIntPtr)SysCmdDisplaySettings, sysItemDisplay);
+                                    }
+                                    if (!string.IsNullOrEmpty(sysItemPersonalize))
+                                    {
+                                        InsertMenu(hMenu, sysPos++, MF_BYPOSITION | MF_STRING, (UIntPtr)SysCmdPersonalize, sysItemPersonalize);
+                                    }
+                                    if (sysPos > 0)
+                                        InsertMenu(hMenu, sysPos, MF_BYPOSITION | MF_SEPARATOR, UIntPtr.Zero, null);
+
                                     const uint flags = TPM_RETURNCMD | TPM_RIGHTBUTTON;
 
                                     // Auto-dismiss après 5 secondes
@@ -3349,13 +3416,26 @@ namespace Palisades.Views.Controls
 
                                     if (ownerHwnd != IntPtr.Zero)
                                     {
-                                        SetForegroundWindow(ownerHwnd);
+                                        ForceForeground(ownerHwnd);
                                     }
                                     else
                                     {
-                                        SetForegroundWindow(hwnd);
+                                        ForceForeground(hwnd);
                                     }
                                     int cmd = TrackPopupMenuEx(hMenu, flags, x, y, hwnd, IntPtr.Zero);
+                                    if (cmd == SysCmdDisplaySettings || cmd == SysCmdPersonalize)
+                                    {
+                                        try
+                                        {
+                                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                                            {
+                                                FileName = cmd == SysCmdDisplaySettings ? "ms-settings:display" : "ms-settings:personalization",
+                                                UseShellExecute = true
+                                            });
+                                        }
+                                        catch { }
+                                        return null;
+                                    }
                                     if (ownerHwnd != IntPtr.Zero)
                                     {
                                         PostMessage(ownerHwnd, 0x0000, IntPtr.Zero, IntPtr.Zero);
@@ -3480,7 +3560,10 @@ namespace Palisades.Views.Controls
                 if (nCode >= 0)
                 {
                     uint msg = (uint)wParam;
-                    if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN)
+                    // Only LEFT-down outside the menu dismisses it. Right-down is left
+                    // to Windows' own menu handling: swallowing it here could kill the
+                    // menu on its opening click (instant dismiss on some machines).
+                    if (msg == WM_LBUTTONDOWN)
                     {
                         var hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                         var pt = new POINT { X = hookStruct.pt.X, Y = hookStruct.pt.Y };
@@ -3503,6 +3586,12 @@ namespace Palisades.Views.Controls
             private const uint CMF_NORMAL = 0x00000000;
             private const uint TPM_RETURNCMD = 0x0100;
             private const uint TPM_RIGHTBUTTON = 0x0002;
+            private const uint MF_BYPOSITION = 0x0400;
+            private const uint MF_STRING = 0x0000;
+            private const uint MF_SEPARATOR = 0x0800;
+
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+            private static extern bool InsertMenu(IntPtr hMenu, uint uPosition, uint uFlags, UIntPtr uIDNewItem, string? lpNewItem);
             private const uint CMIC_MASK_UNICODE = 0x00004000;
             private const int SW_SHOWNORMAL = 1;
 
@@ -3523,6 +3612,41 @@ namespace Palisades.Views.Controls
 
             [DllImport("user32.dll")]
             private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+            // DIAG-INSTANT-DISMISS (temporary)
+            [DllImport("user32.dll")]
+            private static extern IntPtr GetForegroundWindow();
+
+            [DllImport("user32.dll")]
+            private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+            [DllImport("user32.dll")]
+            private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+            /// <summary>Deterministic foreground steal (same trick as overlay rename):
+            /// attach to the foreground thread, then SetForegroundWindow cannot fail
+            /// silently (which otherwise kills the menu in ~18ms).</summary>
+            private static void ForceForeground(IntPtr hwnd)
+            {
+                try
+                {
+                    if (hwnd == IntPtr.Zero) return;
+                    IntPtr fg = GetForegroundWindow();
+                    if (fg == hwnd)
+                    {
+                        SetForegroundWindow(hwnd);
+                        return;
+                    }
+                    uint fgThread = GetWindowThreadProcessId(fg, out _);
+                    uint myThread = GetWindowThreadProcessId(hwnd, out _);
+                    if (fgThread != 0 && fgThread != myThread)
+                        AttachThreadInput(myThread, fgThread, true);
+                    SetForegroundWindow(hwnd);
+                    if (fgThread != 0 && fgThread != myThread)
+                        AttachThreadInput(myThread, fgThread, false);
+                }
+                catch { }
+            }
 
             [DllImport("user32.dll")]
             private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);

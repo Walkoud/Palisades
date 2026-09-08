@@ -71,6 +71,8 @@ namespace Palisades.Plugins
         private bool _showCover = true;
         private string _accentColor = "#FF7DD3FC";
         private string _buttonsColor = "#A0FFFFFF";
+        private string _textColor = "#FFF0F0F0";
+        private bool _darkMode;
 
         // When set, the view ignores automatic selection and pins to this source.
         private GlobalSystemMediaTransportControlsSession? _forcedSession;
@@ -86,7 +88,9 @@ namespace Palisades.Plugins
             public bool ShowCover { get; set; } = true;
             public string AccentColor { get; set; } = "#FF7DD3FC";
             public string ButtonsColor { get; set; } = "#A0FFFFFF";
+            public string TextColor { get; set; } = "#FFF0F0F0";
             public string ForcedSourceAppId { get; set; } = "";
+            public bool DarkMode { get; set; }
         }
 
         public NowPlayingView()
@@ -133,24 +137,21 @@ namespace Palisades.Plugins
                 Text = "No media playing",
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(Color.FromRgb(0xF0, 0xF0, 0xF0)),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 260
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
 
             _artistLabel = new TextBlock
             {
                 Text = "",
                 Foreground = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF)),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 260
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
 
             _appLabel = new TextBlock
             {
                 Text = "",
                 Foreground = new SolidColorBrush(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF)),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 260
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
 
             // Transport controls
@@ -299,7 +300,7 @@ namespace Palisades.Plugins
             _appLabel.Margin = new Thickness(0, 2, 0, 0);
             _appLabel.FontSize = 9;
 
-            var rootGrid = new Grid();
+            var rootGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -349,7 +350,7 @@ namespace Palisades.Plugins
             _appLabel.Margin = new Thickness(0, 1, 0, 0);
             _appLabel.FontSize = 8;
 
-            var rootGrid = new Grid { Margin = new Thickness(8, 6, 8, 6) };
+            var rootGrid = new Grid { Margin = new Thickness(8, 6, 8, 6), VerticalAlignment = VerticalAlignment.Center };
             rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -390,7 +391,7 @@ namespace Palisades.Plugins
             _appLabel.FontSize = 10;
             _appLabel.Margin = new Thickness(0, 3, 0, 0);
 
-            var rootGrid = new Grid();
+            var rootGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -448,7 +449,7 @@ namespace Palisades.Plugins
             _positionLabel.Visibility = Visibility.Collapsed;
             _durationLabel.Visibility = Visibility.Collapsed;
 
-            var rootGrid = new Grid();
+            var rootGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -502,7 +503,7 @@ namespace Palisades.Plugins
             _positionLabel.Visibility = Visibility.Collapsed;
             _durationLabel.Visibility = Visibility.Collapsed;
 
-            var rootGrid = new Grid();
+            var rootGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -584,6 +585,43 @@ namespace Palisades.Plugins
         {
             bool showApp = _showAppLabel && !string.IsNullOrEmpty(_appLabel.Text) && _layout != "TaskbarSlim";
             _appLabel.Visibility = showApp ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        /// <summary>Text color: title full, artist/app dimmed (hierarchy kept).</summary>
+        private void ApplyTextColors()
+        {
+            try
+            {
+                Color c = ParseColor(_textColor, Color.FromRgb(0xF0, 0xF0, 0xF0));
+                _titleLabel.Foreground = new SolidColorBrush(c);
+                _artistLabel.Foreground = new SolidColorBrush(Color.FromArgb((byte)(c.A / 2), c.R, c.G, c.B));
+                _appLabel.Foreground = new SolidColorBrush(Color.FromArgb((byte)(c.A * 80 / 255), c.R, c.G, c.B));
+                _positionLabel.Foreground = new SolidColorBrush(Color.FromArgb((byte)(c.A * 96 / 255), c.R, c.G, c.B));
+                _durationLabel.Foreground = new SolidColorBrush(Color.FromArgb((byte)(c.A * 96 / 255), c.R, c.G, c.B));
+            }
+            catch { }
+        }
+
+        /// <summary>Dark mode: near-black pill behind everything so light texts
+        /// stay readable on white wallpapers.</summary>
+        private void ApplyDarkMode()
+        {
+            try
+            {
+                if (_darkMode)
+                {
+                    _outerBorder.Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x14, 0x14, 0x14));
+                    _outerBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
+                    _outerBorder.BorderThickness = new Thickness(1);
+                }
+                else
+                {
+                    _outerBorder.Background = Brushes.Transparent;
+                    _outerBorder.BorderBrush = Brushes.Transparent;
+                    _outerBorder.BorderThickness = new Thickness(0);
+                }
+            }
+            catch { }
         }
 
         private static Color ParseColor(string? s, Color fallback)
@@ -1221,10 +1259,14 @@ namespace Palisades.Plugins
                 _showCover = settings.ShowCover;
                 _accentColor = string.IsNullOrEmpty(settings.AccentColor) ? "#FF7DD3FC" : settings.AccentColor;
                 _buttonsColor = string.IsNullOrEmpty(settings.ButtonsColor) ? "#A0FFFFFF" : settings.ButtonsColor;
+                _textColor = string.IsNullOrEmpty(settings.TextColor) ? "#FFF0F0F0" : settings.TextColor;
                 _forcedSourceAppId = settings.ForcedSourceAppId ?? "";
+                _darkMode = settings.DarkMode;
 
                 RebuildLayout();
                 ApplyAccentColors();
+                ApplyTextColors();
+                ApplyDarkMode();
                 if (_smtcManager != null)
                     ResolveActiveSession();
             }

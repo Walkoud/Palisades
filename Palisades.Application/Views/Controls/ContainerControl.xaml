@@ -555,34 +555,8 @@
                                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                           RenderTransformOrigin="0.5,0.5">
                                         <Path.RenderTransform>
-                                            <RotateTransform Angle="0" />
+                                            <RotateTransform Angle="{Binding ChevronAngle}" />
                                         </Path.RenderTransform>
-                                        <Path.Style>
-                                            <Style TargetType="Path">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsVisuallyCollapsed}" Value="True">
-                                                        <DataTrigger.EnterActions>
-                                                            <BeginStoryboard>
-                                                                <Storyboard>
-                                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
-                                                                                     To="180" Duration="0:0:0.3"
-                                                                                     DecelerationRatio="0.2" />
-                                                                </Storyboard>
-                                                            </BeginStoryboard>
-                                                        </DataTrigger.EnterActions>
-                                                        <DataTrigger.ExitActions>
-                                                            <BeginStoryboard>
-                                                                <Storyboard>
-                                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Angle"
-                                                                                     To="0" Duration="0:0:0.3"
-                                                                                     DecelerationRatio="0.2" />
-                                                                </Storyboard>
-                                                            </BeginStoryboard>
-                                                        </DataTrigger.ExitActions>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Path.Style>
                                     </Path>
                                 </Grid>
                             </Viewbox>
@@ -1306,7 +1280,7 @@
                                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                               RenderTransformOrigin="0.5,0.5">
                                             <Path.RenderTransform>
-                                                <RotateTransform Angle="0" />
+                                                <RotateTransform Angle="{Binding ChevronAngle}" />
                                             </Path.RenderTransform>
                                         </Path>
                                     </Grid>

@@ -18,7 +18,7 @@ namespace Palisades.Views.Controls
         private double _startLeft, _startTop, _startW, _startH;
         private bool _isDragging, _isResizing;
 
-        private static readonly string[] NoteColors = { "#FFFDE272", "#FFA8D8A8", "#FF8FC5E9", "#FFFFB3BA" };
+        private static readonly string[] NoteColors = { "#FFFDE272", "#FFA8D8A8", "#FF8FC5E9", "#FFFFB3BA", "#FF2B2B2B", "#FF1E3A5F", "#FF3A1E5F", "#FF1E4A3A" };
         private int _colorIndex;
 
         public NoteItem Note { get; }
@@ -28,6 +28,8 @@ namespace Palisades.Views.Controls
             InitializeComponent();
             Note = note;
             DataContext = note;
+            int existing = Array.IndexOf(NoteColors, note.Color);
+            _colorIndex = existing >= 0 ? existing : 0;
             SetBackground(note.Color);
             ContentBox.FontSize = note.FontSize;
         }
@@ -38,6 +40,12 @@ namespace Palisades.Views.Controls
             {
                 var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString(hex);
                 MainBorder.Background = new SolidColorBrush(color);
+                // Dark mode: light text on dark backgrounds, dark text on light ones.
+                double luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255.0;
+                var fg = new SolidColorBrush(luminance < 0.45 ? Colors.White : Colors.Black);
+                TitleBlock.Foreground = fg;
+                TitleEditBox.Foreground = fg;
+                ContentBox.Foreground = fg;
             }
             catch
             {

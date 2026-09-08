@@ -159,6 +159,7 @@ namespace Palisades.ViewModels
                 _model.AutoHide = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsVisuallyCollapsed));
+                OnPropertyChanged(nameof(ChevronAngle));
                 Save();
                 if (value)
                 {
@@ -212,7 +213,41 @@ namespace Palisades.ViewModels
         public Visibility ShowTitleVisibility => _model.ShowTitle ? Visibility.Visible : Visibility.Collapsed;
 
         /// <summary>True when the container is visually collapsed (auto-hide enabled AND not hovered).</summary>
-        public bool IsVisuallyCollapsed => !_isHovered && (AutoHide || (_model.IsCurtainMode && CurtainDirection == "BottomToTop"));
+        public bool IsVisuallyCollapsed => !_isHovered && !IsCurtainPinned && (AutoHide || (_model.IsCurtainMode && CurtainDirection == "BottomToTop"));
+
+        /// <summary>Curtain stays open without hover when pinned (chevron). Persisted.</summary>
+        public bool IsCurtainPinned
+        {
+            get => _model.IsCurtainPinned;
+            set
+            {
+                if (_model.IsCurtainPinned == value) return;
+                _model.IsCurtainPinned = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsVisuallyCollapsed));
+                OnPropertyChanged(nameof(ChevronAngle));
+                Save();
+                if (_model.IsCurtainMode)
+                    SetCurtainOpen(value || _isHovered);
+            }
+        }
+
+        /// <summary>Chevron angle: down/up normally; follows open direction in curtain mode.</summary>
+        public double ChevronAngle
+        {
+            get
+            {
+                if (!_model.IsCurtainMode)
+                    return IsVisuallyCollapsed ? 180 : 0;
+                bool open = _isHovered || _model.IsCurtainPinned;
+                return CurtainDirection switch
+                {
+                    "LeftToRight" => open ? 90 : -90,
+                    "RightToLeft" => open ? -90 : 90,
+                    _ => open ? 0 : 180, // BottomToTop
+                };
+            }
+        }
 
         public string HeaderText
         {
@@ -852,6 +887,7 @@ namespace Palisades.ViewModels
                 _model.IsCurtainMode = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsNormalContainer));
+                OnPropertyChanged(nameof(ChevronAngle));
                 if (value)
                 {
                     _suppressSave = true;
@@ -964,6 +1000,7 @@ namespace Palisades.ViewModels
                 _model.CurtainDirection = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsCurtainInverted));
+                OnPropertyChanged(nameof(ChevronAngle));
                 Save();
             }
         }
@@ -977,6 +1014,7 @@ namespace Palisades.ViewModels
             OnPropertyChanged(nameof(CurtainDirection));
             OnPropertyChanged(nameof(IsCurtainInverted));
             OnPropertyChanged(nameof(IsNormalContainer));
+            OnPropertyChanged(nameof(ChevronAngle));
         }
 
         public event Action? RequestDockCurtain;
@@ -1039,6 +1077,7 @@ namespace Palisades.ViewModels
                 _isHovered = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsVisuallyCollapsed));
+                OnPropertyChanged(nameof(ChevronAngle));
 
                 // Opacity transition: fade to active when hovered, idle when not
                 double targetOpacity = value ? ActiveTargetOpacity : IdleTargetOpacity;
@@ -1051,33 +1090,11 @@ namespace Palisades.ViewModels
                     if (value)
                     {
                         _autoHideTimer?.Stop();
-                        if (!IsDragging)
-                        {
-                            if (CurtainDirection == "BottomToTop")
-                            {
-                                double targetH = CurtainClosedHeight + _model.CurtainOpenHeight;
-                                StartHeightAnimation(targetH, ShowDurMs);
-                            }
-                            else
-                            {
-                                double targetW = CurtainStripWidth + _model.CurtainOpenWidth;
-                                StartWidthAnimation(targetW, ShowDurMs);
-                            }
-                        }
+                        SetCurtainOpen(true);
                     }
-                    else
+                    else if (!IsCurtainPinned)
                     {
-                        if (!IsDragging)
-                        {
-                            if (CurtainDirection == "BottomToTop")
-                            {
-                                StartHeightAnimation(CurtainClosedHeight, HideDurMs);
-                            }
-                            else
-                            {
-                                StartWidthAnimation(CurtainStripWidth, HideDurMs);
-                            }
-                        }
+                        SetCurtainOpen(false);
                     }
                 }
                 else if (_model.AutoHide)
@@ -1097,6 +1114,35 @@ namespace Palisades.ViewModels
                             StartHeightAnimation(CollapsedHeight, HideDurMs);
                         }
                     }
+                }
+            }
+        }
+
+        private void SetCurtainOpen(bool open)
+        {
+            if (IsDragging) return;
+            if (CurtainDirection == "BottomToTop")
+            {
+                if (open)
+                {
+                    double targetH = CurtainClosedHeight + _model.CurtainOpenHeight;
+                    StartHeightAnimation(targetH, ShowDurMs);
+                }
+                else
+                {
+                    StartHeightAnimation(CurtainClosedHeight, HideDurMs);
+                }
+            }
+            else
+            {
+                if (open)
+                {
+                    double targetW = CurtainStripWidth + _model.CurtainOpenWidth;
+                    StartWidthAnimation(targetW, ShowDurMs);
+                }
+                else
+                {
+                    StartWidthAnimation(CurtainStripWidth, HideDurMs);
                 }
             }
         }
@@ -1565,6 +1611,12 @@ namespace Palisades.ViewModels
 
             ToggleCollapseCommand = new RelayCommand(() =>
             {
+                if (_model.IsCurtainMode)
+                {
+                    // Curtain: chevron pins the panel open instead of fighting it with AutoHide.
+                    IsCurtainPinned = !IsCurtainPinned;
+                    return;
+                }
                 if (_model.AutoHide)
                 {
                     AutoHide = false;

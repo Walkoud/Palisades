@@ -480,6 +480,17 @@ namespace Palisades.Views
                         RenameIconInline(rp);
                 };
                 menu.Items.Add(renameItem);
+
+                string runTarget = !string.IsNullOrEmpty(hit.ShortcutPath) ? hit.ShortcutPath : hit.TargetPath;
+                if (!string.IsNullOrEmpty(runTarget) && File.Exists(runTarget))
+                {
+                    var runAsItem = new MenuItem { Header = "Run as administrator" };
+                    runAsItem.Click += (_, _) =>
+                    {
+                        ContainerControl.ShellContextMenu.RunAsAdmin(runTarget, hit.Arguments, hit.WorkingDirectory);
+                    };
+                    menu.Items.Add(runAsItem);
+                }
             }
 
             var copyItem = new MenuItem { Header = "Copy" };
@@ -998,6 +1009,23 @@ namespace Palisades.Views
                             return (IntPtr)1;
 
                         case WM_MOUSEMOVE:
+                            // Authoritative hover sync: WPF MouseLeave can miss when the
+                            // pointer moves onto a gadget/note (stuck 100% opacity).
+                            // Clearing here is self-healing (same-value sets are no-ops);
+                            // setting hover=true stays with WPF enter events.
+                            if (!_isContainerDrag && !_isDragging && !_isRectSelecting && !_isAndroidIconDrag)
+                            {
+                                bool overGadgetNow = onOverlay && IsOverGadget(canvasPt);
+                                bool overNoteNow = onOverlay && IsOverNote(canvasPt);
+                                if (!onOverlay || overGadgetNow || overNoteNow)
+                                {
+                                    foreach (var kvp in _containerControls)
+                                    {
+                                        if (kvp.Value.DataContext is ContainerViewModel hvm && hvm.IsHovered)
+                                            hvm.IsHovered = false;
+                                    }
+                                }
+                            }
                             if (_isContainerDrag || _isDragging || _isAndroidIconDrag)
                             {
                                 ContainerControl? activeCtrl = null;
@@ -1520,18 +1548,38 @@ private bool RouteClipboardCopy(Key key)
 
                 double screenX = (Left + canvasPt.X) * _dpiScaleX;
                 double screenY = (Top + canvasPt.Y) * _dpiScaleY;
+                // Never run the blocking TrackPopupMenuEx inside the low-level hook
+                // callback: Windows kills LL hooks after ~300ms (LowLevelHooksTimeout)
+                // and tears the menu down (~260ms instant-dismiss). Defer past return,
+                // swallow input meanwhile via _isContextMenuOpen.
                 _isContextMenuOpen = true;
-                ContainerControl.ShellContextMenu.ShowMenu(
-                    _overlayHwnd, menuPath, (int)screenX, (int)screenY);
-                _isContextMenuOpen = false;
-                ContainerManager.Instance.SyncDeletedShortcuts();
-                ContainerManager.Instance.RefreshUnassignedShortcuts();
+                int msx = (int)screenX;
+                int msy = (int)screenY;
+                string mpath = menuPath;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        ContainerControl.ShellContextMenu.ShowMenu(
+                            _overlayHwnd, mpath, msx, msy);
+                    }
+                    finally
+                    {
+                        _isContextMenuOpen = false;
+                        ContainerManager.Instance.SyncDeletedShortcuts();
+                        ContainerManager.Instance.RefreshUnassignedShortcuts();
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Normal);
                 return;
             }
 
             ClearOverlayIconSelection();
             ClearAllContainerSelections();
-            ShowDesktopContextMenu(canvasPt);
+            bool onlyShellEmpty = _mainViewModel != null && _mainViewModel.OnlyShellContextMenu;
+            if (onlyShellEmpty)
+                ShowDesktopShellMenu(canvasPt);
+            else
+                ShowDesktopContextMenu(canvasPt);
         }
 
         private void HandleDragMove(Point canvasPt)
@@ -1970,7 +2018,13 @@ private bool RouteClipboardCopy(Key key)
                     existing.HeaderBorderColor = item.HeaderBorderColor;
                     existing.TitleColor = item.TitleColor;
                     existing.TitleFontSize = item.TitleFontSize;
+                    existing.IsLocked = item.IsLocked;
                     existing.DockToTaskbar = item.DockToTaskbar;
+                    existing.BarLeft = item.BarLeft;
+                    existing.BarTop = item.BarTop;
+                    existing.BarShowResizeHandle = item.BarShowResizeHandle;
+                    existing.BarFullWidth = item.BarFullWidth;
+                    existing.BarHideFullscreen = item.BarHideFullscreen;
 
                     if (wrapper.Width != item.Width) wrapper.Width = item.Width;
                     if (wrapper.Height != item.Height) wrapper.Height = item.Height;
@@ -2072,7 +2126,7 @@ private bool RouteClipboardCopy(Key key)
             }
         }
 
-        public void SpawnGadget(string pluginId, string gadgetType)
+        public void SpawnGadget(string pluginId, string gadgetType, double? centerX = null, double? centerY = null)
         {
             var gadgetReg = PluginService.Instance.Plugins
                 .Where(p => p.Plugin.Id == pluginId && p.IsEnabled && p.Context != null)
@@ -2088,8 +2142,8 @@ private bool RouteClipboardCopy(Key key)
                 Title = gadgetReg.Name,
                 Width = gadgetReg.DefaultWidth,
                 Height = gadgetReg.DefaultHeight,
-                X = 200,
-                Y = 200
+                X = centerX.HasValue ? Math.Max(0, centerX.Value - gadgetReg.DefaultWidth / 2) : 200,
+                Y = centerY.HasValue ? Math.Max(0, centerY.Value - gadgetReg.DefaultHeight / 2) : 200
             };
 
             var list = PluginService.Instance.LoadGadgets();
@@ -2660,6 +2714,57 @@ private bool RouteClipboardCopy(Key key)
 
         private void ShowDesktopContextMenu(Point canvasPt)
         {
+            var tr = Palisades.Services.TranslationService.Instance;
+            var menu = new ContextMenu();
+            menu.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
+            menu.Foreground = new SolidColorBrush(Color.FromRgb(0xEE, 0xEE, 0xEE));
+            menu.BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
+            menu.BorderThickness = new Thickness(1);
+
+            var displayItem = new MenuItem { Header = tr["DesktopCtx_DisplaySettings"] };
+            displayItem.Click += (_, _) =>
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "ms-settings:display",
+                        UseShellExecute = true
+                    });
+                }
+                catch { }
+            };
+            menu.Items.Add(displayItem);
+
+            var personalItem = new MenuItem { Header = tr["DesktopCtx_Personalize"] };
+            personalItem.Click += (_, _) =>
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "ms-settings:personalization",
+                        UseShellExecute = true
+                    });
+                }
+                catch { }
+            };
+            menu.Items.Add(personalItem);
+
+            menu.Items.Add(new Separator());
+
+            var moreItem = new MenuItem { Header = tr["DesktopCtx_MoreShellOptions"] };
+            moreItem.Click += (_, _) => ShowDesktopShellMenu(canvasPt);
+            menu.Items.Add(moreItem);
+
+            _isContextMenuOpen = true;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            menu.Closed += (_, _) => _isContextMenuOpen = false;
+            menu.IsOpen = true;
+        }
+
+        private void ShowDesktopShellMenu(Point canvasPt)
+        {
             double sx = (Left + canvasPt.X) * _dpiScaleX;
             double sy = (Top + canvasPt.Y) * _dpiScaleY;
             _isContextMenuOpen = true;
@@ -2670,7 +2775,9 @@ private bool RouteClipboardCopy(Key key)
                 : Array.Empty<string>();
 
             ContainerControl.ShellContextMenu.ShowMenu(
-                _overlayHwnd, desktopPath, (int)sx, (int)sy, true);
+                _overlayHwnd, desktopPath, (int)sx, (int)sy, true, false,
+                Palisades.Services.TranslationService.Instance["DesktopCtx_DisplaySettings"],
+                Palisades.Services.TranslationService.Instance["DesktopCtx_Personalize"]);
             _isContextMenuOpen = false;
 
             var filesAfter = Directory.Exists(desktopPath)
@@ -4960,6 +5067,38 @@ private bool RouteClipboardCopy(Key key)
                 CancelDrawMenu();
             };
             stack.Children.Add(btnAndroid);
+
+            var btnWidget = new Button { Content = "Widget ▸", Style = btnStyle };
+            btnWidget.Click += (s, e) =>
+            {
+                // Second step: pick a widget. Enumerated live from PluginService so
+                // newly registered gadgets appear here with no code change.
+                stack.Children.Clear();
+                var btnBack = new Button { Content = "← Back", Style = btnStyle };
+                btnBack.Click += (s2, e2) =>
+                {
+                    CancelDrawMenu();
+                    ShowDrawToCreateMenu(rx, ry, rw, rh, mousePos);
+                };
+                stack.Children.Add(btnBack);
+                foreach (var plugin in PluginService.Instance.Plugins.Where(p => p.IsEnabled && p.Context != null))
+                {
+                    foreach (var gadget in plugin.Context.Gadgets)
+                    {
+                        string pid = plugin.Plugin.Id;
+                        string gtype = gadget.GadgetType;
+                        string gname = gadget.Name;
+                        var btnGadget = new Button { Content = gname, Style = btnStyle };
+                        btnGadget.Click += (s2, e2) =>
+                        {
+                            SpawnGadget(pid, gtype, mousePos.X, mousePos.Y);
+                            CancelDrawMenu();
+                        };
+                        stack.Children.Add(btnGadget);
+                    }
+                }
+            };
+            stack.Children.Add(btnWidget);
 
             _drawMenuPopup.Child = stack;
 
