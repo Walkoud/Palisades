@@ -153,6 +153,26 @@ namespace Palisades.ViewModels
             }
         }
 
+        public string WidgetScrollbarMode
+        {
+            get => Services.WidgetChrome.ScrollbarMode;
+            set
+            {
+                Services.WidgetChrome.ScrollbarMode = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool WidgetHeaderOnHover
+        {
+            get => Services.WidgetChrome.HeaderOnHover;
+            set
+            {
+                Services.WidgetChrome.HeaderOnHover = value;
+                OnPropertyChanged();
+            }
+        }
+
         public bool SnapEnabled
         {
             get => DefaultModel.SnapEnabled;
@@ -524,9 +544,12 @@ namespace Palisades.ViewModels
             set
             {
                 var culture = value == 1 ? "fr" : "en";
+                if (culture == TranslationService.Instance.CurrentCulture) return;
                 TranslationService.Instance.SetLanguage(culture);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ToggleIconsText));
+                // Gadget views cache their labels: full restart applies the language everywhere.
+                if (Application.Current is App app) app.RestartApplication();
             }
         }
 
@@ -663,6 +686,8 @@ namespace Palisades.ViewModels
                 OnPropertyChanged(nameof(SelectedWidgetIsSystemMonitor));
                 OnPropertyChanged(nameof(SelectedWidgetIsNowPlaying));
                 OnPropertyChanged(nameof(SelectedWidgetIsPostIt));
+                OnPropertyChanged(nameof(SelectedWidgetIsFootball));
+                OnPropertyChanged(nameof(SelectedWidgetIsRadio));
                 OnPropertyChanged(nameof(SelectedWidgetPinned));
                 RefreshSelectedWidgetSettings();
             }
@@ -683,6 +708,8 @@ namespace Palisades.ViewModels
         public bool SelectedWidgetIsSystemMonitor => SelectedWidget != null && SelectedWidget.GadgetType.Equals("SystemMonitor", StringComparison.OrdinalIgnoreCase);
         public bool SelectedWidgetIsNowPlaying => SelectedWidget != null && SelectedWidget.GadgetType.Equals("NowPlaying", StringComparison.OrdinalIgnoreCase);
         public bool SelectedWidgetIsPostIt => SelectedWidget != null && SelectedWidget.GadgetType.Equals("PostIt", StringComparison.OrdinalIgnoreCase);
+        public bool SelectedWidgetIsFootball => SelectedWidget != null && SelectedWidget.GadgetType.Equals("Football", StringComparison.OrdinalIgnoreCase);
+        public bool SelectedWidgetIsRadio => SelectedWidget != null && SelectedWidget.GadgetType.Equals("Radio", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>Pin selected Now Playing widget to the taskbar (dashboard entry point).</summary>
         public bool SelectedWidgetPinned
@@ -1039,6 +1066,275 @@ namespace Palisades.ViewModels
             }
         }
 
+        public class FootballFavTeam
+        {
+            public string Id { get; set; } = "";
+            public string Name { get; set; } = "";
+            public string Kind { get; set; } = "team";
+        }
+
+        public class FootballSettings
+        {
+            public List<string> Leagues { get; set; } = new List<string> { "eng.1", "esp.1", "ita.1", "ger.1", "fra.1" };
+            public List<FootballFavTeam> Teams { get; set; } = new List<FootballFavTeam>();
+            public int RefreshMinutes { get; set; } = 2;
+            public int MaxMatches { get; set; } = 8;
+            public bool ShowCrests { get; set; } = true;
+            public int FinishedHours { get; set; } = 2;
+            public string FinishedPosition { get; set; } = "bottom";
+            public string FinishedTextColor { get; set; } = "";
+            public bool ShowFinishedHeader { get; set; } = false;
+            public bool ShowFinishedDates { get; set; } = false;
+            public string CardTheme { get; set; } = "classic";
+            public string DateFormat { get; set; } = "text";
+            public double CardScale { get; set; } = 1.0;
+            public string MatchClickAction { get; set; } = "details";
+            public bool ShowLiveOnDiscord { get; set; } = false;
+        }
+
+        public class FootballLeagueOption : System.ComponentModel.INotifyPropertyChanged
+        {
+            public string Code { get; set; } = "";
+            public string Name { get; set; } = "";
+            private bool _selected;
+            public bool Selected
+            {
+                get => _selected;
+                set
+                {
+                    if (_selected == value) return;
+                    _selected = value;
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Selected)));
+                    OnSelectedChanged?.Invoke();
+                }
+            }
+            public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+            public event Action? OnSelectedChanged;
+        }
+
+        public System.Collections.ObjectModel.ObservableCollection<FootballLeagueOption> FootballLeagueOptions { get; }
+            = new System.Collections.ObjectModel.ObservableCollection<FootballLeagueOption>();
+
+        public System.Collections.ObjectModel.ObservableCollection<FootballFavTeam> FootballFavTeams { get; }
+            = new System.Collections.ObjectModel.ObservableCollection<FootballFavTeam>();
+
+        public System.Windows.Input.ICommand FootballRemoveFavTeamCommand { get; private set; } = null!;
+
+        private int _footballRefreshMinutes = 2;
+        public int FootballRefreshMinutes
+        {
+            get => _footballRefreshMinutes;
+            set
+            {
+                _footballRefreshMinutes = Math.Clamp(value, 1, 60);
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private int _footballMaxMatches = 8;
+        public int FootballMaxMatches
+        {
+            get => _footballMaxMatches;
+            set
+            {
+                _footballMaxMatches = Math.Clamp(value, 1, 50);
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _footballShowCrests = true;
+        public bool FootballShowCrests
+        {
+            get => _footballShowCrests;
+            set
+            {
+                _footballShowCrests = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private int _footballFinishedHours = 2;
+        public int FootballFinishedHours
+        {
+            get => _footballFinishedHours;
+            set
+            {
+                _footballFinishedHours = Math.Clamp(value, 0, 720);
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private string _footballFinishedPosition = "bottom";
+        public string FootballFinishedPosition
+        {
+            get => _footballFinishedPosition;
+            set
+            {
+                _footballFinishedPosition = value == "top" ? "top" : "bottom";
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private string _footballFinishedTextColor = "";
+        public string FootballFinishedTextColor
+        {
+            get => _footballFinishedTextColor;
+            set
+            {
+                _footballFinishedTextColor = value ?? "";
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _footballShowFinishedHeader;
+        public bool FootballShowFinishedHeader
+        {
+            get => _footballShowFinishedHeader;
+            set
+            {
+                _footballShowFinishedHeader = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _footballShowFinishedDates;
+        public bool FootballShowFinishedDates
+        {
+            get => _footballShowFinishedDates;
+            set
+            {
+                _footballShowFinishedDates = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private string _footballCardTheme = "classic";
+        public string FootballCardTheme
+        {
+            get => _footballCardTheme;
+            set
+            {
+                _footballCardTheme = value == "dark" ? "dark" : "classic";
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FootballCardSizeVisible));
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        public bool FootballCardSizeVisible => _footballCardTheme == "dark";
+
+        private string _footballDateFormat = "text";
+        public string FootballDateFormat
+        {
+            get => _footballDateFormat;
+            set
+            {
+                string f = (value ?? "").ToLowerInvariant();
+                _footballDateFormat = (f == "numeric" || f == "daynumeric") ? f : "text";
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private double _footballCardScale = 1.0;
+        public double FootballCardScale
+        {
+            get => _footballCardScale;
+            set
+            {
+                _footballCardScale = Math.Clamp(value <= 0 ? 1.0 : value, 0.5, 1.5);
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private double _radioVolume = 0.8;
+        public double RadioVolume
+        {
+            get => _radioVolume;
+            set
+            {
+                _radioVolume = Math.Clamp(value, 0, 1);
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _radioShowInNowPlaying = true;
+        public bool RadioShowInNowPlaying
+        {
+            get => _radioShowInNowPlaying;
+            set
+            {
+                _radioShowInNowPlaying = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _radioShowOnDiscord = true;
+        public bool RadioShowOnDiscord
+        {
+            get => _radioShowOnDiscord;
+            set
+            {
+                _radioShowOnDiscord = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private string _footballMatchClickAction = "details";
+        public string FootballMatchClickAction
+        {
+            get => _footballMatchClickAction;
+            set
+            {
+                _footballMatchClickAction = value == "google" ? "google" : "details";
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private bool _footballShowLiveOnDiscord;
+        public bool FootballShowLiveOnDiscord
+        {
+            get => _footballShowLiveOnDiscord;
+            set
+            {
+                _footballShowLiveOnDiscord = value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private void RefreshFootballLeagueOptions(List<string> selectedSlugs)
+        {
+            var selected = new HashSet<string>(selectedSlugs ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            FootballLeagueOptions.Clear();
+            foreach (var known in Services.EspnService.CuratedLeagues)
+            {
+                var opt = new FootballLeagueOption { Code = known.Slug, Name = known.Name, Selected = selected.Contains(known.Slug) };
+                opt.OnSelectedChanged += SaveFootballLeagues;
+                FootballLeagueOptions.Add(opt);
+            }
+        }
+
+        private void SaveFootballLeagues()
+        {
+            if (_isRefreshingSettings) return;
+            SaveSelectedWidgetCustomData();
+        }
+
+
         private void RefreshSelectedWidgetSettings()
         {
             if (SelectedWidget == null) return;
@@ -1120,6 +1416,55 @@ namespace Palisades.ViewModels
                 }
                 catch { _isRefreshingSettings = false; }
             }
+            else if (SelectedWidgetIsFootball)
+            {
+                try
+                {
+                    var settings = new FootballSettings();
+                    if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                    {
+                        settings = Newtonsoft.Json.JsonConvert.DeserializeObject<FootballSettings>(SelectedWidget.CustomData) ?? new FootballSettings();
+                    }
+                    _isRefreshingSettings = true;
+                    FootballRefreshMinutes = settings.RefreshMinutes <= 0 ? 2 : settings.RefreshMinutes;
+                    FootballMaxMatches = settings.MaxMatches <= 0 ? 8 : settings.MaxMatches;
+                    FootballShowCrests = settings.ShowCrests;
+                    FootballFinishedHours = settings.FinishedHours < 0 ? 2 : settings.FinishedHours;
+                    FootballFinishedPosition = (settings.FinishedPosition ?? "").ToLowerInvariant() == "top" ? "top" : "bottom";
+                    FootballFinishedTextColor = settings.FinishedTextColor ?? "";
+                    FootballShowFinishedHeader = settings.ShowFinishedHeader;
+                    FootballShowFinishedDates = settings.ShowFinishedDates;
+                    FootballCardTheme = (settings.CardTheme ?? "").ToLowerInvariant() == "dark" ? "dark" : "classic";
+                    string df = (settings.DateFormat ?? "").ToLowerInvariant();
+                    FootballDateFormat = (df == "numeric" || df == "daynumeric") ? df : "text";
+                    FootballCardScale = settings.CardScale <= 0 ? 1.0 : settings.CardScale;
+                    FootballMatchClickAction = (settings.MatchClickAction ?? "").ToLowerInvariant() == "google" ? "google" : "details";
+                    FootballShowLiveOnDiscord = settings.ShowLiveOnDiscord;
+                    RefreshFootballLeagueOptions(settings.Leagues ?? new List<string>());
+                    FootballFavTeams.Clear();
+                    foreach (var t in settings.Teams ?? new List<FootballFavTeam>())
+                        FootballFavTeams.Add(new FootballFavTeam { Id = t.Id, Name = t.Name ?? "", Kind = string.IsNullOrEmpty(t.Kind) ? "team" : t.Kind });
+                    _isRefreshingSettings = false;
+                }
+                catch { _isRefreshingSettings = false; }
+            }
+            else if (SelectedWidgetIsRadio)
+            {
+                try
+                {
+                    var settings = new RadioSettings();
+                    if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                    {
+                        settings = Newtonsoft.Json.JsonConvert.DeserializeObject<RadioSettings>(SelectedWidget.CustomData) ?? new RadioSettings();
+                    }
+                    _isRefreshingSettings = true;
+                    RadioVolume = settings.Volume <= 0 ? 0.8 : settings.Volume;
+                    RadioShowInNowPlaying = settings.ShowInNowPlaying;
+                    RadioShowOnDiscord = settings.ShowOnDiscord;
+                    _isRefreshingSettings = false;
+                }
+                catch { _isRefreshingSettings = false; }
+            }
         }
 
         private void SaveSelectedWidgetCustomData()
@@ -1177,6 +1522,55 @@ namespace Palisades.ViewModels
                 settings.BackgroundColor = PostItBackgroundColor;
                 settings.TextColor = PostItTextColor;
                 SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
+            }
+            else if (SelectedWidgetIsFootball)
+            {
+                var settings = new FootballSettings
+                {
+                    Leagues = FootballLeagueOptions.Where(o => o.Selected).Select(o => o.Code).ToList(),
+                    Teams = FootballFavTeams.Select(t => new FootballFavTeam { Id = t.Id, Name = t.Name, Kind = t.Kind }).ToList(),
+                    RefreshMinutes = FootballRefreshMinutes,
+                    MaxMatches = FootballMaxMatches,
+                    ShowCrests = FootballShowCrests,
+                    FinishedHours = FootballFinishedHours,
+                    FinishedPosition = FootballFinishedPosition,
+                    FinishedTextColor = FootballFinishedTextColor,
+                    ShowFinishedHeader = FootballShowFinishedHeader,
+                    ShowFinishedDates = FootballShowFinishedDates,
+                    CardTheme = FootballCardTheme,
+                    DateFormat = FootballDateFormat,
+                    CardScale = FootballCardScale,
+                    MatchClickAction = FootballMatchClickAction,
+                    ShowLiveOnDiscord = FootballShowLiveOnDiscord
+                };
+                SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
+                // Football live presence needs its source id in the Discord priority list.
+                if (FootballShowLiveOnDiscord && !DiscordSourcePriorityItems.Any(id => id == "football"))
+                {
+                    DiscordSourcePriorityItems.Add("football");
+                    SaveDiscordPriority();
+                }
+            }
+            else if (SelectedWidgetIsRadio)
+            {
+                // Preserve favorites/LastUuid: only volume comes from the dashboard.
+                var settings = new RadioSettings();
+                try
+                {
+                    if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                        settings = Newtonsoft.Json.JsonConvert.DeserializeObject<RadioSettings>(SelectedWidget.CustomData) ?? new RadioSettings();
+                }
+                catch { }
+                settings.Volume = RadioVolume;
+                settings.ShowInNowPlaying = RadioShowInNowPlaying;
+                settings.ShowOnDiscord = RadioShowOnDiscord;
+                SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
+                // Radio presence needs its source id in the Discord priority list.
+                if (RadioShowOnDiscord && !DiscordSourcePriorityItems.Any(id => id == "Radio"))
+                {
+                    DiscordSourcePriorityItems.Add("Radio");
+                    SaveDiscordPriority();
+                }
             }
 
             PluginService.Instance.SaveGadgets(_activeWidgets.ToList());
@@ -1444,6 +1838,16 @@ namespace Palisades.ViewModels
             CreateContainerCommand = new RelayCommand(() => CreateContainer());
             DeleteContainerCommand = new RelayCommand<ContainerViewModel>(DeleteContainer);
             RefreshNowPlayingSourcesCommand = new RelayCommand(() => _ = RefreshNowPlayingSourcesAsync());
+            FootballRemoveFavTeamCommand = new RelayCommand<FootballFavTeam>(fav =>
+            {
+                if (fav == null) return;
+                var existing = FootballFavTeams.FirstOrDefault(t => t.Id == fav.Id);
+                if (existing != null)
+                {
+                    FootballFavTeams.Remove(existing);
+                    SaveSelectedWidgetCustomData();
+                }
+            });
             DiscordPriorityAddCommand = new RelayCommand(() =>
             {
                 string id = (DiscordPriorityAddId ?? "").Trim();

@@ -46,7 +46,7 @@ namespace Palisades.Services
         private string _button2Label = "";
         private string _button2Url = "";
         private string _stateUrl = "https://github.com/Walkoud/Palisades";
-        private string _detailsUrl = "";
+        private string _detailsUrl = "https://github.com/Walkoud/Palisades";
         private string _largeUrl = "https://github.com/Walkoud/Palisades";
         private List<string> _priority = new List<string>();
 
@@ -63,6 +63,9 @@ namespace Palisades.Services
             public TimeSpan Position;
             public byte[]? CoverBytes;
             public DateTime SeenUtc = DateTime.MinValue;
+            // Sources like live scores change text every minute: resolving
+            // cover art for each change = network storm. They opt out.
+            public bool NoCover;
         }
         private readonly Dictionary<string, AppReport> _appReports = new Dictionary<string, AppReport>(StringComparer.OrdinalIgnoreCase);
 
@@ -192,7 +195,7 @@ namespace Palisades.Services
         }
 
         /// <summary>Lightweight snapshot for every known session (no cover bytes).</summary>
-        public void ReportSession(string appId, string title, string artist, bool isPlaying)
+        public void ReportSession(string appId, string title, string artist, bool isPlaying, bool resolveCover = true)
         {
             lock (_lock)
             {
@@ -202,6 +205,7 @@ namespace Palisades.Services
                     e = new AppReport { AppId = appId ?? "" };
                     _appReports[key] = e;
                 }
+                e.NoCover = !resolveCover;
                 if (e.Title != (title ?? "") || e.Artist != (artist ?? ""))
                 {
                     e.Title = title ?? "";
@@ -314,7 +318,7 @@ namespace Palisades.Services
                 t = _title;
                 a = _artist;
                 bytes = pick?.CoverBytes;
-                wantResolve = _showCover;
+                wantResolve = _showCover && !(pick?.NoCover ?? false);
                 appId = pick?.AppId ?? "";
                 appName = _app;
                 trackChanged = trackKey != _coverKey;

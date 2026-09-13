@@ -296,6 +296,7 @@ namespace Palisades.Views
             InstallHook();
             _instance = this;
             StartGlobalKeyboardHookThread();
+            StartExplorerWatchdog();
             this.ContextMenuOpening += (_, e) =>
             {
                 if (e.Source is not ContainerControl)
@@ -1998,8 +1999,14 @@ private bool RouteClipboardCopy(Key key)
                     existing.Y = item.Y;
                     existing.Width = item.Width;
                     existing.Height = item.Height;
-                    existing.HideHeader = item.HideHeader;
-                    existing.CustomData = item.CustomData;
+                    // Guarded: setters notify unconditionally, and CustomData/
+                    // HideHeader re-applies settings to the child view. Without
+                    // the guard, the 5s auto-save re-triggers a full gadget
+                    // refresh (e.g. Football ESPN fetch) in an infinite loop.
+                    if (existing.HideHeader != item.HideHeader)
+                        existing.HideHeader = item.HideHeader;
+                    if (!string.Equals(existing.CustomData, item.CustomData, StringComparison.Ordinal))
+                        existing.CustomData = item.CustomData;
                     existing.Opacity = item.Opacity;
                     existing.MarginLeft = item.MarginLeft;
                     existing.MarginTop = item.MarginTop;
@@ -2834,6 +2841,96 @@ private bool RouteClipboardCopy(Key key)
             }
             _hookProc = null;
             _hookProcInstance = null;
+        }
+
+        // === Explorer crash watchdog ===
+        // Watches the shell taskbar (Shell_TrayWnd). When explorer.exe crashes,
+        // Windows restarts it with a new PID — our overlay/hooks are then stale,
+        // so Palisades restarts too. Loop guard: restart timestamps persist on
+        // disk, so repeated explorer crashes stop triggering our restart.
+        private int _lastShellPid;
+        private int _pendingShellPid;
+        private const int MaxExplorerRestarts = 3;
+        private static readonly TimeSpan ExplorerRestartWindow = TimeSpan.FromMinutes(10);
+
+        private void StartExplorerWatchdog()
+        {
+            try
+            {
+                _explorerCheckTimer?.Stop();
+                _lastShellPid = GetShellPid();
+                _pendingShellPid = 0;
+                _explorerCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+                _explorerCheckTimer.Tick += (_, _) => CheckExplorerRestart();
+                _explorerCheckTimer.Start();
+            }
+            catch { }
+        }
+
+        private static int GetShellPid()
+        {
+            try
+            {
+                IntPtr tray = FindWindow("Shell_TrayWnd", null);
+                if (tray == IntPtr.Zero || !IsWindow(tray)) return 0;
+                GetWindowThreadProcessId(tray, out uint pid);
+                return (int)pid;
+            }
+            catch { return 0; }
+        }
+
+        private void CheckExplorerRestart()
+        {
+            try
+            {
+                int pid = GetShellPid();
+                if (pid == 0) { _pendingShellPid = 0; return; } // shell gone (crash in progress)
+                if (_lastShellPid == 0) { _lastShellPid = pid; _pendingShellPid = 0; return; } // baseline
+                if (pid == _lastShellPid) { _pendingShellPid = 0; return; } // stable
+                if (_pendingShellPid != pid) { _pendingShellPid = pid; return; } // confirm next tick
+                _pendingShellPid = 0;
+                _lastShellPid = pid;
+                OnExplorerRestarted();
+            }
+            catch { }
+        }
+
+        private static string ExplorerRestartHistoryPath =>
+            System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Palisades", "explorer_restarts.json");
+
+        private void OnExplorerRestarted()
+        {
+            try
+            {
+                long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var history = new System.Collections.Generic.List<long>();
+                try
+                {
+                    if (File.Exists(ExplorerRestartHistoryPath))
+                    {
+                        var parsed = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Collections.Generic.List<long>>(
+                            File.ReadAllText(ExplorerRestartHistoryPath));
+                        if (parsed != null) history = parsed;
+                    }
+                }
+                catch { }
+                long cutoff = now - (long)ExplorerRestartWindow.TotalSeconds;
+                history.RemoveAll(t => t < cutoff);
+                if (history.Count >= MaxExplorerRestarts)
+                {
+                    try { File.WriteAllText(ExplorerRestartHistoryPath, Newtonsoft.Json.JsonConvert.SerializeObject(history)); } catch { }
+                    App.Log($"[Watchdog] explorer restarted {history.Count}x in 10min — NOT restarting Palisades (loop guard)");
+                    return;
+                }
+                history.Add(now);
+                try { File.WriteAllText(ExplorerRestartHistoryPath, Newtonsoft.Json.JsonConvert.SerializeObject(history)); } catch { }
+                App.Log("[Watchdog] explorer restarted — restarting Palisades");
+                if (Application.Current is App app)
+                    app.RestartApplication();
+            }
+            catch (Exception ex) { App.Log(ex, "[Watchdog]"); }
         }
 
         public void RepositionOverlay()

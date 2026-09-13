@@ -1,4 +1,6 @@
 using System;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -30,6 +32,114 @@ namespace Palisades.Views.Controls
 
             GadgetItem.PropertyChanged += GadgetItem_PropertyChanged;
             Unloaded += (s, e) => GadgetItem.PropertyChanged -= GadgetItem_PropertyChanged;
+            Loaded += (_, _) => ApplyScrollbarMode();
+            WidgetChrome.Changed += OnWidgetChromeChanged;
+            Unloaded += (_, _) => WidgetChrome.Changed -= OnWidgetChromeChanged;
+            MouseEnter += (_, _) => ApplyHeaderMode();
+            MouseLeave += (_, _) => ApplyHeaderMode();
+            ApplyScrollbarMode();
+            ApplyHeaderMode();
+        }
+
+        private void OnWidgetChromeChanged(object? sender, EventArgs e)
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    ApplyScrollbarMode();
+                    ApplyHeaderMode();
+                });
+            }
+            catch { }
+        }
+
+        /// <summary>Header visible always, only on hover, or never (per settings).</summary>
+        private void ApplyHeaderMode()
+        {
+            try
+            {
+                if (GadgetItem.HideHeader)
+                {
+                    HeaderBar.Visibility = Visibility.Collapsed;
+                    return;
+                }
+                HeaderBar.Visibility = WidgetChrome.HeaderOnHover && !IsMouseOver
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+            }
+            catch { }
+        }
+
+        /// <summary>Tags every inner ScrollViewer with the global scrollbar mode.</summary>
+        private void ApplyScrollbarMode()
+        {
+            try
+            {
+                string mode = WidgetChrome.ScrollbarMode;
+                ApplyScrollbarModeTo(ChildContainer, mode);
+            }
+            catch { }
+        }
+
+        private static void ApplyScrollbarModeTo(DependencyObject root, string mode)
+        {
+            if (root == null) return;
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is ScrollViewer sv)
+                {
+                    sv.Tag = mode;
+                    if (mode == "hidden")
+                    {
+                        sv.ClearValue(ScrollViewer.TemplateProperty);
+                        sv.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
+                    }
+                    else if (mode == "overlay")
+                    {
+                        sv.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+                        ApplyOverlayTemplate(sv);
+                    }
+                    else
+                    {
+                        sv.ClearValue(ScrollViewer.TemplateProperty);
+                        sv.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+                    }
+                }
+                ApplyScrollbarModeTo(child, mode);
+            }
+        }
+
+        private static ControlTemplate? _overlayTemplate;
+
+        /// <summary>Floating scrollbar: same cell as content, zero space reserved.</summary>
+        private static void ApplyOverlayTemplate(ScrollViewer sv)
+        {
+            try
+            {
+                if (_overlayTemplate == null)
+                {
+                    const string xaml = "<ControlTemplate"
+                        + " xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'"
+                        + " TargetType='ScrollViewer'>"
+                        + "<Grid>"
+                        + "<ScrollContentPresenter Name='PART_ScrollContentPresenter'"
+                        + " CanContentScroll='{TemplateBinding CanContentScroll}'"
+                        + " CanHorizontallyScroll='False' CanVerticallyScroll='False' />"
+                        + "<ScrollBar Name='PART_VerticalScrollBar' Orientation='Vertical'"
+                        + " HorizontalAlignment='Right' VerticalAlignment='Stretch' Width='8' Margin='0,2,2,2'"
+                        + " Value='{TemplateBinding VerticalOffset}'"
+                        + " Maximum='{TemplateBinding ScrollableHeight}'"
+                        + " ViewportSize='{TemplateBinding ViewportHeight}'"
+                        + " Visibility='{TemplateBinding ComputedVerticalScrollBarVisibility}' />"
+                        + "</Grid></ControlTemplate>";
+                    _overlayTemplate = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(xaml);
+                }
+                sv.Template = _overlayTemplate;
+            }
+            catch { }
         }
 
         private void GadgetItem_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -37,6 +147,10 @@ namespace Palisades.Views.Controls
             if (e.PropertyName == nameof(PluginGadgetItem.CustomData))
             {
                 ApplyCustomSettingsToChild();
+            }
+            if (e.PropertyName == nameof(PluginGadgetItem.HideHeader))
+            {
+                ApplyHeaderMode();
             }
         }
 
@@ -163,6 +277,14 @@ namespace Palisades.Views.Controls
             overlay?.SaveGadgetsToDisk();
         }
 
+        /// <summary>Lets a gadget view persist its own settings (favorites…).</summary>
+        public void SaveChildCustomData(string customData)
+        {
+            GadgetItem.CustomData = customData ?? "";
+            ApplyCustomSettingsToChild();
+            SaveGadgetSettings();
+        }
+
         protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
         {
             base.OnMouseRightButtonDown(e);
@@ -170,6 +292,115 @@ namespace Palisades.Views.Controls
 
             var menu = CreateContextMenu();
             menu.IsOpen = true;
+            InstallDismissHook(menu);
+        }
+
+        // The overlay is a NOACTIVATE window: clicks on it never deactivate the
+        // menu owner, so an open menu would stay stuck. Same remedy as the native
+        // shell menu — a temporary low-level mouse hook that closes the menu on
+        // any click outside of it (clicks always pass through, never swallowed).
+        private const int WH_MOUSE_LL = 14;
+        private const int WM_LBUTTONDOWN = 0x0201;
+        private const int WM_RBUTTONDOWN = 0x0204;
+
+        private delegate IntPtr DismissHookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DismissPoint
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DismissMouseStruct
+        {
+            public DismissPoint pt;
+            public uint mouseData;
+            public uint flags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        private IntPtr _dismissHookHandle = IntPtr.Zero;
+        private DismissHookProc? _dismissProc;
+        private ContextMenu? _openMenu;
+        private IntPtr _dismissOverlayHwnd = IntPtr.Zero;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetWindowsHookEx(int idHook, DismissHookProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll")]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr WindowFromPoint(DismissPoint pt);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+        private void InstallDismissHook(ContextMenu menu)
+        {
+            UninstallDismissHook();
+            _openMenu = menu;
+            try
+            {
+                var win = Window.GetWindow(this);
+                if (win != null)
+                    _dismissOverlayHwnd = new System.Windows.Interop.WindowInteropHelper(win).Handle;
+            }
+            catch { _dismissOverlayHwnd = IntPtr.Zero; }
+            menu.Closed += (_, _) => UninstallDismissHook();
+            try
+            {
+                _dismissProc = DismissHookCallback;
+                _dismissHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _dismissProc, GetModuleHandle(null), 0);
+            }
+            catch { }
+        }
+
+        private void UninstallDismissHook()
+        {
+            if (_dismissHookHandle != IntPtr.Zero)
+            {
+                try { UnhookWindowsHookEx(_dismissHookHandle); } catch { }
+                _dismissHookHandle = IntPtr.Zero;
+            }
+            _dismissProc = null;
+            _openMenu = null;
+        }
+
+        private IntPtr DismissHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && _openMenu != null &&
+                (wParam == (IntPtr)WM_LBUTTONDOWN || wParam == (IntPtr)WM_RBUTTONDOWN))
+            {
+                try
+                {
+                    // Only clicks landing directly on the overlay dismiss the menu.
+                    // Anything else (menu itself, taskbar, apps) is left to Windows,
+                    // so a menu-item click can never be eaten by this hook.
+                    var hookStruct = Marshal.PtrToStructure<DismissMouseStruct>(lParam);
+                    IntPtr hWnd = WindowFromPoint(hookStruct.pt);
+                    if (hWnd != IntPtr.Zero && hWnd == _dismissOverlayHwnd)
+                    {
+                        var menu = _openMenu;
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            try { menu.IsOpen = false; } catch { }
+                            UninstallDismissHook();
+                        }));
+                    }
+                }
+                catch { }
+            }
+            return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
         }
 
         private ContextMenu CreateContextMenu()
@@ -247,6 +478,23 @@ namespace Palisades.Views.Controls
                 BuildNowPlayingMenu(customizeItem);
                 menu.Items.Add(customizeItem);
             }
+            else if (GadgetItem.GadgetType.Equals("Football", StringComparison.OrdinalIgnoreCase))
+            {
+                menu.Items.Add(new Separator());
+                if (ChildContainer.Child is Palisades.Plugins.FootballView fbView)
+                {
+                    var refreshItem = new MenuItem { Header = tr["Widget_Ctx_FootballRefresh"] };
+                    refreshItem.Click += (s, e) => fbView.RefreshNowAsync();
+                    menu.Items.Add(refreshItem);
+
+                    var favItem = new MenuItem { Header = tr["Widget_Ctx_FootballFavorites"] };
+                    favItem.Click += (s, e) =>
+                    {
+                        try { new Palisades.Plugins.FootballTeamSearchWindow(fbView).Show(); } catch { }
+                    };
+                    menu.Items.Add(favItem);
+                }
+            }
 
             menu.Items.Add(new Separator());
 
@@ -254,13 +502,14 @@ namespace Palisades.Views.Controls
             var editItem = new MenuItem { Header = tr["Widget_Ctx_EditProperties"] };
             editItem.Click += (s, e) =>
             {
+                try { Palisades.App.Log($"[EditProps] click type={GadgetItem.GadgetType} id={GadgetItem.Id}"); } catch { }
                 var app = Application.Current as App;
                 var win = app?.GetDashboardWindow();
-                if (win == null) return;
+                if (win == null) { try { Palisades.App.Log("[EditProps] no dashboard window"); } catch { } return; }
                 win.Show();
                 if (win.WindowState == WindowState.Minimized)
                     win.WindowState = WindowState.Normal;
-                win.ShowWidgetProperties(GadgetItem);
+                try { win.ShowWidgetProperties(GadgetItem); } catch (Exception ex) { try { Palisades.App.Log(ex, "[EditProps] ShowWidgetProperties"); } catch { } return; }
                 win.Activate();
                 win.Focus();
             };

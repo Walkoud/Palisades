@@ -54,6 +54,7 @@ namespace Palisades.Plugins
         private readonly Button _playBtn;
         private readonly TextBlock _playIcon;
         private readonly Button _nextBtn;
+        private readonly Button _radioBtn;
         private readonly Border _outerBorder;
         private readonly ProgressBar _seekBar;
         private readonly TextBlock _positionLabel;
@@ -203,6 +204,22 @@ namespace Palisades.Plugins
             _nextBtn.Click += NextBtn_Click;
             _controlsPanel.Children.Add(_nextBtn);
 
+            // Shortcut to resume the last radio station (visible when the
+            // Radio gadget is loaded and nothing else is playing).
+            _radioBtn = new Button
+            {
+                Content = "📻",
+                FontSize = 13,
+                Width = 28,
+                Height = 28,
+                ToolTip = "Resume radio",
+                Visibility = Visibility.Collapsed,
+                VerticalAlignment = VerticalAlignment.Center,
+                Style = btnStyle
+            };
+            _radioBtn.Click += RadioBtn_Click;
+            _controlsPanel.Children.Add(_radioBtn);
+
             // Seek bar
             _positionLabel = new TextBlock
             {
@@ -237,6 +254,9 @@ namespace Palisades.Plugins
 
             Loaded += NowPlayingView_Loaded;
             Unloaded += NowPlayingView_Unloaded;
+            // Subscribe now (not in Loaded): Loaded awaits the SMTC manager,
+            // and the radio bridge must react even before that resolves.
+            Palisades.Services.ExternalNowPlaying.Changed += ExternalNowPlaying_Changed;
         }
 
         private FrameworkElement BuildSeekBarRow()
@@ -750,6 +770,8 @@ namespace Palisades.Plugins
             _positionTimer?.Stop();
             _positionTimer = null;
 
+            Palisades.Services.ExternalNowPlaying.Changed -= ExternalNowPlaying_Changed;
+
             if (_smtcManager != null)
             {
                 try
@@ -863,8 +885,21 @@ namespace Palisades.Plugins
         }
 
         // Pick the session that is currently Playing; fall back to the first known one.
+        private void ExternalNowPlaying_Changed(object? sender, EventArgs e)
+        {
+            try { Dispatcher.Invoke(ResolveActiveSession); } catch { }
+        }
+
         private void ResolveActiveSession()
         {
+            // A gadget (Radio) reporting through the bridge takes precedence.
+            var ext = Palisades.Services.ExternalNowPlaying.Current;
+            if (ext != null && ext.IsPlaying)
+            {
+                ApplyExternal(ext);
+                return;
+            }
+
             GlobalSystemMediaTransportControlsSession? active = null;
 
             // User pinned a specific source (persisted app id) → keep it while it still exists.
@@ -919,6 +954,14 @@ namespace Palisades.Plugins
 
                 if (active == null && _knownSessions.Count > 0)
                     active = _knownSessions[0];
+            }
+
+            // Paused radio stays on screen (with ▶ / 📻 to resume) when no
+            // SMTC session is active — otherwise it vanishes on pause.
+            if (active == null && ext != null)
+            {
+                ApplyExternal(ext);
+                return;
             }
 
             if (active != null && !ReferenceEquals(active, _currentSession))
@@ -1107,6 +1150,7 @@ namespace Palisades.Plugins
                 try { UpdateMediaProperties(_currentSession); } catch { }
             }
 
+            UpdateRadioButton();
             ReportToDiscord();
         }
 
@@ -1144,10 +1188,35 @@ namespace Palisades.Plugins
             UpdateTimeline(_currentSession);
         }
 
+        private void RadioBtn_Click(object sender, RoutedEventArgs e)
+        {
+            try { Palisades.Services.ExternalNowPlaying.TogglePlayPause?.Invoke(); } catch { }
+        }
+
+        /// <summary>Shows the 📻 resume shortcut only when radio can take over (nothing playing).</summary>
+        private void UpdateRadioButton()
+        {
+            try
+            {
+                var ext = Palisades.Services.ExternalNowPlaying.Current;
+                bool extPlaying = ext != null && ext.IsPlaying;
+                bool canResume = Palisades.Services.ExternalNowPlaying.TogglePlayPause != null;
+                _radioBtn.Visibility = (canResume && !extPlaying && !_isPlaying)
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
+            catch { }
+        }
+
         private async void PrevBtn_Click(object sender, RoutedEventArgs e)
         {
             try
             {
+                if (Palisades.Services.ExternalNowPlaying.Current != null
+                    && Palisades.Services.ExternalNowPlaying.SkipPrevious != null)
+                {
+                    Palisades.Services.ExternalNowPlaying.SkipPrevious();
+                    return;
+                }
                 if (_currentSession != null)
                     await _currentSession.TrySkipPreviousAsync();
             }
@@ -1158,6 +1227,12 @@ namespace Palisades.Plugins
         {
             try
             {
+                if (Palisades.Services.ExternalNowPlaying.Current != null
+                    && Palisades.Services.ExternalNowPlaying.TogglePlayPause != null)
+                {
+                    Palisades.Services.ExternalNowPlaying.TogglePlayPause();
+                    return;
+                }
                 if (_currentSession != null)
                     await _currentSession.TryTogglePlayPauseAsync();
             }
@@ -1168,6 +1243,12 @@ namespace Palisades.Plugins
         {
             try
             {
+                if (Palisades.Services.ExternalNowPlaying.Current != null
+                    && Palisades.Services.ExternalNowPlaying.SkipNext != null)
+                {
+                    Palisades.Services.ExternalNowPlaying.SkipNext();
+                    return;
+                }
                 if (_currentSession != null)
                     await _currentSession.TrySkipNextAsync();
             }
@@ -1176,6 +1257,7 @@ namespace Palisades.Plugins
 
         private void ShowEmpty()
         {
+            _isPlaying = false;
             _titleLabel.Text = "No media playing";
             _artistLabel.Text = "";
             _appLabel.Text = "";
@@ -1184,6 +1266,27 @@ namespace Palisades.Plugins
             _seekBar.Value = 0;
             _positionLabel.Text = "0:00";
             _durationLabel.Text = "0:00";
+            UpdateRadioButton();
+        }
+
+        /// <summary>Renders an external gadget source (e.g. Radio) in the widget.</summary>
+        private void ApplyExternal(Palisades.Services.ExternalNowPlaying.Info ext)
+        {
+            _currentSession = null;
+            _isPlaying = ext.IsPlaying;
+            _currentTitle = ext.Title ?? "";
+            _currentArtist = ext.Artist ?? "";
+            _titleLabel.Text = string.IsNullOrEmpty(_currentTitle) ? "Radio" : _currentTitle;
+            _artistLabel.Text = _currentArtist;
+            _artistLabel.Visibility = string.IsNullOrEmpty(_currentArtist) ? Visibility.Collapsed : Visibility.Visible;
+            _appLabel.Text = ext.App ?? "";
+            ApplyLabelVisibility();
+            _artBorder.Child = _placeholderIcon;
+            _playIcon.Text = ext.IsPlaying ? "\uE769" : "\uE768";
+            _seekBar.Value = 0;
+            _positionLabel.Text = "0:00";
+            _durationLabel.Text = "0:00";
+            UpdateRadioButton();
         }
 
         private static string FormatTime(TimeSpan ts)

@@ -91,8 +91,10 @@ namespace Palisades.Views
 
         public void ShowWidgetProperties(PluginGadgetItem item)
         {
+            try { Palisades.App.Log($"[EditProps] ShowWidgetProperties type={item?.GadgetType}"); } catch { }
             _viewModel.SelectedWidget = item;
             SwitchToTab("Dashboard");
+            try { Palisades.App.Log($"[EditProps] tab=Dashboard selected={_viewModel.SelectedWidget?.GadgetType}"); } catch { }
         }
 
         public void ShowWidgetPropertiesById(Guid id)
@@ -1388,7 +1390,10 @@ namespace Palisades.Views
         {
             if (sender is ComboBox combo && combo.SelectedItem is ComboBoxItem item && item.Tag is string culture)
             {
+                if (culture == TranslationService.Instance.CurrentCulture) return;
                 TranslationService.Instance.SetLanguage(culture);
+                // Gadget views cache their labels: full restart applies the language everywhere.
+                if (System.Windows.Application.Current is App app) app.RestartApplication();
             }
         }
 

@@ -1305,8 +1305,8 @@ namespace Palisades.Views.Controls
                         if (other != null)
                         {
                             var result = System.Windows.MessageBox.Show(
-                                $"Fusionner \"{_vm.Name}\" dans \"{other.Name}\" ?",
-                                "Fusion", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                                string.Format(TranslationService.Instance["Dialog_MergeConfirm"] ?? "Merge \"{0}\" into \"{1}\"", _vm.Name, other.Name),
+                                TranslationService.Instance["Dialog_MergeTitle"] ?? "Merge", MessageBoxButton.YesNo, MessageBoxImage.Question);
                             if (result == MessageBoxResult.Yes)
                             {
                                 foreach (var item in _vm.Shortcuts.ToList())

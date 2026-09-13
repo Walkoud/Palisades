@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -149,7 +150,11 @@ namespace Palisades.Plugins
         {
             var now = DateTime.Now;
             _timeBlock.Text = now.ToString(_timeFormat);
-            _dateBlock.Text = now.ToString("dddd, d MMMM yyyy");
+            // App language, not Windows locale (French Windows + English app = English dates).
+            CultureInfo culture;
+            try { culture = new CultureInfo(Palisades.Services.TranslationService.Instance.CurrentCulture); }
+            catch { culture = CultureInfo.InvariantCulture; }
+            _dateBlock.Text = now.ToString("dddd, d MMMM yyyy", culture);
         }
     }
 }
