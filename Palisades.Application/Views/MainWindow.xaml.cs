@@ -792,7 +792,10 @@ namespace Palisades.Views
         {
             if (sender is System.Windows.Controls.ComboBox combo && combo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is string culture)
             {
+                if (culture == TranslationService.Instance.CurrentCulture) return;
                 TranslationService.Instance.SetLanguage(culture);
+                // Gadget views cache their labels: full restart applies the language everywhere.
+                if (System.Windows.Application.Current is App app) app.RestartApplication();
             }
         }
         private void SnapshotPreview_Click(object sender, MouseButtonEventArgs e)

@@ -11,6 +11,61 @@
         <conv:StringToColorConverter x:Key="StringToColor" />
         <conv:ColorConverter x:Key="ColorToBrush" />
         <conv:DoubleToCornerRadiusConverter x:Key="DoubleToCornerRadius" />
+        <!-- Slim scrollbar on every widget: thin, translucent, fades unless hovered.
+             Mode comes from the inner ScrollViewer's Tag (auto/fade/hidden). -->
+        <Style TargetType="ScrollBar">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="Transparent" Width="8">
+                            <Track Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Name="b" CornerRadius="4" Background="#40FFFFFF" Margin="2,1,2,1" />
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="#90FFFFFF" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="hidden">
+                    <Setter Property="Opacity" Value="0" />
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="fade" />
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Opacity" Value="0" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="overlay" />
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Opacity" Value="0" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="{x:Null}" />
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Opacity" Value="0" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
     
     <Border x:Name="MainBorder" 
@@ -30,12 +85,11 @@
 
             <!-- Frosted Glass Header Bar for Dragging -->
             <Border x:Name="HeaderBar" Grid.Row="0" Height="28" 
-                    CornerRadius="{Binding CornerRadiusValue, Converter={StaticResource DoubleToCornerRadius}, FallbackValue=8}"
-                    Cursor="SizeAll" 
-                    Background="{Binding HeaderBgColor, Converter={StaticResource ColorToBrush}, FallbackValue='#25101520'}" 
-                    BorderBrush="{Binding HeaderBorderColor, Converter={StaticResource ColorToBrush}, FallbackValue='#20FFFFFF'}" 
-                    BorderThickness="0,0,0,1"
-                    Visibility="{Binding HideHeader, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                     CornerRadius="{Binding CornerRadiusValue, Converter={StaticResource DoubleToCornerRadius}, FallbackValue=8}"
+                     Cursor="SizeAll" 
+                     Background="{Binding HeaderBgColor, Converter={StaticResource ColorToBrush}, FallbackValue='#25101520'}" 
+                     BorderBrush="{Binding HeaderBorderColor, Converter={StaticResource ColorToBrush}, FallbackValue='#20FFFFFF'}" 
+                     BorderThickness="0,0,0,1">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

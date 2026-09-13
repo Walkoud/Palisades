@@ -1,4 +1,4 @@
-# Palisades
+# Palisades — Your desktop, finally organized
 
 <p align="center">
   <a href="https://github.com/Walkoud/Palisades/blob/main/LICENSE">
@@ -10,46 +10,83 @@
   <a href="https://github.com/Walkoud/Palisades/releases">
     <img alt="Downloads" src="https://img.shields.io/github/downloads/Walkoud/Palisades/total?style=flat-square"/>
   </a>
+  <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square"/>
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%2B-0078D4?style=flat-square"/>
 </p>
 
 <p align="center">
-  <img src="documentation/medias/palisade_github.jpg" width="850" alt="Palisades"/>
+  <img src="documentation/medias/palisade_github.jpg" width="850" alt="Palisades hero"/>
 </p>
 
-Palisades declutter your Windows desktop. Drop icons into organized containers, add live gadgets, and customize everything — no more hunting through a sea of shortcuts.
+<p align="center">
+  <b>Containers</b> for your icons · <b>live gadgets</b> on your wallpaper · <b>total theming</b> · zero clutter.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Walkoud/Palisades/releases"><b>⬇ Download the latest release</b></a>
+</p>
 
 ---
 
-## Features
+## At a glance
 
-**Containers** — Drag folders and files into resizable groups. Rename, recolor, reorder, hide, or set transparency per container. Each container remembers its position across monitors and resolutions.
-
-**Gadgets** — Pin a live clock or system monitor (CPU, RAM, disk) directly on your wallpaper. Plugin system lets you add more.
-
-**Endless customization** — Customize header, body, title, and label colors on every container. Gradient backgrounds with angle control. Adjustable opacity. Custom border radius, fonts, and sizes.
-
-**Themes** — 8 built-in color presets. Import custom `.xaml` themes. Full GUI theme engine: change background, text, accent colors globally.
-
-**Snapshots** — Save and restore your entire layout (containers, positions, colors, gadgets) instantly.
-
-**Auto-organize** — Sort shortcuts into containers automatically by type: programs, documents, images, music, archives, links, folders.
-
-**Curtain mode** — Transform a container into a sliding panel docked to the edge of your screen. On hover, it slides open; move away and it slides shut — keeping your desktop clean while keeping shortcuts one hover away.
+| | |
+|---|---|
+| 📦 **Containers** | Group shortcuts, files and folders into resizable, recolorable boxes that remember their position on every monitor and resolution. |
+| 🧩 **Gadgets** | Clock, system monitor, web radio, live football scores and Now Playing — pinned straight onto your wallpaper. |
+| 🎨 **Theming** | 8 built-in presets, custom `.xaml` imports, per-container colors, gradients, opacity, radius, fonts. |
+| 📸 **Snapshots** | Save and restore your whole layout in one click. |
+| 🪄 **Auto-organize** | Sort shortcuts automatically by type: programs, documents, images, music, archives, links, folders. |
 
 <p align="center">
-  <img src="documentation/medias/curtain-preview-left.gif" width="400" alt="Curtain mode left"/>
-  <img src="documentation/medias/curtain-preview-buttom.gif" width="400" alt="Curtain mode bottom"/>
+  <img src="documentation/medias/preview_containers_gadgets.png" width="850" alt="Containers and gadgets on the desktop"/>
 </p>
 
-**Android Folders** — New container type inspired by Android launchers: a frosted 96px tile that expands into a centered, fully customizable grid panel right where you click.
+---
+
+## 📦 Containers
+
+Drag folders and files into groups. Rename, recolor, reorder, hide, or tune transparency per container. Filter contents by file type or custom search. Restore the full layout from a snapshot whenever you want.
+
+**Curtain mode** turns any container into a sliding panel docked to a screen edge — hover to open, move away and it slides shut.
 
 <p align="center">
-  <img src="documentation/medias/preview-android-folders.gif" width="400" alt="Android folders"/>
+  <img src="documentation/medias/curtain-preview-left.gif" width="400" alt="Curtain panel docked left"/>
+  <img src="documentation/medias/curtain-preview-buttom.gif" width="400" alt="Curtain panel docked bottom"/>
 </p>
 
-**Plugins** — Plugin manager to enable/disable and configure gadgets and extensions.
+**Android Folders** — frosted 96px tiles à la Android launchers that expand into a centered, fully customizable grid exactly where you click.
 
-**Now Playing** — A live media widget that follows whatever plays on your PC. Pin it as a slim bar right in front of your taskbar. Five layouts (Classic, Compact, Fluent, Taskbar, Taskbar Slim), optional album cover, 12 accent colors, resizable, auto-hides in fullscreen.
+<p align="center">
+  <img src="documentation/medias/preview-android-folders.gif" width="400" alt="Android folder expanding"/>
+</p>
+
+---
+
+## 📻 Radio gadget
+
+Stream 40,000+ stations free via Radio Browser — no API key. Search, preview, and pin favorites as chips. Volume slider, previous/next favorite, live status, optional Now Playing + Discord integration.
+
+<p align="center">
+  <img src="documentation/medias/radio_widget.png" width="450" alt="Radio widget playing MoE Lofi"/>
+</p>
+
+---
+
+## ⚽ Football gadget
+
+Live scores, upcoming fixtures and finished results with team crests, follow your clubs, two card styles (dark cards or classic rows), match details on click, optional Discord presence when your team plays live.
+
+<p align="center">
+  <img src="documentation/medias/football_widget_darkcard.png" width="350" alt="Football widget dark cards"/>
+  <img src="documentation/medias/football_widget_classic_preview.gif" width="350" alt="Football widget classic rows"/>
+</p>
+
+---
+
+## 🎵 Now Playing
+
+A live media widget that follows whatever plays on your PC — Spotify, browser, any app. Five layouts (Classic, Compact, Fluent, Taskbar, Taskbar Slim), album cover, 12 accent colors, resizable, auto-hides in fullscreen. Pin it as a slim bar in front of your taskbar, follow the active source automatically or pin one manually — the choice survives reboots and backup export/import.
 
 <p align="center">
   <img src="documentation/medias/nowplaying_widget.png" width="450" alt="Now Playing widget"/>
@@ -58,35 +95,40 @@ Palisades declutter your Windows desktop. Drop icons into organized containers, 
   <img src="documentation/medias/taskbar_nowplaying.png" width="850" alt="Now Playing taskbar bar"/>
 </p>
 
-**Media focus** — With several sources playing (Spotify, browser, …), follow the active app automatically or pin one source from the widget menu or the dashboard. The choice survives reboots and is included in backup export/import.
-
-**Discord Rich Presence** — Show what you listen to on Discord, from any media on your PC: Spotify, YouTube, Chrome, anything. Fully customizable: title, artist, source app, elapsed timer, album cover, clickable links, presence buttons, private mode, per-app priority list with auto-fallback.
+**Discord Rich Presence** — broadcast what you listen to from any source: title, artist, app, elapsed timer, album cover, clickable links, presence buttons, private mode, per-app priority with auto-fallback.
 
 <p align="center">
-  <img src="documentation/medias/discord-presence-profile-screenshot.png" width="300" alt="Discord Rich Presence"/>
+  <img src="documentation/medias/discord-presence-profile-screenshot.png" width="300" alt="Discord Rich Presence profile"/>
 </p>
 
-**Filters** — Show only what you need. Filter a container by file type or custom search.
+---
 
-**Start with Windows** — Option to launch automatically on boot, runs discreetly in the system tray.
+## 🖥️ Dashboard
 
-**Open source** — MIT license. Fork, modify, contribute.
-
-<p align="center">
-  <img src="documentation/medias/preview_containers_gadgets.png" width="850" alt="Palisades desktop"/>
-</p>
-
-## Quick start
-
-1. Download the latest installer from [Releases](https://github.com/Walkoud/Palisades/releases)
-2. Install and launch — Palisades runs in your system tray
-3. Drag desktop shortcuts into a container
-4. Right-click a container header to rename, recolor, or tweak it
-5. Open the Dashboard from the tray icon for global settings
+Everything is configurable from the Arctic Shelter dashboard: containers, gadgets, themes, snapshots, plugins, Discord, global settings.
 
 <p align="center">
   <img src="documentation/medias/preview_dashboard.png" width="650" alt="Palisades dashboard"/>
 </p>
+
+---
+
+## 🚀 Quick start
+
+1. Download the installer from [Releases](https://github.com/Walkoud/Palisades/releases) (or grab the portable `.zip`)
+2. Install and launch — Palisades lives in your system tray
+3. Drag desktop shortcuts into a container
+4. Right-click a container header to rename, recolor or tweak it
+5. Open the **Dashboard** from the tray icon for global settings
+6. Enable **Start with Windows** to keep it running discreetly
+
+---
+
+## 🧩 Plugins
+
+A built-in plugin manager enables, disables and configures every gadget and extension. Developers: see [documentation/plugin_developer_guide.md](documentation/plugin_developer_guide.md). Users: see [documentation/user_guide.md](documentation/user_guide.md).
+
+---
 
 ## Built with
 

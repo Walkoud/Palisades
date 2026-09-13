@@ -264,7 +264,10 @@
                                                     <TextBlock Text="{Binding Name}" FontSize="13"
                                                                FontWeight="Medium" Foreground="#EEE" />
                                                     <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                                        <TextBlock Text="{Binding Shortcuts.Count, StringFormat={}{0} éléments}"
+                                                        <TextBlock Text="{Binding Shortcuts.Count}"
+                                                                   FontSize="11" Foreground="#777" />
+                                                        <TextBlock Text=" " FontSize="11" Foreground="#777" />
+                                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[MainWindow_Elements]}"
                                                                    FontSize="11" Foreground="#777" />
                                                     </StackPanel>
                                                 </StackPanel>

@@ -222,7 +222,7 @@ namespace Palisades.Models
         /// <summary>Clickable link behind the state line (empty = none).</summary>
         public string DiscordStateUrl { get; set; } = "https://github.com/Walkoud/Palisades";
         /// <summary>Clickable link behind the details line (empty = none).</summary>
-        public string DiscordDetailsUrl { get; set; } = string.Empty;
+        public string DiscordDetailsUrl { get; set; } = "https://github.com/Walkoud/Palisades";
         /// <summary>Clickable link behind the cover image (empty = none).</summary>
         public string DiscordLargeUrl { get; set; } = "https://github.com/Walkoud/Palisades";
 

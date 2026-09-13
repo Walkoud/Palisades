@@ -56,6 +56,8 @@ namespace Palisades.Services
             RegisterPlugin(new SystemMonitorPlugin(), true);
             RegisterPlugin(new PostItGadgetPlugin(), true);
             RegisterPlugin(new NowPlayingPlugin(), true);
+            RegisterPlugin(new FootballPlugin(), true);
+            RegisterPlugin(new RadioPlugin(), true);
 
             // 2. Load external plugin assemblies
             LoadExternalPlugins();
