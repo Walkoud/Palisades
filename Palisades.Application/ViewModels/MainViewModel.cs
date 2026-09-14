@@ -1292,6 +1292,30 @@ namespace Palisades.ViewModels
             }
         }
 
+        private string _radioAccentColor = "#7DD3FC";
+        public string RadioAccentColor
+        {
+            get => _radioAccentColor;
+            set
+            {
+                _radioAccentColor = string.IsNullOrEmpty(value) ? "#7DD3FC" : value;
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
+        private double _radioCardOpacity = 1.0;
+        public double RadioCardOpacity
+        {
+            get => _radioCardOpacity;
+            set
+            {
+                _radioCardOpacity = Math.Clamp(value, 0.15, 1.0);
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
         private string _footballMatchClickAction = "details";
         public string FootballMatchClickAction
         {
@@ -1461,6 +1485,8 @@ namespace Palisades.ViewModels
                     RadioVolume = settings.Volume <= 0 ? 0.8 : settings.Volume;
                     RadioShowInNowPlaying = settings.ShowInNowPlaying;
                     RadioShowOnDiscord = settings.ShowOnDiscord;
+                    RadioAccentColor = string.IsNullOrEmpty(settings.AccentColor) ? "#7DD3FC" : settings.AccentColor;
+                    RadioCardOpacity = settings.CardOpacity <= 0 ? 1.0 : settings.CardOpacity;
                     _isRefreshingSettings = false;
                 }
                 catch { _isRefreshingSettings = false; }
@@ -1564,6 +1590,8 @@ namespace Palisades.ViewModels
                 settings.Volume = RadioVolume;
                 settings.ShowInNowPlaying = RadioShowInNowPlaying;
                 settings.ShowOnDiscord = RadioShowOnDiscord;
+                settings.AccentColor = RadioAccentColor;
+                settings.CardOpacity = RadioCardOpacity;
                 SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
                 // Radio presence needs its source id in the Discord priority list.
                 if (RadioShowOnDiscord && !DiscordSourcePriorityItems.Any(id => id == "Radio"))

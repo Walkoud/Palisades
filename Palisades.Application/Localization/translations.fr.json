@@ -758,5 +758,7 @@
   "Db_WidgetScrollbarHidden": "Jamais afficher",
   "Db_WidgetHeaderHover": "Titre du widget au survol uniquement",
   "Db_RadioNowPlaying": "Afficher la station en cours dans Now Playing",
-  "Db_RadioDiscord": "Afficher la station en cours sur Discord"
+  "Db_RadioDiscord": "Afficher la station en cours sur Discord",
+  "Db_RadioAccent": "Couleur d'accent",
+  "Db_RadioCardOpacity": "Opacité de la carte"
 }

@@ -959,6 +959,23 @@
                                             <Slider Minimum="0" Maximum="1" Value="{Binding RadioVolume, Mode=TwoWay}" SmallChange="0.05" LargeChange="0.1" Margin="0,0,0,8" />
                                             <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioNowPlaying]}" IsChecked="{Binding RadioShowInNowPlaying, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
                                             <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioDiscord]}" IsChecked="{Binding RadioShowOnDiscord, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" Margin="0,0,0,8" />
+                                            <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioAccent]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                            <ComboBox SelectedValue="{Binding RadioAccentColor, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,8">
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_IceBlue]}" Tag="#7DD3FC" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_White]}" Tag="#FFFFFF" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_MatrixGreen]}" Tag="#4AF626" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_AmberOrange]}" Tag="#FFB000" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_CyberRed]}" Tag="#FF3E3E" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_KawaiiPink]}" Tag="#FF71CE" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Purple]}" Tag="#A855F7" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Teal]}" Tag="#2DD4BF" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Gold]}" Tag="#FACC15" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Orange]}" Tag="#FB923C" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Rose]}" Tag="#FB7185" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ClockColor_Lime]}" Tag="#A3E635" />
+                                            </ComboBox>
+                                            <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioCardOpacity]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                            <Slider Minimum="0.15" Maximum="1" Value="{Binding RadioCardOpacity, Mode=TwoWay}" SmallChange="0.05" LargeChange="0.1" Margin="0,0,0,8" />
                                             <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioHint]}" Foreground="#526475" FontSize="10" Margin="0,0,0,12" TextWrapping="Wrap" />
                                         </StackPanel>
 

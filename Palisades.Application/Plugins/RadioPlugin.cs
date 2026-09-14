@@ -57,6 +57,8 @@ namespace Palisades.Plugins
         public string LastUuid { get; set; } = "";
         public bool ShowInNowPlaying { get; set; } = true;
         public bool ShowOnDiscord { get; set; } = true;
+        public string AccentColor { get; set; } = "#7DD3FC";
+        public double CardOpacity { get; set; } = 1.0;
     }
 
     public class RadioView : Border, ICustomizableGadgetView
@@ -66,7 +68,6 @@ namespace Palisades.Plugins
         private static readonly SolidColorBrush DimBrush = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF));
         private static readonly SolidColorBrush FaintBrush = new SolidColorBrush(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF));
         private static readonly SolidColorBrush MutedBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x8E, 0x96));
-        private static readonly SolidColorBrush AccentBrush = new SolidColorBrush(Color.FromRgb(0x7D, 0xD3, 0xFC));
         private static readonly SolidColorBrush LiveBrush = new SolidColorBrush(Color.FromRgb(0x4A, 0xF6, 0x26));
         private static readonly SolidColorBrush CardBrush = new SolidColorBrush(Color.FromRgb(0x18, 0x19, 0x1C));
         private static readonly SolidColorBrush ChipBrush = new SolidColorBrush(Color.FromRgb(0x1E, 0x1F, 0x22));
@@ -82,6 +83,15 @@ namespace Palisades.Plugins
         private readonly TextBlock _tags;
         private readonly TextBlock _playGlyph;
         private readonly TextBlock _favGlyph;
+        private readonly TextBlock _logoPlaceholder;
+        private readonly StackPanel _eqBars;
+        private readonly Border _playBorder;
+        private readonly Border _card;
+        private readonly LinearGradientBrush _cardBg;
+        private readonly LinearGradientBrush _playBg;
+        private Color _accent = Color.FromRgb(0x7D, 0xD3, 0xFC);
+        private SolidColorBrush _accentBrush = new SolidColorBrush(Color.FromRgb(0x7D, 0xD3, 0xFC));
+        private double _cardOpacity = 1.0;
         private readonly Slider _volume;
         private readonly StackPanel _listPanel;
         private readonly TextBlock _hint;
@@ -120,8 +130,7 @@ namespace Palisades.Plugins
             });
             var statusStack = new StackPanel
             {
-                Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 6, 0)
+                Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
             };
             _statusDot = new TextBlock { Text = "●", FontSize = 9, Foreground = DimBrush, VerticalAlignment = VerticalAlignment.Center };
             statusStack.Children.Add(_statusDot);
@@ -131,19 +140,34 @@ namespace Palisades.Plugins
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0)
             };
             statusStack.Children.Add(_statusText);
-            Grid.SetColumn(statusStack, 1);
-            header.Children.Add(statusStack);
-            var searchToggle = BuildIconButton("🔍", "Search stations", OpenSearch);
+            var statusPill = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)),
+                CornerRadius = new CornerRadius(9), Padding = new Thickness(8, 3, 8, 3),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0),
+                Child = statusStack
+            };
+            Grid.SetColumn(statusPill, 1);
+            header.Children.Add(statusPill);
+            var searchToggle = BuildPillButton("🔍", "Search stations", OpenSearch);
             Grid.SetColumn(searchToggle, 2);
             header.Children.Add(searchToggle);
             Grid.SetRow(header, 0);
             root.Children.Add(header);
 
             // ---------- now-playing card ----------
-            var card = new Border
+            _cardBg = new LinearGradientBrush
             {
-                Background = CardBrush, CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 6, 0, 6)
+                StartPoint = new Point(0, 0), EndPoint = new Point(0, 1)
+            };
+            _cardBg.GradientStops.Add(new GradientStop(Color.FromRgb(0x22, 0x24, 0x28), 0.0));
+            _cardBg.GradientStops.Add(new GradientStop(Color.FromRgb(0x14, 0x15, 0x18), 1.0));
+            _card = new Border
+            {
+                Background = _cardBg, CornerRadius = new CornerRadius(10),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(10, 9, 10, 9), Margin = new Thickness(0, 6, 0, 6)
             };
             var cardGrid = new Grid();
             cardGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -152,20 +176,32 @@ namespace Palisades.Plugins
 
             var logoBox = new Border
             {
-                Width = 44, Height = 44, CornerRadius = new CornerRadius(6),
+                Width = 46, Height = 46, CornerRadius = new CornerRadius(8),
                 Background = ChipBrush, Margin = new Thickness(0, 0, 10, 0),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1),
                 VerticalAlignment = VerticalAlignment.Center
+            };
+            var logoGrid = new Grid();
+            _logoPlaceholder = new TextBlock
+            {
+                Text = "📻", FontSize = 22,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.7, IsHitTestVisible = false
             };
             _logo = new Image { Stretch = Stretch.Uniform, Width = 44, Height = 44 };
             RenderOptions.SetBitmapScalingMode(_logo, BitmapScalingMode.HighQuality);
-            logoBox.Child = _logo;
+            logoGrid.Children.Add(_logoPlaceholder);
+            logoGrid.Children.Add(_logo);
+            logoBox.Child = logoGrid;
             Grid.SetColumn(logoBox, 0);
             cardGrid.Children.Add(logoBox);
 
             var meta = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             _name = new TextBlock
             {
-                Text = "Pick a station", FontSize = 14, FontWeight = FontWeights.SemiBold,
+                Text = "Pick a station", FontSize = 15, FontWeight = FontWeights.SemiBold,
                 Foreground = TextBrush, TextTrimming = TextTrimming.CharacterEllipsis, Cursor = Cursors.Hand
             };
             _name.MouseLeftButtonDown += (_, e) =>
@@ -174,29 +210,52 @@ namespace Palisades.Plugins
                 if (_current != null) OpenGoogle(_current.Name + " radio");
             };
             meta.Children.Add(_name);
-            _tags = new TextBlock { Text = "", FontSize = 10, Foreground = MutedBrush, TextTrimming = TextTrimming.CharacterEllipsis };
+            _tags = new TextBlock { Text = "", FontSize = 10, Foreground = MutedBrush, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 2, 0, 0) };
             meta.Children.Add(_tags);
+            // Static equalizer hint (no animation → 0% CPU), visible while playing.
+            _eqBars = new StackPanel
+            {
+                Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0),
+                Visibility = Visibility.Collapsed, IsHitTestVisible = false
+            };
+            foreach (int h in new[] { 5, 11, 7, 13, 6 })
+                _eqBars.Children.Add(new System.Windows.Shapes.Rectangle
+                {
+                    Width = 3, Height = h, RadiusX = 1.5, RadiusY = 1.5,
+                    Fill = _accentBrush, Margin = new Thickness(0, 0, 2.5, 0),
+                    VerticalAlignment = VerticalAlignment.Bottom, Opacity = 0.85
+                });
+            meta.Children.Add(_eqBars);
             Grid.SetColumn(meta, 1);
             cardGrid.Children.Add(meta);
 
-            var playBorder = new Border
+            _playBg = new LinearGradientBrush
             {
-                Width = 40, Height = 40, CornerRadius = new CornerRadius(20),
-                Background = AccentBrush, Cursor = Cursors.Hand,
+                StartPoint = new Point(0, 0), EndPoint = new Point(0, 1)
+            };
+            _playBg.GradientStops.Add(new GradientStop(Color.FromRgb(0x9B, 0xDE, 0xFF), 0.0));
+            _playBg.GradientStops.Add(new GradientStop(Color.FromRgb(0x63, 0xB8, 0xF2), 1.0));
+            _playBorder = new Border
+            {
+                Width = 42, Height = 42, CornerRadius = new CornerRadius(21),
+                Background = _playBg, Cursor = Cursors.Hand,
+                BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)),
+                BorderThickness = new Thickness(1),
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0)
             };
             _playGlyph = new TextBlock
             {
-                Text = "▶", FontSize = 15, Foreground = new SolidColorBrush(Colors.Black),
+                Text = "▶", FontSize = 15, Foreground = new SolidColorBrush(Color.FromRgb(0x0B, 0x1C, 0x26)),
+                FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(2, 0, 0, 0)
             };
-            playBorder.Child = _playGlyph;
-            playBorder.MouseLeftButtonDown += (_, e) => { e.Handled = true; TogglePlay(); };
+            _playBorder.Child = _playGlyph;
+            _playBorder.MouseLeftButtonDown += (_, e) => { e.Handled = true; TogglePlay(); };
 
             _favGlyph = new TextBlock
             {
-                Text = "☆", FontSize = 20, Foreground = MutedBrush,
+                Text = "☆", FontSize = 22, Foreground = MutedBrush,
                 Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 4, 0), ToolTip = "Favorite"
             };
@@ -212,12 +271,12 @@ namespace Palisades.Plugins
                 VerticalAlignment = VerticalAlignment.Center
             };
             actionRow.Children.Add(_favGlyph);
-            actionRow.Children.Add(playBorder);
+            actionRow.Children.Add(_playBorder);
             Grid.SetColumn(actionRow, 2);
             cardGrid.Children.Add(actionRow);
-            card.Child = cardGrid;
-            Grid.SetRow(card, 1);
-            root.Children.Add(card);
+            _card.Child = cardGrid;
+            Grid.SetRow(_card, 1);
+            root.Children.Add(_card);
 
             // ---------- controls ----------
             var controls = new Grid { Margin = new Thickness(2, 0, 2, 2) };
@@ -324,6 +383,15 @@ namespace Palisades.Plugins
                 _settings.LastUuid = s.LastUuid ?? "";
                 _settings.ShowInNowPlaying = s.ShowInNowPlaying;
                 _settings.ShowOnDiscord = s.ShowOnDiscord;
+                _settings.AccentColor = string.IsNullOrEmpty(s.AccentColor) ? "#7DD3FC" : s.AccentColor;
+                _settings.CardOpacity = s.CardOpacity <= 0 ? 1.0 : Math.Clamp(s.CardOpacity, 0.15, 1.0);
+                try
+                {
+                    _accent = (Color)ColorConverter.ConvertFromString(_settings.AccentColor);
+                }
+                catch { _accent = Color.FromRgb(0x7D, 0xD3, 0xFC); }
+                _cardOpacity = _settings.CardOpacity;
+                ApplyRadioTheme();
                 double sliderVal = _settings.Volume / 2.0;
                 SetPlayerVolume(sliderVal);
                 if (Math.Abs(_volume.Value - sliderVal) > 0.001)
@@ -457,7 +525,9 @@ namespace Palisades.Plugins
         {
             bool fav = _current != null && IsFavorite(_current.Uuid);
             _favGlyph.Text = fav ? "★" : "☆";
-            _favGlyph.Foreground = fav ? AccentBrush : MutedBrush;
+            _favGlyph.Foreground = fav
+                ? new SolidColorBrush(Color.FromRgb(0xFF, 0xC9, 0x3C))
+                : MutedBrush;
         }
 
         private void StepFavorite(int dir)
@@ -473,8 +543,11 @@ namespace Palisades.Plugins
         {
             _playing = playing;
             _playGlyph.Text = playing ? "⏸" : "▶";
+            // ▶ needs a nudge right for optical centering, ⏸ is symmetric.
+            _playGlyph.Margin = playing ? new Thickness(0) : new Thickness(2, 0, 0, 0);
             _statusText.Text = text;
             _statusDot.Foreground = playing ? LiveBrush : DimBrush;
+            _eqBars.Visibility = playing ? Visibility.Visible : Visibility.Collapsed;
             ReportNowPlaying(playing);
         }
 
@@ -516,6 +589,23 @@ namespace Palisades.Plugins
 
         // ================= rendering =================
 
+        /// <summary>Applies accent + card opacity live (mutates shared brushes in place).</summary>
+        private void ApplyRadioTheme()
+        {
+            _accentBrush.Color = _accent;
+            _playBg.GradientStops[0].Color = Mix(_accent, Colors.White, 0.28);
+            _playBg.GradientStops[1].Color = Mix(_accent, Colors.Black, 0.16);
+            byte a = (byte)(255 * Math.Clamp(_cardOpacity, 0.15, 1.0));
+            _cardBg.GradientStops[0].Color = Color.FromArgb(a, 0x22, 0x24, 0x28);
+            _cardBg.GradientStops[1].Color = Color.FromArgb(a, 0x14, 0x15, 0x18);
+        }
+
+        private static Color Mix(Color c, Color other, double t)
+        {
+            byte R(byte x, byte y) => (byte)(x + (y - x) * t);
+            return Color.FromArgb(0xFF, R(c.R, other.R), R(c.G, other.G), R(c.B, other.B));
+        }
+
         private void RenderAll()
         {
             RenderCurrent();
@@ -530,10 +620,13 @@ namespace Palisades.Plugins
                 _tags.Text = "Tap 🔍 to browse";
                 _logo.Source = null;
                 _logo.Visibility = Visibility.Collapsed;
+                _logoPlaceholder.Visibility = Visibility.Visible;
                 return;
             }
             _name.Text = _current.Name;
             _tags.Text = _current.Tags ?? "";
+            bool hasLogo = !string.IsNullOrWhiteSpace(_current.Favicon);
+            _logoPlaceholder.Visibility = hasLogo ? Visibility.Collapsed : Visibility.Visible;
             IconLoader.Load(_current.Favicon, _logo, 44);
             UpdateFavGlyph();
         }
@@ -568,8 +661,8 @@ namespace Palisades.Plugins
             var border = new Border
             {
                 CornerRadius = new CornerRadius(10),
-                Background = active ? new SolidColorBrush(Color.FromArgb(0x40, 0x7D, 0xD3, 0xFC)) : ChipBrush,
-                BorderBrush = active ? AccentBrush : ChipBorder,
+                Background = active ? new SolidColorBrush(Color.FromArgb(0x40, _accent.R, _accent.G, _accent.B)) : ChipBrush,
+                BorderBrush = active ? _accentBrush : ChipBorder,
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(7, 3, 7, 3),
                 Margin = new Thickness(0, 0, 4, 4),
@@ -592,6 +685,13 @@ namespace Palisades.Plugins
             });
             border.Child = row;
             border.MouseLeftButtonDown += (_, e) => { e.Handled = true; onClick(); };
+            if (!active)
+            {
+                // Static hover highlight (brush swap only → 0% CPU).
+                border.MouseEnter += (_, _) => border.Background =
+                    new SolidColorBrush(Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF));
+                border.MouseLeave += (_, _) => border.Background = ChipBrush;
+            }
             return border;
         }
 
@@ -605,6 +705,37 @@ namespace Palisades.Plugins
             };
             tb.MouseLeftButtonDown += (_, e) => { e.Handled = true; onClick(); };
             return tb;
+        }
+
+        /// <summary>Rounded hoverable pill button (static brush swap → 0% CPU).</summary>
+        private static Border BuildPillButton(string glyph, string tip, Action onClick)
+        {
+            var tb = new TextBlock
+            {
+                Text = glyph, FontSize = 13, Foreground = MutedBrush,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var border = new Border
+            {
+                CornerRadius = new CornerRadius(8),
+                Background = Brushes.Transparent,
+                BorderBrush = ChipBorder, BorderThickness = new Thickness(1),
+                Padding = new Thickness(7, 3, 7, 3),
+                Cursor = Cursors.Hand, ToolTip = tip, Child = tb
+            };
+            border.MouseLeftButtonDown += (_, e) => { e.Handled = true; onClick(); };
+            border.MouseEnter += (_, _) =>
+            {
+                border.Background = new SolidColorBrush(Color.FromArgb(0x28, 0xFF, 0xFF, 0xFF));
+                tb.Foreground = TextBrush;
+            };
+            border.MouseLeave += (_, _) =>
+            {
+                border.Background = Brushes.Transparent;
+                tb.Foreground = MutedBrush;
+            };
+            return border;
         }
 
         private static ControlTemplate? _slimSliderTemplate;

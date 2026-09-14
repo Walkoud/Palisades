@@ -760,5 +760,7 @@
   "Db_WidgetScrollbarHidden": "Never show",
   "Db_WidgetHeaderHover": "Widget header on hover only",
   "Db_RadioNowPlaying": "Show current station in Now Playing",
-  "Db_RadioDiscord": "Show current station on Discord"
+  "Db_RadioDiscord": "Show current station on Discord",
+  "Db_RadioAccent": "Accent color",
+  "Db_RadioCardOpacity": "Card opacity"
 }
