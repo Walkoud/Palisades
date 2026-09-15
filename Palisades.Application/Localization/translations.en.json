@@ -238,6 +238,7 @@
   "App_ContextMenuInstalled": "Desktop context menu installed!",
 
   "Tray_OpenPalisades": "Open Palisades",
+  "Tray_SuspendPalisades": "Suspend Palisades",
   "Tray_NewContainer": "New Container",
   "Tray_ShowHideAll": "Show / Hide All",
   "Tray_ToggleDesktopIcons": "Toggle Desktop Icons",

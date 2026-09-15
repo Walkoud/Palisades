@@ -187,6 +187,30 @@ namespace Palisades.Views
         private static DesktopOverlayWindow? _instance; // for static callback access
         private volatile bool _overlayHasFocus;          // set in mouse hook, read in kb hook
         private Thread? _keyboardHookThread;
+        private uint _kbHookThreadId;
+
+        /// <summary>Removes the global keyboard hook and ends its message-pump thread.</summary>
+        private void StopGlobalKeyboardHook()
+        {
+            try
+            {
+                if (_globalKbHookId != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(_globalKbHookId);
+                    _globalKbHookId = IntPtr.Zero;
+                }
+            }
+            catch { }
+            try
+            {
+                if (_keyboardHookThread?.IsAlive == true && _kbHookThreadId != 0)
+                    PostThreadMessage(_kbHookThreadId, WM_QUIT, UIntPtr.Zero, IntPtr.Zero);
+            }
+            catch { }
+            _kbHookThreadId = 0;
+        }
+
+        private const uint WM_QUIT = 0x0012;
 
         private delegate IntPtr LowLevelMouseProcDelegate(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -203,6 +227,34 @@ namespace Palisades.Views
         public event Action<double, double>? CreateFolderPortalRequested;
 
         private DispatcherTimer? _explorerCheckTimer;
+        private DispatcherTimer? _noteSaveTimer;
+
+        /// <summary>Starts recurring background loops (auto-save, explorer watchdog).</summary>
+        private void StartLoopTimers()
+        {
+            try
+            {
+                if (_noteSaveTimer == null)
+                {
+                    _noteSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+                    _noteSaveTimer.Tick += (_, _) => { SaveNotesToDisk(); SaveGadgetsToDisk(); };
+                }
+                _noteSaveTimer.Start();
+            }
+            catch { }
+            StartExplorerWatchdog();
+        }
+
+        /// <summary>Stops all recurring background loops so a suspended/hidden overlay consumes nothing.</summary>
+        private void StopLoopTimers()
+        {
+            try { _noteSaveTimer?.Stop(); } catch { }
+            try { _explorerCheckTimer?.Stop(); } catch { }
+            try { _copyFlashTimer?.Stop(); } catch { }
+            try { _copiedToastTimer?.Stop(); } catch { }
+            try { _cutPollTimer?.Stop(); } catch { }
+            try { _androidTileReShowTimer?.Stop(); } catch { }
+        }
 
         private PathToImageConverter _iconConverter = new() { ShowArrow = true };
         private static readonly Brush _invisibleBrush = new SolidColorBrush(Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF));
@@ -231,10 +283,11 @@ namespace Palisades.Views
             PreviewKeyDown += Window_KeyDown;
             Unloaded += (_, _) =>
             {
-                _explorerCheckTimer?.Stop();
+                StopLoopTimers();
                 try { _nowPlayingBarWindow?.Close(); } catch { }
                 _nowPlayingBarWindow = null;
                 UninstallHook();
+                StopGlobalKeyboardHook();
             };
 
             SnapshotManager.ScreenshotCaptureCallback = CaptureOverlayScreenshot;
@@ -289,9 +342,7 @@ namespace Palisades.Views
             RebuildDesktopIcons();
             ContainerManager.Instance.UnassignedShortcutsChanged += RebuildDesktopIcons;
             RebuildNotes();
-            var noteSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-            noteSaveTimer.Tick += (_, _) => { SaveNotesToDisk(); SaveGadgetsToDisk(); };
-            noteSaveTimer.Start();
+            StartLoopTimers();
 
             InstallHook();
             _instance = this;
@@ -1106,8 +1157,10 @@ namespace Palisades.Views
 
         private void StartGlobalKeyboardHookThread()
         {
+            if (_keyboardHookThread?.IsAlive == true || _globalKbHookId != IntPtr.Zero) return;
             _keyboardHookThread = new Thread(() =>
             {
+                _kbHookThreadId = GetCurrentThreadId();
                 _globalKbHookProc = GlobalKeyboardHookCallback;
                 IntPtr kbFnPtr = Marshal.GetFunctionPointerForDelegate(_globalKbHookProc);
                 _globalKbHookId = SetWindowsHookExRaw(13, kbFnPtr, GetModuleHandle(null), 0);
@@ -3018,6 +3071,47 @@ private bool RouteClipboardCopy(Key key)
                 AddContainer(vm);
         }
 
+        /// <summary>True while the overlay is suspended (hidden, no timers/hooks/views running).</summary>
+        public bool IsSuspended { get; private set; }
+
+        /// <summary>
+        /// Suspends Palisades visuals: gadget views are unloaded (their timers and
+        /// audio stop), background loops and global hooks are halted, and the
+        /// window hides. Resume rebuilds gadgets and restarts loops/hooks.
+        /// The window instance (and its event subscriptions) is preserved.
+        /// </summary>
+        public void SetSuspended(bool suspended)
+        {
+            if (suspended == IsSuspended) return;
+            IsSuspended = suspended;
+            if (suspended)
+            {
+                try { SaveNotesToDisk(); SaveGadgetsToDisk(); } catch { }
+                StopLoopTimers();
+                UninstallHook();
+                StopGlobalKeyboardHook();
+                try { _nowPlayingBarWindow?.Close(); } catch { }
+                _nowPlayingBarWindow = null;
+                try
+                {
+                    foreach (var wrapper in _gadgetControls.Values)
+                        OverlayCanvas.Children.Remove(wrapper);
+                    _gadgetControls.Clear();
+                }
+                catch { }
+                Hide();
+            }
+            else
+            {
+                RepositionOverlay();
+                RebuildGadgets();
+                StartLoopTimers();
+                InstallHook();
+                StartGlobalKeyboardHookThread();
+                Show();
+            }
+        }
+
         public void ClearOverlayIconSelection()
         {
             try
@@ -4870,6 +4964,12 @@ private bool RouteClipboardCopy(Key key)
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        private static extern bool PostThreadMessage(uint idThread, uint Msg, UIntPtr wParam, IntPtr lParam);
 
         [DllImport("user32.dll")]
         private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);

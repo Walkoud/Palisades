@@ -424,7 +424,7 @@ namespace Palisades.ViewModels
             }
         }
 
-        private void ApplyDiscordSettings()
+        public void ApplyDiscordSettings()
         {
             try
             {
