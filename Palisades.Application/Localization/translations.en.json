@@ -238,6 +238,7 @@
   "App_ContextMenuInstalled": "Desktop context menu installed!",
 
   "Tray_OpenPalisades": "Open Palisades",
+  "Tray_SuspendPalisades": "Suspend Palisades",
   "Tray_NewContainer": "New Container",
   "Tray_ShowHideAll": "Show / Hide All",
   "Tray_ToggleDesktopIcons": "Toggle Desktop Icons",
@@ -760,5 +761,7 @@
   "Db_WidgetScrollbarHidden": "Never show",
   "Db_WidgetHeaderHover": "Widget header on hover only",
   "Db_RadioNowPlaying": "Show current station in Now Playing",
-  "Db_RadioDiscord": "Show current station on Discord"
+  "Db_RadioDiscord": "Show current station on Discord",
+  "Db_RadioAccent": "Accent color",
+  "Db_RadioCardOpacity": "Card opacity"
 }

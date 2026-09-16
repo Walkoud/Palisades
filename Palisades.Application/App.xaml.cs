@@ -23,6 +23,8 @@ namespace Palisades
         private ArcticShelterWindow? _arcticWindow;
         private DesktopOverlayWindow? _overlayWindow;
         private readonly Dictionary<string, System.IO.FileSystemWatcher> _folderWatchers = new();
+        private DispatcherTimer? _backupTimer;
+        private bool _suspended;
 
         private const string MutexName = "Global\\Palisades_SingleInstance";
         private Mutex? _mutex;
@@ -273,8 +275,9 @@ namespace Palisades
                 string backupDir = Path.Combine(appData, "backups");
                 Directory.CreateDirectory(backupDir);
 
-                var backupTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
-                backupTimer.Tick += (_, _) =>
+                if (_backupTimer != null) return;
+                _backupTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+                _backupTimer.Tick += (_, _) =>
                 {
                     try
                     {
@@ -292,7 +295,17 @@ namespace Palisades
                     }
                     catch { }
                 };
-                backupTimer.Start();
+                _backupTimer.Start();
+            }
+            catch { }
+        }
+
+        private void StopAutoBackup()
+        {
+            try
+            {
+                _backupTimer?.Stop();
+                _backupTimer = null;
             }
             catch { }
         }
@@ -303,6 +316,7 @@ namespace Palisades
             _trayService.ShowMainWindowRequested += () => SafeDispatch(ShowMainWindow);
             _trayService.CreateContainerRequested += () => SafeDispatch(CreateContainerFromTray);
             _trayService.ToggleContainersRequested += () => SafeDispatch(ToggleContainersVisibility);
+            _trayService.ToggleSuspendRequested += () => SafeDispatch(ToggleSuspend);
             _trayService.ExitRequested += () => Dispatcher.BeginInvoke(new Action(Shutdown));
             _trayService.ToggleDesktopIconsRequested += () => SafeDispatch(ToggleDesktopIcons);
             _trayService.InstallContextMenuRequested += () => SafeDispatch(InstallDesktopContextMenu);
@@ -831,13 +845,103 @@ namespace Palisades
 
         private void ToggleContainersVisibility()
         {
-            if (_mainViewModel == null) return;
+            if (_suspended || _mainViewModel == null) return;
             bool anyVisible = false;
             foreach (var vm in _mainViewModel.Containers)
                 if (vm.IsVisible) { anyVisible = true; break; }
 
             foreach (var vm in _mainViewModel.Containers)
                 vm.IsVisible = !anyVisible;
+        }
+
+        /// <summary>True while Palisades is suspended (overlay hidden, background work stopped).</summary>
+        public bool IsSuspended => _suspended;
+
+        private void ToggleSuspend()
+        {
+            if (_suspended) ResumePalisades();
+            else SuspendPalisades();
+        }
+
+        /// <summary>
+        /// Fully suspends Palisades: dashboard closed, overlay hidden with gadget
+        /// views unloaded (no timers, no audio), auto-sort/watchers/backup/Discord
+        /// stopped, desktop icons restored. Only the tray icon remains.
+        /// </summary>
+        private void SuspendPalisades()
+        {
+            SafeDispatch(() =>
+            {
+                if (_suspended) return;
+                _suspended = true;
+                try { ContainerManager.Instance.Save(); } catch { }
+                try { _arcticWindow?.Close(); } catch { }
+                _arcticWindow = null;
+                try { _overlayWindow?.SetSuspended(true); } catch { }
+                try { AutoSortManager.Instance.Stop(); } catch { }
+                try
+                {
+                    foreach (var id in _folderWatchers.Keys.ToList())
+                        StopFolderWatcher(id);
+                }
+                catch { }
+                try { StopAutoBackup(); } catch { }
+                try { DiscordPresenceService.Instance.Shutdown(); } catch { }
+                try
+                {
+                    SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+                    SystemEvents.SessionSwitch -= OnSessionSwitch;
+                }
+                catch { }
+                try
+                {
+                    DesktopService.ShowDesktopIcons();
+                    if (_mainViewModel != null) _mainViewModel.IconsHidden = false;
+                }
+                catch { }
+                _trayService?.SetSuspendedChecked(true);
+            });
+        }
+
+        /// <summary>Restores everything stopped by <see cref="SuspendPalisades"/>.</summary>
+        private void ResumePalisades()
+        {
+            SafeDispatch(() =>
+            {
+                if (!_suspended) return;
+                _suspended = false;
+                try
+                {
+                    SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+                    SystemEvents.SessionSwitch += OnSessionSwitch;
+                }
+                catch { }
+                try { _overlayWindow?.SetSuspended(false); } catch { }
+                try
+                {
+                    DesktopService.HideDesktopIcons();
+                    if (_mainViewModel != null) _mainViewModel.IconsHidden = true;
+                }
+                catch { }
+                try { AutoSortManager.Instance.Start(); } catch { }
+                try { RestartFolderWatchers(); } catch { }
+                try { StartAutoBackup(); } catch { }
+                try { _mainViewModel?.ApplyDiscordSettings(); } catch { }
+                _trayService?.SetSuspendedChecked(false);
+            });
+        }
+
+        private void RestartFolderWatchers()
+        {
+            try
+            {
+                foreach (var container in ContainerManager.Instance.Containers)
+                {
+                    if (!string.IsNullOrEmpty(container.FolderPortalPath))
+                        StartFolderWatcher(container, container.FolderPortalPath);
+                }
+            }
+            catch { }
         }
 
         private void InstallDesktopContextMenu()

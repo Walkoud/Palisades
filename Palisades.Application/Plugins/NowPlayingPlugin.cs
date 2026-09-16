@@ -892,6 +892,29 @@ namespace Palisades.Plugins
 
         private void ResolveActiveSession()
         {
+            // Sync with the OS session list first: a new SMTC source can start
+            // playing before SessionsChanged fires, leaving _knownSessions stale.
+            // Without this, a paused radio entry would keep the widget stuck.
+            try
+            {
+                var fresh = _smtcManager?.GetSessions().ToList();
+                if (fresh != null)
+                {
+                    foreach (var s in fresh)
+                    {
+                        if (!_knownSessions.Contains(s))
+                        {
+                            s.MediaPropertiesChanged += Session_MediaPropertiesChanged;
+                            s.PlaybackInfoChanged += Session_PlaybackInfoChanged;
+                            s.TimelinePropertiesChanged += Session_TimelinePropertiesChanged;
+                            _knownSessions.Add(s);
+                        }
+                    }
+                    _knownSessions.RemoveAll(s => !fresh.Contains(s));
+                }
+            }
+            catch { }
+
             // A gadget (Radio) reporting through the bridge takes precedence.
             var ext = Palisades.Services.ExternalNowPlaying.Current;
             if (ext != null && ext.IsPlaying)
@@ -1211,7 +1234,8 @@ namespace Palisades.Plugins
         {
             try
             {
-                if (Palisades.Services.ExternalNowPlaying.Current != null
+                var ext = Palisades.Services.ExternalNowPlaying.Current;
+                if (ext != null && (ext.IsPlaying || _currentSession == null)
                     && Palisades.Services.ExternalNowPlaying.SkipPrevious != null)
                 {
                     Palisades.Services.ExternalNowPlaying.SkipPrevious();
@@ -1227,7 +1251,8 @@ namespace Palisades.Plugins
         {
             try
             {
-                if (Palisades.Services.ExternalNowPlaying.Current != null
+                var ext = Palisades.Services.ExternalNowPlaying.Current;
+                if (ext != null && (ext.IsPlaying || _currentSession == null)
                     && Palisades.Services.ExternalNowPlaying.TogglePlayPause != null)
                 {
                     Palisades.Services.ExternalNowPlaying.TogglePlayPause();
@@ -1243,7 +1268,8 @@ namespace Palisades.Plugins
         {
             try
             {
-                if (Palisades.Services.ExternalNowPlaying.Current != null
+                var ext = Palisades.Services.ExternalNowPlaying.Current;
+                if (ext != null && (ext.IsPlaying || _currentSession == null)
                     && Palisades.Services.ExternalNowPlaying.SkipNext != null)
                 {
                     Palisades.Services.ExternalNowPlaying.SkipNext();

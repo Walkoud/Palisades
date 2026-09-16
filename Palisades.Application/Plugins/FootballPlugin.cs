@@ -1526,10 +1526,20 @@ namespace Palisades.Plugins
         {
             if (string.IsNullOrEmpty(slug)) return false;
             string s = slug.ToLowerInvariant();
-            return s.Contains(".w.") || s.Contains("ww") || s.Contains("nwsl")
-                || s.Contains("femenina") || s.Contains("reina")
-                || s.StartsWith("fifa.w") || s.StartsWith("uefa.w")
-                || s.StartsWith("concacaf.w") || s.StartsWith("can.w") || s.StartsWith("aus.w");
+            // NOTE: never match the "fifa.w" prefix bare — men's "fifa.world",
+            // "fifa.worldq.*" and "fifa.wcq.ply" all start with it.
+            if (s.Contains(".w.") || s.EndsWith(".w")) return true;
+            if (s.Contains("ww") || s.Contains("nwsl") || s.Contains("shebelieves")
+                || s.Contains("femenina") || s.Contains("reina") || s.Contains("womens"))
+                return true;
+            if (s.StartsWith("fifa.w.") || s.StartsWith("uefa.w") || s.StartsWith("concacaf.w")
+                || s.StartsWith("can.w") || s.StartsWith("aus.w"))
+                return true;
+            if (s.Contains("weuro") || s.Contains("wchampions") || s.Contains("w.nations")
+                || s.Contains("w.gold") || s.Contains("w.finalissima") || s.Contains("w.olympics")
+                || s.Contains("w.europa"))
+                return true;
+            return false;
         }
 
         /// <summary>

@@ -10,6 +10,7 @@ namespace Palisades.Services
         private bool _disposed;
 
         public event Action? ShowMainWindowRequested;
+        public event Action? ToggleSuspendRequested;
         public event Action? CreateContainerRequested;
         public event Action? ToggleContainersRequested;
         public event Action? ExitRequested;
@@ -19,6 +20,7 @@ namespace Palisades.Services
         public event Action? ToggleDiscordPresenceRequested;
 
         private bool _presenceDisabledChecked;
+        private bool _suspendedChecked;
 
         public TrayService()
         {
@@ -41,6 +43,13 @@ namespace Palisades.Services
             var t = TranslationService.Instance;
             _menu.Items.Clear();
             _menu.Items.Add(t["Tray_OpenPalisades"], null, (_, _) => ShowMainWindowRequested?.Invoke());
+            var suspendItem = new ToolStripMenuItem(t["Tray_SuspendPalisades"])
+            {
+                CheckOnClick = true,
+                Checked = _suspendedChecked
+            };
+            suspendItem.Click += (_, _) => ToggleSuspendRequested?.Invoke();
+            _menu.Items.Add(suspendItem);
             _menu.Items.Add(new ToolStripSeparator());
             var presenceItem = new ToolStripMenuItem(t["Tray_DisablePresence"])
             {
@@ -60,6 +69,20 @@ namespace Palisades.Services
             _menu.Items.Add(t["Tray_Restart"], null, (_, _) => RestartRequested?.Invoke());
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(t["Tray_Exit"], null, (_, _) => ExitRequested?.Invoke());
+        }
+
+        public void SetSuspendedChecked(bool isChecked)
+        {
+            _suspendedChecked = isChecked;
+            foreach (var item in _menu.Items)
+            {
+                if (item is ToolStripMenuItem mi && mi.Text == TranslationService.Instance["Tray_SuspendPalisades"])
+                {
+                    mi.Checked = isChecked;
+                    break;
+                }
+            }
+            try { _trayIcon.Text = isChecked ? "Palisades (suspended)" : "Palisades"; } catch { }
         }
 
         public void SetPresenceDisabledChecked(bool isChecked)
