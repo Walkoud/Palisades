@@ -96,7 +96,7 @@ namespace Palisades.Services
             new EspnLeague { Slug = "den.1", Name = "Superliga (DEN)" },
             new EspnLeague { Slug = "nor.1", Name = "Eliteserien" },
             new EspnLeague { Slug = "swe.1", Name = "Allsvenskan" },
-            new EspnLeague { Slug = "tur.1", Name = "Süper Lig" },
+            new EspnLeague { Slug = "tur.1", Name = "Süper Lig (Türkiye)" },
             new EspnLeague { Slug = "usa.1", Name = "MLS" },
             new EspnLeague { Slug = "mex.1", Name = "Liga MX" },
             new EspnLeague { Slug = "bra.1", Name = "Serie A (BRA)" },

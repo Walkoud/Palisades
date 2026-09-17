@@ -1077,19 +1077,19 @@ namespace Palisades.ViewModels
         {
             public List<string> Leagues { get; set; } = new List<string> { "eng.1", "esp.1", "ita.1", "ger.1", "fra.1" };
             public List<FootballFavTeam> Teams { get; set; } = new List<FootballFavTeam>();
-            public int RefreshMinutes { get; set; } = 2;
+            public int RefreshMinutes { get; set; } = 10;
             public int MaxMatches { get; set; } = 8;
             public bool ShowCrests { get; set; } = true;
-            public int FinishedHours { get; set; } = 2;
-            public string FinishedPosition { get; set; } = "bottom";
-            public string FinishedTextColor { get; set; } = "";
-            public bool ShowFinishedHeader { get; set; } = false;
-            public bool ShowFinishedDates { get; set; } = false;
+            public int FinishedHours { get; set; } = 24;
+            public string FinishedPosition { get; set; } = "top";
+            public string FinishedTextColor { get; set; } = "#808080";
+            public bool ShowFinishedHeader { get; set; } = true;
+            public bool ShowFinishedDates { get; set; } = true;
             public string CardTheme { get; set; } = "classic";
-            public string DateFormat { get; set; } = "text";
+            public string DateFormat { get; set; } = "daynumeric";
             public double CardScale { get; set; } = 1.0;
             public string MatchClickAction { get; set; } = "details";
-            public bool ShowLiveOnDiscord { get; set; } = false;
+            public bool ShowLiveOnDiscord { get; set; } = true;
         }
 
         public class FootballLeagueOption : System.ComponentModel.INotifyPropertyChanged
@@ -1120,7 +1120,7 @@ namespace Palisades.ViewModels
 
         public System.Windows.Input.ICommand FootballRemoveFavTeamCommand { get; private set; } = null!;
 
-        private int _footballRefreshMinutes = 2;
+        private int _footballRefreshMinutes = 10;
         public int FootballRefreshMinutes
         {
             get => _footballRefreshMinutes;
@@ -1156,7 +1156,7 @@ namespace Palisades.ViewModels
             }
         }
 
-        private int _footballFinishedHours = 2;
+        private int _footballFinishedHours = 24;
         public int FootballFinishedHours
         {
             get => _footballFinishedHours;
@@ -1168,7 +1168,7 @@ namespace Palisades.ViewModels
             }
         }
 
-        private string _footballFinishedPosition = "bottom";
+        private string _footballFinishedPosition = "top";
         public string FootballFinishedPosition
         {
             get => _footballFinishedPosition;
@@ -1180,7 +1180,7 @@ namespace Palisades.ViewModels
             }
         }
 
-        private string _footballFinishedTextColor = "";
+        private string _footballFinishedTextColor = "#808080";
         public string FootballFinishedTextColor
         {
             get => _footballFinishedTextColor;
@@ -1192,7 +1192,7 @@ namespace Palisades.ViewModels
             }
         }
 
-        private bool _footballShowFinishedHeader;
+        private bool _footballShowFinishedHeader = true;
         public bool FootballShowFinishedHeader
         {
             get => _footballShowFinishedHeader;
@@ -1204,7 +1204,7 @@ namespace Palisades.ViewModels
             }
         }
 
-        private bool _footballShowFinishedDates;
+        private bool _footballShowFinishedDates = true;
         public bool FootballShowFinishedDates
         {
             get => _footballShowFinishedDates;
@@ -1231,7 +1231,7 @@ namespace Palisades.ViewModels
 
         public bool FootballCardSizeVisible => _footballCardTheme == "dark";
 
-        private string _footballDateFormat = "text";
+        private string _footballDateFormat = "daynumeric";
         public string FootballDateFormat
         {
             get => _footballDateFormat;
@@ -1328,7 +1328,7 @@ namespace Palisades.ViewModels
             }
         }
 
-        private bool _footballShowLiveOnDiscord;
+        private bool _footballShowLiveOnDiscord = true;
         public bool FootballShowLiveOnDiscord
         {
             get => _footballShowLiveOnDiscord;
@@ -1450,10 +1450,10 @@ namespace Palisades.ViewModels
                         settings = Newtonsoft.Json.JsonConvert.DeserializeObject<FootballSettings>(SelectedWidget.CustomData) ?? new FootballSettings();
                     }
                     _isRefreshingSettings = true;
-                    FootballRefreshMinutes = settings.RefreshMinutes <= 0 ? 2 : settings.RefreshMinutes;
+                    FootballRefreshMinutes = settings.RefreshMinutes <= 0 ? 10 : settings.RefreshMinutes;
                     FootballMaxMatches = settings.MaxMatches <= 0 ? 8 : settings.MaxMatches;
                     FootballShowCrests = settings.ShowCrests;
-                    FootballFinishedHours = settings.FinishedHours < 0 ? 2 : settings.FinishedHours;
+                    FootballFinishedHours = settings.FinishedHours < 0 ? 24 : settings.FinishedHours;
                     FootballFinishedPosition = (settings.FinishedPosition ?? "").ToLowerInvariant() == "top" ? "top" : "bottom";
                     FootballFinishedTextColor = settings.FinishedTextColor ?? "";
                     FootballShowFinishedHeader = settings.ShowFinishedHeader;
