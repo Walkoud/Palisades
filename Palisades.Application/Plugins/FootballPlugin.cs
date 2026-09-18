@@ -874,11 +874,13 @@ namespace Palisades.Plugins
             catch { return CultureInfo.InvariantCulture; }
         }
 
-        /// <summary>Short date per settings, with Today/Yesterday + kickoff time.</summary>
+        /// <summary>Short date per settings, with Today/Tomorrow/Yesterday + kickoff time.</summary>
         private static string FormatShortDate(DateTime local, CultureInfo culture, FootballSettings s)
         {
             if (local.Date == DateTime.Today)
                 return (TranslationService.Instance["Widget_FootballToday"] ?? "Today") + " " + local.ToString("HH:mm");
+            if (local.Date == DateTime.Today.AddDays(1))
+                return (TranslationService.Instance["Widget_FootballTomorrow"] ?? "Tomorrow") + " " + local.ToString("HH:mm");
             if (local.Date == DateTime.Today.AddDays(-1))
                 return (TranslationService.Instance["Widget_FootballYesterday"] ?? "Yesterday") + " " + local.ToString("HH:mm");
             string fmt = (s.DateFormat ?? "text").ToLowerInvariant();
@@ -969,9 +971,12 @@ namespace Palisades.Plugins
             {
                 var local = m.UtcDate.ToLocalTime();
                 string today = TranslationService.Instance["Widget_FootballToday"] ?? "Today";
+                string tomorrow = TranslationService.Instance["Widget_FootballTomorrow"] ?? "Tomorrow";
                 text = local.Date == DateTime.Today
                     ? today
-                    : FormatBandDate(local, culture, _settings);
+                    : local.Date == DateTime.Today.AddDays(1)
+                        ? tomorrow
+                        : FormatBandDate(local, culture, _settings);
             }
             return new TextBlock
             {
@@ -1248,8 +1253,11 @@ namespace Palisades.Plugins
                 try { culture = new CultureInfo(TranslationService.Instance.CurrentCulture); }
                 catch { culture = CultureInfo.InvariantCulture; }
                 string today = TranslationService.Instance["Widget_FootballToday"] ?? "Today";
+                string tomorrow = TranslationService.Instance["Widget_FootballTomorrow"] ?? "Tomorrow";
                 string when = local == null ? "—" :
-                    (local.Value.Date == DateTime.Today ? today + " " + local.Value.ToString("HH:mm") : local.Value.ToString("ddd HH:mm", culture));
+                    (local.Value.Date == DateTime.Today ? today + " " + local.Value.ToString("HH:mm")
+                    : local.Value.Date == DateTime.Today.AddDays(1) ? tomorrow + " " + local.Value.ToString("HH:mm")
+                    : local.Value.ToString("ddd HH:mm", culture));
                 status = new TextBlock { Text = when, FontSize = 10, Foreground = DimBrush };
             }
             status.VerticalAlignment = VerticalAlignment.Center;

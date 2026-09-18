@@ -819,6 +819,32 @@ namespace Palisades.Services
                 throw new EspnApiException(EspnApiError.Unknown, "Bad ESPN payload: " + ex.Message);
             }
 
+            // The CDN scoreboard is a narrow current window (e.g. only yesterday's
+            // finished games) and ignores the dates= param: upcoming fixtures
+            // never appear. site.web.api honors ?dates=YYYYMMDD (and is NOT
+            // Akamai-blocked, unlike site.api) -> merge local today/+1/+2 on
+            // top of the CDN base (local base: the widget displays local days,
+            // and UTC-based windows miss "tomorrow" past midnight in CET).
+            try
+            {
+                var seen = new HashSet<string>(matches.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
+                var localBase = DateTime.Now.Date;
+                foreach (string day in new[]
+                {
+                    localBase.ToString("yyyyMMdd"),
+                    localBase.AddDays(1).ToString("yyyyMMdd"),
+                    localBase.AddDays(2).ToString("yyyyMMdd")
+                })
+                {
+                    foreach (var extra in await GetWebApiDayAsync(leagueSlug, day, ct).ConfigureAwait(false))
+                    {
+                        if (seen.Add(extra.Id))
+                            matches.Add(extra);
+                    }
+                }
+            }
+            catch { }
+
             lock (_cacheLock)
             {
                 if (_cache.Count > 40) _cache.Clear();
@@ -1043,6 +1069,72 @@ namespace Palisades.Services
                 m.Away = ParseTeam(away);
                 m.HomeScore = ParseScore(home?["score"]);
                 m.AwayScore = ParseScore(away?["score"]);
+                list.Add(m);
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// Day scoreboard via site.web.api (honors ?dates=YYYYMMDD, NOT
+        /// Akamai-blocked). Empty on any failure: never breaks the CDN base.
+        /// </summary>
+        private static async Task<List<EspnMatch>> GetWebApiDayAsync(string leagueSlug, string yyyymmdd, CancellationToken ct)
+        {
+            try
+            {
+                string url = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/"
+                    + Uri.EscapeDataString(leagueSlug.Trim()) + "/scoreboard?dates=" + yyyymmdd;
+                string body = await GetRawAsync(url, ct).ConfigureAwait(false);
+                return ParseWebApiScoreboard(body, leagueSlug);
+            }
+            catch (Exception ex)
+            {
+                Palisades.App.Log("[Football] webapi " + leagueSlug + "/" + yyyymmdd + " FAIL: " + ex.Message);
+                return new List<EspnMatch>();
+            }
+        }
+
+        private static List<EspnMatch> ParseWebApiScoreboard(string body, string leagueSlug)
+        {
+            var list = new List<EspnMatch>();
+            var json = JObject.Parse(body);
+            string leagueName = json["leagues"]?.FirstOrDefault()?["name"]?.ToString()
+                ?? CuratedLeagues
+                    .FirstOrDefault(l => l.Slug.Equals(leagueSlug, StringComparison.OrdinalIgnoreCase))?.Name
+                ?? leagueSlug;
+            foreach (var e in json["events"] ?? new JArray())
+            {
+                var comp = e["competitions"]?.FirstOrDefault();
+                if (comp == null) continue;
+                var m = new EspnMatch
+                {
+                    Id = e["id"]?.ToString() ?? Guid.NewGuid().ToString("N"),
+                    LeagueSlug = leagueSlug,
+                    LeagueName = leagueName
+                };
+                try { m.UtcDate = ToUtcDate(e["date"] ?? comp["date"]); } catch { m.UtcDate = DateTime.MinValue; }
+                m.State = (comp["status"]?["type"]?["state"]?.ToString() ?? "").ToLowerInvariant();
+                m.Clock = comp["status"]?["displayClock"]?.ToString() ?? "";
+                m.Detail = comp["status"]?["type"]?["shortDetail"]?.ToString()
+                    ?? comp["status"]?["type"]?["detail"]?.ToString() ?? "";
+                var teams = new List<JToken>();
+                foreach (var t in comp["competitors"] ?? new JArray())
+                    teams.Add(t);
+                var home = teams.FirstOrDefault(t => (t["homeAway"]?.ToString() ?? "") == "home") ?? teams.FirstOrDefault();
+                var away = teams.FirstOrDefault(t => (t["homeAway"]?.ToString() ?? "") == "away") ?? teams.Skip(1).FirstOrDefault();
+                m.Home = ParseTeam(home);
+                m.Away = ParseTeam(away);
+                if (m.State == "pre")
+                {
+                    // web.api ships dummy "0" scores for unplayed games.
+                    m.HomeScore = null;
+                    m.AwayScore = null;
+                }
+                else
+                {
+                    m.HomeScore = ParseScore(home?["score"]);
+                    m.AwayScore = ParseScore(away?["score"]);
+                }
                 list.Add(m);
             }
             return list;
