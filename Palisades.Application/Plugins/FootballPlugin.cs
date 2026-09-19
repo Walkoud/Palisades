@@ -59,26 +59,26 @@ namespace Palisades.Plugins
     {
         public List<string> Leagues { get; set; } = new List<string> { "eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "tur.1" };
         public List<FootballFavTeam> Teams { get; set; } = new List<FootballFavTeam>();
-        public int RefreshMinutes { get; set; } = 2;
+        public int RefreshMinutes { get; set; } = 10;
         public int MaxMatches { get; set; } = 8;
         public bool ShowCrests { get; set; } = true;
-        public int FinishedHours { get; set; } = 2;
+        public int FinishedHours { get; set; } = 24;
         // "bottom" or "top": where finished matches sit in the list.
-        public string FinishedPosition { get; set; } = "bottom";
+        public string FinishedPosition { get; set; } = "top";
         // Hex text color for finished rows (empty = normal colors).
-        public string FinishedTextColor { get; set; } = "";
-        public bool ShowFinishedHeader { get; set; } = false;
-        public bool ShowFinishedDates { get; set; } = false;
+        public string FinishedTextColor { get; set; } = "#808080";
+        public bool ShowFinishedHeader { get; set; } = true;
+        public bool ShowFinishedDates { get; set; } = true;
         // "classic" rows or "dark" cards.
         public string CardTheme { get; set; } = "classic";
         // "details" window or "google" search on match click.
         public string MatchClickAction { get; set; } = "details";
         // Show live followed-team matches on Discord presence (off by default).
-        public bool ShowLiveOnDiscord { get; set; } = false;
+        public bool ShowLiveOnDiscord { get; set; } = true;
         // Dark-cards zoom (0.7 - 1.3).
         public double CardScale { get; set; } = 1.0;
         // "text" (Sep 10) or "numeric" (10/09/26).
-        public string DateFormat { get; set; } = "text";
+        public string DateFormat { get; set; } = "daynumeric";
     }
 
     public class FootballView : Border, ICustomizableGadgetView
@@ -874,11 +874,13 @@ namespace Palisades.Plugins
             catch { return CultureInfo.InvariantCulture; }
         }
 
-        /// <summary>Short date per settings, with Today/Yesterday + kickoff time.</summary>
+        /// <summary>Short date per settings, with Today/Tomorrow/Yesterday + kickoff time.</summary>
         private static string FormatShortDate(DateTime local, CultureInfo culture, FootballSettings s)
         {
             if (local.Date == DateTime.Today)
                 return (TranslationService.Instance["Widget_FootballToday"] ?? "Today") + " " + local.ToString("HH:mm");
+            if (local.Date == DateTime.Today.AddDays(1))
+                return (TranslationService.Instance["Widget_FootballTomorrow"] ?? "Tomorrow") + " " + local.ToString("HH:mm");
             if (local.Date == DateTime.Today.AddDays(-1))
                 return (TranslationService.Instance["Widget_FootballYesterday"] ?? "Yesterday") + " " + local.ToString("HH:mm");
             string fmt = (s.DateFormat ?? "text").ToLowerInvariant();
@@ -969,9 +971,12 @@ namespace Palisades.Plugins
             {
                 var local = m.UtcDate.ToLocalTime();
                 string today = TranslationService.Instance["Widget_FootballToday"] ?? "Today";
+                string tomorrow = TranslationService.Instance["Widget_FootballTomorrow"] ?? "Tomorrow";
                 text = local.Date == DateTime.Today
                     ? today
-                    : FormatBandDate(local, culture, _settings);
+                    : local.Date == DateTime.Today.AddDays(1)
+                        ? tomorrow
+                        : FormatBandDate(local, culture, _settings);
             }
             return new TextBlock
             {
@@ -1248,8 +1253,14 @@ namespace Palisades.Plugins
                 try { culture = new CultureInfo(TranslationService.Instance.CurrentCulture); }
                 catch { culture = CultureInfo.InvariantCulture; }
                 string today = TranslationService.Instance["Widget_FootballToday"] ?? "Today";
+                string tomorrow = TranslationService.Instance["Widget_FootballTomorrow"] ?? "Tomorrow";
+                string fmt = (_settings.DateFormat ?? "text").ToLowerInvariant();
                 string when = local == null ? "—" :
-                    (local.Value.Date == DateTime.Today ? today + " " + local.Value.ToString("HH:mm") : local.Value.ToString("ddd HH:mm", culture));
+                    (local.Value.Date == DateTime.Today ? today + " " + local.Value.ToString("HH:mm")
+                    : local.Value.Date == DateTime.Today.AddDays(1) ? tomorrow + " " + local.Value.ToString("HH:mm")
+                    : fmt == "numeric" ? local.Value.ToString("dd/MM/yy HH:mm")
+                    : fmt == "daynumeric" ? local.Value.ToString("ddd dd/MM/yy HH:mm", culture)
+                    : local.Value.ToString("ddd HH:mm", culture));
                 status = new TextBlock { Text = when, FontSize = 10, Foreground = DimBrush };
             }
             status.VerticalAlignment = VerticalAlignment.Center;
@@ -1717,10 +1728,54 @@ namespace Palisades.Plugins
             catch { }
         }
 
+        /// <summary>Lowercase + accents stripped ("Türkiye" → "turkiye").</summary>
+        private static string SearchNorm(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return "";
+            string lower = s.Trim().ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD);
+            var sb = new System.Text.StringBuilder(lower.Length);
+            foreach (char c in lower)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            return sb.ToString().Normalize(System.Text.NormalizationForm.FormC);
+        }
+
+        // French exonyms → normalized ESPN names (national teams differ FR/EN).
+        private static readonly Dictionary<string, string> _frAliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["angleterre"] = "england", ["espagne"] = "spain", ["allemagne"] = "germany",
+            ["italie"] = "italy", ["pays-bas"] = "netherlands", ["pays bas"] = "netherlands",
+            ["hollande"] = "netherlands", ["belgique"] = "belgium", ["suisse"] = "switzerland",
+            ["pologne"] = "poland", ["croatie"] = "croatia", ["serbie"] = "serbia",
+            ["turquie"] = "turkiye", ["turc"] = "turkiye", ["grece"] = "greece",
+            ["suede"] = "sweden", ["norvege"] = "norway", ["danemark"] = "denmark",
+            ["autriche"] = "austria", ["ecosse"] = "scotland", ["galles"] = "wales",
+            ["pays de galles"] = "wales", ["irlande"] = "ireland", ["roumanie"] = "romania",
+            ["hongrie"] = "hungary", ["tchequie"] = "czechia", ["armenie"] = "armenia",
+            ["azerbaidjan"] = "azerbaijan", ["bielorussie"] = "belarus", ["chypre"] = "cyprus",
+            ["georgie"] = "georgia", ["moldavie"] = "moldova", ["macedoine"] = "macedonia",
+            ["montenegro"] = "montenegro",
+        };
+
+        private static bool MatchesAlias(string? espnName, string q)
+        {
+            if (string.IsNullOrEmpty(q) || string.IsNullOrEmpty(espnName)) return false;
+            string norm = SearchNorm(espnName);
+            foreach (var kv in _frAliases)
+            {
+                // Query in French matches the ESPN name, or vice-versa.
+                if (q.Contains(kv.Key) && norm.Contains(kv.Value)) return true;
+                if (q.Contains(kv.Value) && norm.Contains(kv.Value)) return true;
+            }
+            return false;
+        }
+
         private void RefreshList()
         {
             _listPanel.Children.Clear();
-            string q = (_searchBox.Text ?? "").Trim().ToLowerInvariant();
+            string q = SearchNorm(_searchBox.Text ?? "");
 
             _listPanel.Children.Add(new TextBlock
             {
@@ -1732,7 +1787,7 @@ namespace Palisades.Plugins
             });
             foreach (var lg in Palisades.Services.EspnService.CuratedLeagues)
             {
-                if (!string.IsNullOrEmpty(q) && !lg.Name.ToLowerInvariant().Contains(q)
+                if (!string.IsNullOrEmpty(q) && !SearchNorm(lg.Name).Contains(q)
                     && !lg.Slug.ToLowerInvariant().Contains(q))
                     continue;
                 string slug = lg.Slug;
@@ -1761,8 +1816,9 @@ namespace Palisades.Plugins
             var shown = 0;
             foreach (var t in _teams)
             {
-                if (!string.IsNullOrEmpty(q) && !(t.Name ?? "").ToLowerInvariant().Contains(q)
-                    && !(t.DisplayName ?? "").ToLowerInvariant().Contains(q))
+                if (!string.IsNullOrEmpty(q) && !SearchNorm(t.Name).Contains(q)
+                    && !SearchNorm(t.DisplayName).Contains(q)
+                    && !MatchesAlias(t.Name, q))
                     continue;
                 if (++shown > 60) break;
                 string id = t.Id;

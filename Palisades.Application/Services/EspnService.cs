@@ -96,7 +96,7 @@ namespace Palisades.Services
             new EspnLeague { Slug = "den.1", Name = "Superliga (DEN)" },
             new EspnLeague { Slug = "nor.1", Name = "Eliteserien" },
             new EspnLeague { Slug = "swe.1", Name = "Allsvenskan" },
-            new EspnLeague { Slug = "tur.1", Name = "Süper Lig" },
+            new EspnLeague { Slug = "tur.1", Name = "Süper Lig (Türkiye)" },
             new EspnLeague { Slug = "usa.1", Name = "MLS" },
             new EspnLeague { Slug = "mex.1", Name = "Liga MX" },
             new EspnLeague { Slug = "bra.1", Name = "Serie A (BRA)" },
@@ -819,6 +819,33 @@ namespace Palisades.Services
                 throw new EspnApiException(EspnApiError.Unknown, "Bad ESPN payload: " + ex.Message);
             }
 
+            // The CDN scoreboard is a narrow current window (e.g. only yesterday's
+            // finished games) and ignores the dates= param: upcoming fixtures
+            // never appear. site.web.api honors ?dates=YYYYMMDD and ?dates=YYYYMM
+            // (and is NOT Akamai-blocked, unlike site.api) -> merge local
+            // current month + next 2 on top of the CDN base, so fixtures stay
+            // visible ~3 months out (e.g. Besiktas until late November).
+            // CDN stays first: fresh live scores always win over month cache.
+            try
+            {
+                var seen = new HashSet<string>(matches.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
+                var monthBase = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+                foreach (string ym in new[]
+                {
+                    monthBase.ToString("yyyyMM"),
+                    monthBase.AddMonths(1).ToString("yyyyMM"),
+                    monthBase.AddMonths(2).ToString("yyyyMM")
+                })
+                {
+                    foreach (var extra in await GetWebApiMonthAsync(leagueSlug, ym, ct).ConfigureAwait(false))
+                    {
+                        if (seen.Add(extra.Id))
+                            matches.Add(extra);
+                    }
+                }
+            }
+            catch { }
+
             lock (_cacheLock)
             {
                 if (_cache.Count > 40) _cache.Clear();
@@ -1043,6 +1070,90 @@ namespace Palisades.Services
                 m.Away = ParseTeam(away);
                 m.HomeScore = ParseScore(home?["score"]);
                 m.AwayScore = ParseScore(away?["score"]);
+                list.Add(m);
+            }
+            return list;
+        }
+
+        private static readonly object _monthLock = new object();
+        private static readonly Dictionary<string, (DateTime At, List<EspnMatch> Matches)> _monthCache
+            = new Dictionary<string, (DateTime, List<EspnMatch>)>(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan MonthCacheTime = TimeSpan.FromHours(12);
+
+        /// <summary>
+        /// Month scoreboard via site.web.api (?dates=YYYYMM, NOT Akamai-blocked,
+        /// cached 12h: fixtures barely move). Empty on any failure: never breaks
+        /// the CDN base.
+        /// </summary>
+        private static async Task<List<EspnMatch>> GetWebApiMonthAsync(string leagueSlug, string yyyymm, CancellationToken ct)
+        {
+            string key = leagueSlug.Trim().ToLowerInvariant() + "/" + yyyymm;
+            lock (_monthLock)
+            {
+                if (_monthCache.TryGetValue(key, out var entry) && DateTime.UtcNow - entry.At < MonthCacheTime)
+                    return entry.Matches.Select(CloneMatch).ToList();
+            }
+            try
+            {
+                string url = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/"
+                    + Uri.EscapeDataString(leagueSlug.Trim()) + "/scoreboard?dates=" + yyyymm;
+                string body = await GetRawAsync(url, ct).ConfigureAwait(false);
+                var parsed = ParseWebApiScoreboard(body, leagueSlug);
+                lock (_monthLock)
+                {
+                    if (_monthCache.Count > 120) _monthCache.Clear();
+                    _monthCache[key] = (DateTime.UtcNow, parsed.Select(CloneMatch).ToList());
+                }
+                return parsed;
+            }
+            catch (Exception ex)
+            {
+                Palisades.App.Log("[Football] webapi " + leagueSlug + "/" + yyyymm + " FAIL: " + ex.Message);
+                return new List<EspnMatch>();
+            }
+        }
+
+        private static List<EspnMatch> ParseWebApiScoreboard(string body, string leagueSlug)
+        {
+            var list = new List<EspnMatch>();
+            var json = JObject.Parse(body);
+            string leagueName = json["leagues"]?.FirstOrDefault()?["name"]?.ToString()
+                ?? CuratedLeagues
+                    .FirstOrDefault(l => l.Slug.Equals(leagueSlug, StringComparison.OrdinalIgnoreCase))?.Name
+                ?? leagueSlug;
+            foreach (var e in json["events"] ?? new JArray())
+            {
+                var comp = e["competitions"]?.FirstOrDefault();
+                if (comp == null) continue;
+                var m = new EspnMatch
+                {
+                    Id = e["id"]?.ToString() ?? Guid.NewGuid().ToString("N"),
+                    LeagueSlug = leagueSlug,
+                    LeagueName = leagueName
+                };
+                try { m.UtcDate = ToUtcDate(e["date"] ?? comp["date"]); } catch { m.UtcDate = DateTime.MinValue; }
+                m.State = (comp["status"]?["type"]?["state"]?.ToString() ?? "").ToLowerInvariant();
+                m.Clock = comp["status"]?["displayClock"]?.ToString() ?? "";
+                m.Detail = comp["status"]?["type"]?["shortDetail"]?.ToString()
+                    ?? comp["status"]?["type"]?["detail"]?.ToString() ?? "";
+                var teams = new List<JToken>();
+                foreach (var t in comp["competitors"] ?? new JArray())
+                    teams.Add(t);
+                var home = teams.FirstOrDefault(t => (t["homeAway"]?.ToString() ?? "") == "home") ?? teams.FirstOrDefault();
+                var away = teams.FirstOrDefault(t => (t["homeAway"]?.ToString() ?? "") == "away") ?? teams.Skip(1).FirstOrDefault();
+                m.Home = ParseTeam(home);
+                m.Away = ParseTeam(away);
+                if (m.State == "pre")
+                {
+                    // web.api ships dummy "0" scores for unplayed games.
+                    m.HomeScore = null;
+                    m.AwayScore = null;
+                }
+                else
+                {
+                    m.HomeScore = ParseScore(home?["score"]);
+                    m.AwayScore = ParseScore(away?["score"]);
+                }
                 list.Add(m);
             }
             return list;
