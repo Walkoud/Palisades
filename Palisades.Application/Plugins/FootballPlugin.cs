@@ -1254,9 +1254,12 @@ namespace Palisades.Plugins
                 catch { culture = CultureInfo.InvariantCulture; }
                 string today = TranslationService.Instance["Widget_FootballToday"] ?? "Today";
                 string tomorrow = TranslationService.Instance["Widget_FootballTomorrow"] ?? "Tomorrow";
+                string fmt = (_settings.DateFormat ?? "text").ToLowerInvariant();
                 string when = local == null ? "—" :
                     (local.Value.Date == DateTime.Today ? today + " " + local.Value.ToString("HH:mm")
                     : local.Value.Date == DateTime.Today.AddDays(1) ? tomorrow + " " + local.Value.ToString("HH:mm")
+                    : fmt == "numeric" ? local.Value.ToString("dd/MM/yy HH:mm")
+                    : fmt == "daynumeric" ? local.Value.ToString("ddd dd/MM/yy HH:mm", culture)
                     : local.Value.ToString("ddd HH:mm", culture));
                 status = new TextBlock { Text = when, FontSize = 10, Foreground = DimBrush };
             }

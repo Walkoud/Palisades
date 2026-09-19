@@ -821,22 +821,23 @@ namespace Palisades.Services
 
             // The CDN scoreboard is a narrow current window (e.g. only yesterday's
             // finished games) and ignores the dates= param: upcoming fixtures
-            // never appear. site.web.api honors ?dates=YYYYMMDD (and is NOT
-            // Akamai-blocked, unlike site.api) -> merge local today/+1/+2 on
-            // top of the CDN base (local base: the widget displays local days,
-            // and UTC-based windows miss "tomorrow" past midnight in CET).
+            // never appear. site.web.api honors ?dates=YYYYMMDD and ?dates=YYYYMM
+            // (and is NOT Akamai-blocked, unlike site.api) -> merge local
+            // current month + next 2 on top of the CDN base, so fixtures stay
+            // visible ~3 months out (e.g. Besiktas until late November).
+            // CDN stays first: fresh live scores always win over month cache.
             try
             {
                 var seen = new HashSet<string>(matches.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
-                var localBase = DateTime.Now.Date;
-                foreach (string day in new[]
+                var monthBase = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+                foreach (string ym in new[]
                 {
-                    localBase.ToString("yyyyMMdd"),
-                    localBase.AddDays(1).ToString("yyyyMMdd"),
-                    localBase.AddDays(2).ToString("yyyyMMdd")
+                    monthBase.ToString("yyyyMM"),
+                    monthBase.AddMonths(1).ToString("yyyyMM"),
+                    monthBase.AddMonths(2).ToString("yyyyMM")
                 })
                 {
-                    foreach (var extra in await GetWebApiDayAsync(leagueSlug, day, ct).ConfigureAwait(false))
+                    foreach (var extra in await GetWebApiMonthAsync(leagueSlug, ym, ct).ConfigureAwait(false))
                     {
                         if (seen.Add(extra.Id))
                             matches.Add(extra);
@@ -1074,22 +1075,40 @@ namespace Palisades.Services
             return list;
         }
 
+        private static readonly object _monthLock = new object();
+        private static readonly Dictionary<string, (DateTime At, List<EspnMatch> Matches)> _monthCache
+            = new Dictionary<string, (DateTime, List<EspnMatch>)>(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan MonthCacheTime = TimeSpan.FromHours(12);
+
         /// <summary>
-        /// Day scoreboard via site.web.api (honors ?dates=YYYYMMDD, NOT
-        /// Akamai-blocked). Empty on any failure: never breaks the CDN base.
+        /// Month scoreboard via site.web.api (?dates=YYYYMM, NOT Akamai-blocked,
+        /// cached 12h: fixtures barely move). Empty on any failure: never breaks
+        /// the CDN base.
         /// </summary>
-        private static async Task<List<EspnMatch>> GetWebApiDayAsync(string leagueSlug, string yyyymmdd, CancellationToken ct)
+        private static async Task<List<EspnMatch>> GetWebApiMonthAsync(string leagueSlug, string yyyymm, CancellationToken ct)
         {
+            string key = leagueSlug.Trim().ToLowerInvariant() + "/" + yyyymm;
+            lock (_monthLock)
+            {
+                if (_monthCache.TryGetValue(key, out var entry) && DateTime.UtcNow - entry.At < MonthCacheTime)
+                    return entry.Matches.Select(CloneMatch).ToList();
+            }
             try
             {
                 string url = "https://site.web.api.espn.com/apis/site/v2/sports/soccer/"
-                    + Uri.EscapeDataString(leagueSlug.Trim()) + "/scoreboard?dates=" + yyyymmdd;
+                    + Uri.EscapeDataString(leagueSlug.Trim()) + "/scoreboard?dates=" + yyyymm;
                 string body = await GetRawAsync(url, ct).ConfigureAwait(false);
-                return ParseWebApiScoreboard(body, leagueSlug);
+                var parsed = ParseWebApiScoreboard(body, leagueSlug);
+                lock (_monthLock)
+                {
+                    if (_monthCache.Count > 120) _monthCache.Clear();
+                    _monthCache[key] = (DateTime.UtcNow, parsed.Select(CloneMatch).ToList());
+                }
+                return parsed;
             }
             catch (Exception ex)
             {
-                Palisades.App.Log("[Football] webapi " + leagueSlug + "/" + yyyymmdd + " FAIL: " + ex.Message);
+                Palisades.App.Log("[Football] webapi " + leagueSlug + "/" + yyyymm + " FAIL: " + ex.Message);
                 return new List<EspnMatch>();
             }
         }
