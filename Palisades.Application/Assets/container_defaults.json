@@ -81,6 +81,7 @@
   "IsAutoSortEnabled": true,
   "AutoSortTargetIdentifier": null,
   "AutoSnapshotEnabled": true,
+  "MaxSnapshots": 5,
   "ShowShortcutArrow": true,
   "ShowResizeHandle": true,
   "ShowRecycleBin": false,

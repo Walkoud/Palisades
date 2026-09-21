@@ -555,6 +555,8 @@
   "Db_BackupAdministration": "Backup & Administration",
   "Db_BackupConfiguration": "Backup Configuration",
   "Db_RestoreConfiguration": "Restore Configuration",
+  "Db_MaxSnapshots": "Max snapshots kept",
+  "Db_MaxSnapshotsTip": "Oldest snapshots are deleted beyond this limit",
   "Db_ResetDatabase": "Reset Database",
   "Db_CaptureSnapshot": "Capture Snapshot",
   "Db_ClearAllSnapshots": "Clear all",

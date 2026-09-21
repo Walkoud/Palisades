@@ -16,7 +16,8 @@ namespace Palisades.Services
         private readonly string _savePath;
         private List<SnapshotModel> _snapshots = new();
 
-        public IReadOnlyList<SnapshotModel> Snapshots => _snapshots.AsReadOnly();
+        public IReadOnlyList<SnapshotModel> Snapshots =>
+            _snapshots.OrderByDescending(s => s.CreatedAt).ToList().AsReadOnly();
         public event Action? SnapshotsChanged;
 
         private SnapshotManager()
@@ -40,6 +41,7 @@ namespace Palisades.Services
                 }
             }
             catch { }
+            EnforceLimit(GetConfiguredMax(), raiseEvent: false);
         }
 
         public void Save()
@@ -101,9 +103,42 @@ namespace Palisades.Services
             }
 
             _snapshots.Add(snapshot);
+            EnforceLimit(GetConfiguredMax(), raiseEvent: false);
             Save();
             SnapshotsChanged?.Invoke();
             return snapshot;
+        }
+
+        /// <summary>Configured cap from global defaults (5 when unset).</summary>
+        public static int GetConfiguredMax()
+        {
+            try
+            {
+                var d = ContainerManager.Instance.LoadDefaults();
+                if (d != null) return d.MaxSnapshots;
+            }
+            catch { }
+            return 5;
+        }
+
+        /// <summary>Deletes oldest snapshots beyond max (newest kept). max &lt;= 0 = unlimited.</summary>
+        public void EnforceLimit(int max, bool raiseEvent = true)
+        {
+            if (max <= 0 || _snapshots.Count <= max) return;
+            var excess = _snapshots
+                .OrderByDescending(s => s.CreatedAt)
+                .Skip(max)
+                .ToList();
+            foreach (var snap in excess)
+            {
+                if (!string.IsNullOrEmpty(snap.ScreenshotPath))
+                {
+                    try { File.Delete(snap.ScreenshotPath); } catch { }
+                }
+                _snapshots.Remove(snap);
+            }
+            Save();
+            if (raiseEvent) SnapshotsChanged?.Invoke();
         }
 
         public void DeleteSnapshot(string identifier)
@@ -129,6 +164,31 @@ namespace Palisades.Services
             }
             _snapshots.Clear();
             Save();
+            SnapshotsChanged?.Invoke();
+        }
+
+        /// <summary>Replaces all snapshots with imported ones (config export/import round-trip).</summary>
+        public void ImportSnapshots(List<SnapshotModel>? imported)
+        {
+            ClearAllSnapshots();
+            if (imported != null)
+            {
+                var seen = new HashSet<string>();
+                foreach (var s in imported)
+                {
+                    if (s == null) continue;
+                    if (string.IsNullOrEmpty(s.Identifier) || !seen.Add(s.Identifier))
+                        s.Identifier = Guid.NewGuid().ToString();
+                    if (!string.IsNullOrEmpty(s.ScreenshotPath) && !File.Exists(s.ScreenshotPath))
+                        s.ScreenshotPath = null;
+                    s.Containers ??= new List<ContainerModel>();
+                    s.Notes ??= new List<NoteItem>();
+                    s.Gadgets ??= new List<PluginGadgetItem>();
+                    _snapshots.Add(s);
+                }
+                EnforceLimit(GetConfiguredMax(), raiseEvent: false);
+                Save();
+            }
             SnapshotsChanged?.Invoke();
         }
 
