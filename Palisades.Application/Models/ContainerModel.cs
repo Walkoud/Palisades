@@ -169,6 +169,9 @@ namespace Palisades.Models
         /// <summary>Create automatic snapshots on display settings changes (default: true).</summary>
         public bool AutoSnapshotEnabled { get; set; } = true;
 
+        /// <summary>Max snapshots kept; oldest auto-deleted beyond this (default: 5).</summary>
+        public int MaxSnapshots { get; set; } = 5;
+
         /// <summary>Show shortcut overlay arrow on icons (default: true).</summary>
         public bool ShowShortcutArrow { get; set; } = true;
 

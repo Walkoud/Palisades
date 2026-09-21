@@ -100,6 +100,18 @@ namespace Palisades.ViewModels
             }
         }
 
+        public int MaxSnapshots
+        {
+            get => DefaultModel.MaxSnapshots <= 0 ? 5 : DefaultModel.MaxSnapshots;
+            set
+            {
+                DefaultModel.MaxSnapshots = Math.Clamp(value <= 0 ? 5 : value, 1, 100);
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+                SnapshotManager.Instance.EnforceLimit(DefaultModel.MaxSnapshots);
+            }
+        }
+
         public bool ShowDesktopShortcutArrow
         {
             get => DefaultModel.ShowShortcutArrow;
@@ -2190,7 +2202,8 @@ namespace Palisades.ViewModels
                             Defaults = ContainerManager.Instance.LoadDefaults(),
                             Notes = GetNotesFromOverlay?.Invoke() ?? ContainerManager.Instance.LoadNotes(),
                             Plugins = PluginService.Instance.Plugins.ToDictionary(p => p.Plugin.Id, p => p.IsEnabled),
-                            Gadgets = PluginService.Instance.LoadGadgets()
+                            Gadgets = PluginService.Instance.LoadGadgets(),
+                            Snapshots = SnapshotManager.Instance.Snapshots.ToList()
                         };
                         File.WriteAllText(dialog.FileName,
                             Newtonsoft.Json.JsonConvert.SerializeObject(config,
@@ -2229,7 +2242,8 @@ namespace Palisades.ViewModels
                                 Defaults = (ContainerModel?)null,
                                 Notes = new List<NoteItem>(),
                                 Plugins = (Dictionary<string, bool>?)null,
-                                Gadgets = (List<PluginGadgetItem>?)null
+                                Gadgets = (List<PluginGadgetItem>?)null,
+                                Snapshots = (List<SnapshotModel>?)null
                             });
 
                         if (data?.Containers == null) return;
@@ -2248,6 +2262,10 @@ namespace Palisades.ViewModels
                         {
                             PluginService.Instance.SaveGadgets(data.Gadgets);
                         }
+
+                        // Restore snapshots if present (replaces current ones)
+                        if (data.Snapshots != null)
+                            SnapshotManager.Instance.ImportSnapshots(data.Snapshots);
 
                         foreach (var c in _manager.Containers.ToList())
                             _manager.DeleteContainer(c.Identifier);

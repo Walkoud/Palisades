@@ -123,10 +123,12 @@ namespace Palisades.Plugins
             {
                 all = all.Where(m => (m.LeagueSlug ?? "").Equals(_leagueFilter, StringComparison.OrdinalIgnoreCase)).ToList();
             }
-            // (_lastMatches already holds the unfiltered fetch for search.)
-            all.Sort(CompareMatches);
-            var shown = all.Take(Math.Max(1, _settings.MaxMatches)).ToList();
-            RenderMatches(shown);
+            // NOTE: no Take() here — RenderMatches() applies FinishedPosition
+            // grouping (finished top/bottom) THEN takes MaxMatches. Truncating
+            // here with CompareMatches (upcoming first) would crowd finished
+            // out whenever upcoming >= MaxMatches, hiding them from main view
+            // while the "Terminés (N)" chip still sees them in _lastFull.
+            RenderMatches(all);
         }
 
         /// <summary>Rebuilds the hover filter chips from the full fetched set.</summary>
