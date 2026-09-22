@@ -626,20 +626,29 @@ namespace Palisades.Services
             if (hasTrack && (_isPlaying || _showWhenPaused) && _privateMode)
             {
                 // Private mode: generic presence, no titles, no cover, no timer.
+                // details_url + buttons keep the "Palisades" text clickable (-> GitHub).
                 var act = new JObject
                 {
                     ["type"] = 2,
                     ["name"] = "Palisades",
                     ["details"] = Palisades.Services.TranslationService.Instance["Discord_PrivateListening"]
                 };
+                if (IsHttpUrl(_detailsUrl))
+                    act["details_url"] = _detailsUrl;
                 if (!string.IsNullOrEmpty(_largeImage))
                 {
-                    act["assets"] = new JObject
+                    var privAssets = new JObject
                     {
                         ["large_image"] = _largeImage,
                         ["large_text"] = "Palisades"
                     };
+                    if (IsHttpUrl(_largeUrl))
+                        privAssets["large_url"] = _largeUrl;
+                    act["assets"] = privAssets;
                 }
+                var privButtons = BuildButtonsJson();
+                if (privButtons != null)
+                    act["buttons"] = privButtons;
                 activity = act;
             }
             else if (hasTrack && (_isPlaying || _showWhenPaused))
@@ -691,6 +700,8 @@ namespace Palisades.Services
                     {
                         assets["small_image"] = smallFallback;
                         assets["small_text"] = "Palisades";
+                        if (IsHttpUrl(_largeUrl))
+                            assets["small_url"] = _largeUrl;
                     }
                 }
                 else
@@ -706,6 +717,8 @@ namespace Palisades.Services
                     {
                         assets["small_image"] = _smallImage;
                         assets["small_text"] = "Palisades";
+                        if (IsHttpUrl(_largeUrl))
+                            assets["small_url"] = _largeUrl;
                     }
                 }
                 if (assets.Count > 0)
@@ -718,28 +731,32 @@ namespace Palisades.Services
                 }
 
                 // Presence buttons (max 2). Empty label or non-http link = hidden.
-                if (_buttonsEnabled)
-                {
-                    var buttons = new JArray();
-                    AddPresenceButton(buttons, _button1Label, _button1Url);
-                    AddPresenceButton(buttons, _button2Label, _button2Url);
-                    if (buttons.Count > 0)
-                        act["buttons"] = buttons;
-                }
+                var trackButtons = BuildButtonsJson();
+                if (trackButtons != null)
+                    act["buttons"] = trackButtons;
 
                 activity = act;
             }
             else if (_showWhenIdle)
             {
+                // Idle: details "Palisades" clickable (-> GitHub) + button.
                 var act = new JObject { ["details"] = "Palisades" };
+                if (IsHttpUrl(_detailsUrl))
+                    act["details_url"] = _detailsUrl;
                 if (!string.IsNullOrEmpty(_largeImage))
                 {
-                    act["assets"] = new JObject
+                    var idleAssets = new JObject
                     {
                         ["large_image"] = _largeImage,
                         ["large_text"] = "Palisades"
                     };
+                    if (IsHttpUrl(_largeUrl))
+                        idleAssets["large_url"] = _largeUrl;
+                    act["assets"] = idleAssets;
                 }
+                var idleButtons = BuildButtonsJson();
+                if (idleButtons != null)
+                    act["buttons"] = idleButtons;
                 activity = act;
             }
 
@@ -767,6 +784,15 @@ namespace Palisades.Services
             if (string.IsNullOrEmpty(url)) return false;
             return url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                    url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private JArray? BuildButtonsJson()
+        {
+            if (!_buttonsEnabled) return null;
+            var buttons = new JArray();
+            AddPresenceButton(buttons, _button1Label, _button1Url);
+            AddPresenceButton(buttons, _button2Label, _button2Url);
+            return buttons.Count > 0 ? buttons : null;
         }
 
         private static void AddPresenceButton(JArray buttons, string label, string url)
