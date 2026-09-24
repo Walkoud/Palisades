@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:conv="clr-namespace:Palisades.Converters"
         xmlns:local="clr-namespace:Palisades.Views"
+        xmlns:island="clr-namespace:Palisades.Views.Controls"
         ShowInTaskbar="False"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -20,6 +21,11 @@
     </Window.Resources>
     <Grid>
         <Canvas x:Name="OverlayCanvas" />
+
+        <!-- Dynamic Island : pilule top-center, hôte de widgets (Now Playing, Clock, System...) -->
+        <island:DynamicIslandControl x:Name="DynamicIslandHost"
+                                     HorizontalAlignment="Center" VerticalAlignment="Top"
+                                     Margin="0,8,0,0" Panel.ZIndex="40000" />
 
         <!-- Android-style app folder: open state (dark blurred backdrop + centered grid) -->
         <Grid x:Name="AndroidFolderLayer" Visibility="Collapsed" Panel.ZIndex="50000">

@@ -31,6 +31,12 @@ namespace Palisades
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Compat radio : depuis un patch .NET, WPF MediaPlayer refuse tout flux
+            // HTTP(S) en zone Internet (garde-fou default-credentials) avec
+            // "Only site of origin pack URIs...". Switch legacy = rétablit la lecture.
+            // À poser AVANT toute création de MediaPlayer (cache du switch).
+            AppContext.SetSwitch("Switch.System.Windows.Net.DoNotApplyZoneCheckForDefaultCredentials", true);
+
             base.OnStartup(e);
 
             // Kill any existing instance, then take over

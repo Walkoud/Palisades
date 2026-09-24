@@ -214,6 +214,7 @@ namespace Palisades.Services
             {
                 var json = JsonConvert.SerializeObject(gadgets, Formatting.Indented);
                 File.WriteAllText(_gadgetsConfigPath, json);
+                try { GadgetTypeDefaults.Instance.RememberFrom(gadgets); } catch { }
                 GadgetsChanged?.Invoke();
             }
             catch { }

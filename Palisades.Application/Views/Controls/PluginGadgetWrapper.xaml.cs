@@ -18,6 +18,9 @@ namespace Palisades.Views.Controls
 
         public PluginGadgetItem GadgetItem { get; }
 
+        /// <summary>Live gadget view hosted inside the wrapper (e.g. FootballView).</summary>
+        public UIElement? ChildView => ChildContainer?.Child;
+
         public PluginGadgetWrapper(PluginGadgetItem item, FrameworkElement childView)
         {
             InitializeComponent();
@@ -438,22 +441,8 @@ namespace Palisades.Views.Controls
             };
             menu.Items.Add(lockItem);
 
-            // 3. Customize Submenu (dynamic depending on GadgetType)
-            if (GadgetItem.GadgetType.Equals("Clock", StringComparison.OrdinalIgnoreCase))
-            {
-                menu.Items.Add(new Separator());
-                var customizeItem = new MenuItem { Header = tr["Widget_Ctx_ClockSettings"] };
-                BuildClockCustomMenu(customizeItem);
-                menu.Items.Add(customizeItem);
-            }
-            else if (GadgetItem.GadgetType.Equals("SystemMonitor", StringComparison.OrdinalIgnoreCase))
-            {
-                menu.Items.Add(new Separator());
-                var customizeItem = new MenuItem { Header = tr["Widget_Ctx_MonitorSettings"] };
-                BuildSysMonCustomMenu(customizeItem);
-                menu.Items.Add(customizeItem);
-            }
-            else if (GadgetItem.GadgetType.Equals("NowPlaying", StringComparison.OrdinalIgnoreCase))
+            // 3. Customize (shared with the Dynamic Island)
+            if (GadgetItem.GadgetType.Equals("NowPlaying", StringComparison.OrdinalIgnoreCase))
             {
                 var pinItem = new MenuItem { Header = tr["Widget_Ctx_PinToTaskbar"], IsCheckable = true, IsChecked = GadgetItem.DockToTaskbar };
                 pinItem.Click += (s, e) =>
@@ -466,35 +455,13 @@ namespace Palisades.Views.Controls
                     (Window.GetWindow(this) as DesktopOverlayWindow)?.RefreshNowPlayingPin();
                 };
                 menu.Items.Add(pinItem);
-
-                if (ChildContainer.Child is Palisades.Plugins.NowPlayingView npView)
-                {
-                    var sourceItem = new MenuItem { Header = tr["Widget_Ctx_NpSource"] };
-                    BuildNowPlayingSourceMenu(npView, sourceItem);
-                    menu.Items.Add(sourceItem);
-                }
-                menu.Items.Add(new Separator());
-                var customizeItem = new MenuItem { Header = tr["Widget_Ctx_NpSettings"] };
-                BuildNowPlayingMenu(customizeItem);
-                menu.Items.Add(customizeItem);
             }
-            else if (GadgetItem.GadgetType.Equals("Football", StringComparison.OrdinalIgnoreCase))
+            WidgetSettingsMenu.Build(menu, GadgetItem.GadgetType, GadgetItem.CustomData, ChildContainer.Child, json =>
             {
-                menu.Items.Add(new Separator());
-                if (ChildContainer.Child is Palisades.Plugins.FootballView fbView)
-                {
-                    var refreshItem = new MenuItem { Header = tr["Widget_Ctx_FootballRefresh"] };
-                    refreshItem.Click += (s, e) => fbView.RefreshNowAsync();
-                    menu.Items.Add(refreshItem);
-
-                    var favItem = new MenuItem { Header = tr["Widget_Ctx_FootballFavorites"] };
-                    favItem.Click += (s, e) =>
-                    {
-                        try { new Palisades.Plugins.FootballTeamSearchWindow(fbView).Show(); } catch { }
-                    };
-                    menu.Items.Add(favItem);
-                }
-            }
+                GadgetItem.CustomData = json;
+                ApplyCustomSettingsToChild();
+                SaveGadgetSettings();
+            });
 
             menu.Items.Add(new Separator());
 

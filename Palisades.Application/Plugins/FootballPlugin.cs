@@ -360,7 +360,13 @@ namespace Palisades.Plugins
             _filterPanel.Children.Add(_leagueRow);
             Grid.SetRow(_filterPanel, 3);
             root.Children.Add(_filterPanel);
-            MouseEnter += (_, _) => _filterPanel.Visibility = Visibility.Visible;
+            // Hover filter bars (desktop) : l'îlot est en auto-largeur, un panneau
+            // qui apparaît au survol l'élargirait -> toggle désactivé dedans
+            // (réglages via dashboard de toute façon).
+            MouseEnter += (_, _) =>
+            {
+                if (!IsInDynamicIsland()) _filterPanel.Visibility = Visibility.Visible;
+            };
             MouseLeave += (_, _) => _filterPanel.Visibility = Visibility.Collapsed;
 
             Child = root;
@@ -384,6 +390,24 @@ namespace Palisades.Plugins
         }
 
         private string _lastAppliedCustomData = "\0unset\0";
+
+        /// <summary>True si la vue est hébergée dans le Dynamic Island (auto-largeur) :
+        /// comparaison par nom pour ne pas dépendre de la couche Views.</summary>
+        private bool IsInDynamicIsland()
+        {
+            try
+            {
+                DependencyObject? d = this;
+                while (d != null)
+                {
+                    if (d.GetType().FullName == "Palisades.Views.Controls.DynamicIslandControl")
+                        return true;
+                    d = VisualTreeHelper.GetParent(d);
+                }
+            }
+            catch { }
+            return false;
+        }
 
         public void ApplyCustomSettings(string customData)
         {
@@ -471,7 +495,7 @@ namespace Palisades.Plugins
             {
                 if (_settings.Leagues.Count == 0)
                 {
-                    ShowMessage("No leagues subscribed. Pick some in Dashboard → widget settings.");
+                    ShowMessage("No leagues followed. Right-click → Favorites to follow teams.");
                     return;
                 }
 

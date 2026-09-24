@@ -288,7 +288,8 @@
                             <TextBlock Text="Desktop Customization Suite" FontSize="10" Foreground="#526475" Margin="0,2,0,0"/>
                         </StackPanel>
 
-                        <StackPanel Grid.Row="1">
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
                             <Button x:Name="DashboardBtn" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_Dashboard]}" CommandParameter="Dashboard" Style="{StaticResource SidebarBtnActiveStyle}" Click="Tab_Click">
                                 <Button.Tag>
                                     <Viewbox Width="16" Height="16">
@@ -338,7 +339,15 @@
                                     </Viewbox>
                                 </Button.Tag>
                             </Button>
+                            <Button x:Name="IslandBtn" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_Island]}" CommandParameter="Island" Style="{StaticResource SidebarBtnStyle}" Click="Tab_Click">
+                                <Button.Tag>
+                                    <Viewbox Width="16" Height="16">
+                                        <Path Data="M 6,2 L 18,2 C 20.2,2 22,3.8 22,6 L 22,8 C 22,10.2 20.2,12 18,12 L 6,12 C 3.8,12 2,10.2 2,8 L 2,6 C 2,3.8 3.8,2 6,2 Z M 6,14 L 10,14 C 11.1,14 12,14.9 12,16 L 12,20 C 12,21.7 10.7,22.5 9.2,21.7 L 4,18.5 C 3,18 2.5,16.9 3,15.9 C 3.4,14.8 4.6,14 6,14 Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                    </Viewbox>
+                                </Button.Tag>
+                            </Button>
                         </StackPanel>
+                        </ScrollViewer>
 
                         <StackPanel Grid.Row="2">
                             <Button x:Name="RebootBtn" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_Reboot]}" Style="{StaticResource SidebarBtnStyle}" Margin="0,0,0,8" Click="Reboot_Click">
@@ -396,17 +405,12 @@
                                             </Style>
                                         </Button.Resources>
                                         <Button.ContextMenu>
-                                            <ContextMenu Background="#1E1E1E" Foreground="White" BorderBrush="#333" BorderThickness="1" Opened="NewMenu_Opened">
-                                                <ContextMenu.Resources>
-                                                    <Style TargetType="MenuItem">
-                                                        <Setter Property="Foreground" Value="White" />
-                                                    </Style>
-                                                </ContextMenu.Resources>
+                                            <ContextMenu Opened="NewMenu_Opened">
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_StandardContainer]}" Command="{Binding CreateNormalContainerCommand}" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_SvgContainer]}" Command="{Binding CreateSvgContainerCommand}" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_AndroidFolder]}" Command="{Binding CreateAndroidFolderContainerCommand}" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_FolderPortal]}" Command="{Binding CreateFolderPortalCommand}" />
-                                                <Separator Background="#333" />
+                                                <Separator />
                                                 <MenuItem x:Name="NewWidgetsMenu" Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_NewWidgets]}" />
                                             </ContextMenu>
                                         </Button.ContextMenu>
@@ -628,7 +632,7 @@
                                 <!-- Active Desktop Widgets List -->
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_ActiveWidgets]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="10,0,0,10" />
                                 
-                                <ListBox ItemsSource="{Binding ActiveWidgets}" SelectedItem="{Binding SelectedWidget}" 
+                                <ListBox ItemsSource="{Binding ActiveWidgets}" SelectedItem="{Binding SelectedActiveWidget}" 
                                          Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" Margin="10,0,10,20" Padding="4" MaxHeight="250"
                                          PreviewMouseDown="ActiveWidgetsListBox_PreviewMouseDown">
                                     <ListBox.Resources>
@@ -661,6 +665,40 @@
                                                             Background="Transparent" BorderThickness="0" Cursor="Hand" VerticalAlignment="Center" Padding="4"
                                                             Command="{Binding DataContext.DeleteGadgetCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
                                                             CommandParameter="{Binding}" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <!-- Dynamic Island Widgets List (editable, mirrors Active Widgets) -->
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_IslandDashWidgets]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="10,0,0,10" />
+                                <ListBox ItemsSource="{Binding IslandDashboardWidgets}" SelectedItem="{Binding SelectedIslandOption}"
+                                         Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" Margin="10,0,10,20" Padding="4" MaxHeight="250">
+                                    <ListBox.Resources>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="BorderThickness" Value="0"/>
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="2"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        </Style>
+                                    </ListBox.Resources>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#1C242E" BorderBrush="#2A3542" BorderThickness="1" CornerRadius="6" Padding="12,8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource GuiTextForegroundBrush}" />
+                                                        <TextBlock Text="{Binding GadgetType}" FontSize="10" Foreground="#526475" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" Content="✕" Foreground="#FF5F56" FontSize="11" FontWeight="Bold"
+                                                            Click="IslandWidgetRemove_Click" Tag="{Binding GadgetType}"
+                                                            Background="Transparent" BorderThickness="0" Cursor="Hand" VerticalAlignment="Center" Padding="4" />
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -837,14 +875,7 @@
 
                                                 <!-- Football specific Basic Settings -->
                                                 <StackPanel Visibility="{Binding SelectedWidgetIsFootball, Converter={StaticResource BoolToVisibility}}">
-                                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_FootballLeagues]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
-                                                    <ListBox ItemsSource="{Binding FootballLeagueOptions}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiTextForegroundBrush}" MaxHeight="150" Margin="0,0,0,12">
-                                                        <ListBox.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <CheckBox Content="{Binding Name}" IsChecked="{Binding Selected, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" />
-                                                            </DataTemplate>
-                                                        </ListBox.ItemTemplate>
-                                                    </ListBox>
+                                                    <Button Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Widget_Ctx_FootballFavorites]}" Command="{Binding FootballOpenFavoritesCommand}" Height="30" Margin="0,0,0,12" />
 
                                                     <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_FootballRefresh]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
                                                     <ComboBox SelectedValue="{Binding FootballRefreshMinutes, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,12">
@@ -976,6 +1007,11 @@
                                             </ComboBox>
                                             <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioCardOpacity]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
                                             <Slider Minimum="0.15" Maximum="1" Value="{Binding RadioCardOpacity, Mode=TwoWay}" SmallChange="0.05" LargeChange="0.1" Margin="0,0,0,8" />
+                                            <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioArtwork]}" Foreground="#526475" FontSize="10" Margin="0,0,0,4" />
+                                            <ComboBox SelectedValue="{Binding RadioArtworkSource, Mode=TwoWay}" SelectedValuePath="Tag" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" Margin="0,0,0,8">
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioArtwork_Favicon]}" Tag="favicon" />
+                                                <ComboBoxItem Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioArtwork_Itunes]}" Tag="itunes" />
+                                            </ComboBox>
                                             <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_RadioHint]}" Foreground="#526475" FontSize="10" Margin="0,0,0,12" TextWrapping="Wrap" />
                                         </StackPanel>
 
@@ -3112,6 +3148,165 @@
                                         </Grid>
                                     </Border>
                                 </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                    <StackPanel x:Name="IslandPanel" Visibility="Collapsed">
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Sidebar_Island]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Description]}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="12" Margin="0,0,0,20" TextWrapping="Wrap" />
+
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Enable]}" IsChecked="{Binding IslandEnabled, Mode=TwoWay}" Style="{StaticResource ArcticToggleSwitchStyle}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,10" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_PinTaskbar]}" IsChecked="{Binding IslandPinToTaskbar, Mode=TwoWay}" Style="{StaticResource ArcticToggleSwitchStyle}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,10" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_BarHideFullscreen]}" IsChecked="{Binding IslandBarHideFullscreen, Mode=TwoWay}" Style="{StaticResource ArcticToggleSwitchStyle}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,10" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_ExpandUp]}" IsChecked="{Binding IslandExpandUp, Mode=TwoWay}" Style="{StaticResource ArcticToggleSwitchStyle}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,10" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_ExpandOnHover]}" IsChecked="{Binding IslandExpandOnHover, Mode=TwoWay}" Style="{StaticResource ArcticToggleSwitchStyle}" Foreground="{DynamicResource GuiTextForegroundBrush}" Margin="0,0,0,16" />
+
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Theme]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding IslandThemeNames}" SelectedItem="{Binding IslandThemeName, Mode=TwoWay}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Placement]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding IslandPlacementOptions}" SelectedItem="{Binding IslandPlacement, Mode=TwoWay}" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}" Height="28" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="44" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Width]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="180" Maximum="1600" Value="{Binding IslandWidth, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding IslandWidth, StringFormat='{}{0:0}'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="44" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_MaxWidth]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="220" Maximum="1600" Value="{Binding IslandMaxWidth, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding IslandMaxWidth, StringFormat='{}{0:0}'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="44" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_CornerRadius]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="8" Maximum="32" Value="{Binding IslandCornerRadius, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding IslandCornerRadius, StringFormat='{}{0:0}'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="44" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_BgOpacity]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="0.2" Maximum="1" Value="{Binding IslandBgOpacity, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding IslandBgOpacity, StringFormat='{}{0:0%}'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Anims]}" Foreground="{DynamicResource GuiAccentBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,4,0,10" />
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="52" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_HoverOpen]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="1000" Value="{Binding IslandHoverOpenDelayMs, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding IslandHoverOpenDelayMs, StringFormat='{}{0:0} ms'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="52" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_HoverClose]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="100" Maximum="2000" Value="{Binding IslandHoverCloseDelayMs, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding IslandHoverCloseDelayMs, StringFormat='{}{0:0} ms'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="52" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_ExpandMs]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="100" Maximum="800" Value="{Binding IslandExpandDurationMs, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding IslandExpandDurationMs, StringFormat='{}{0:0} ms'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="52" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_FadeMs]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="50" Maximum="500" Value="{Binding IslandExpandFadeMs, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding IslandExpandFadeMs, StringFormat='{}{0:0} ms'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_CustomHint]}" Foreground="#526475" FontSize="11" FontStyle="Italic" TextWrapping="Wrap" Margin="0,0,0,20" />
+
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Widgets]}" Foreground="{DynamicResource GuiAccentBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_WidgetsHint]}" Foreground="#526475" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10" />
+                                <ItemsControl ItemsSource="{Binding IslandWidgetOptions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,4">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox Grid.Column="0" Content="{Binding DisplayName}" IsChecked="{Binding IsPinned, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="12" VerticalAlignment="Center" />
+                                                        <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_Edit]}" Click="IslandOptionCustomize_Click" Tag="{Binding GadgetType}" FontSize="11" Foreground="{DynamicResource GuiAccentBrush}" Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="6,2" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                                        <Button Grid.Column="2" Content="▲" Command="{Binding DataContext.IslandWidgetUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Width="28" Height="24" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" />
+                                                        <Button Grid.Column="3" Content="▼" Command="{Binding DataContext.IslandWidgetDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Width="28" Height="24" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" />
+                                                    </Grid>
+                                                    <Grid Margin="0,6,0,0" Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="70" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="44" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Height]}" Foreground="#526475" FontSize="11" VerticalAlignment="Center" />
+                                                        <Slider Grid.Column="1" Minimum="120" Maximum="700" Value="{Binding Height, Mode=TwoWay}" Style="{StaticResource ArcticSliderStyle}" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding Height, StringFormat='{}{0:0}'}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
                     </StackPanel>

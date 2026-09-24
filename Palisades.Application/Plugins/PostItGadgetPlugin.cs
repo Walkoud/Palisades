@@ -271,12 +271,7 @@ namespace Palisades.Plugins
                 Margin = new Thickness(0, 2, 6, 0)
             };
 
-            var bgContextMenu = new ContextMenu
-            {
-                Background = new SolidColorBrush(Color.FromArgb(0xF0, 0x1E, 0x1E, 0x1E)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
-                BorderThickness = new Thickness(1)
-            };
+            var bgContextMenu = new ContextMenu();
             string[] bgColors = { "#FFE39C", "#FFCCD5", "#D4ECD5", "#CFE8FC", "#ECD4FC", "#FF2B2B2B", "#FF1E3A5F", "#FF3A1E5F", "#FF1E4A3A" };
             string[] bgTooltips = { "Yellow Notes", "Pink Notes", "Green Notes", "Blue Notes", "Purple Notes", "Dark Notes", "Dark Blue Notes", "Dark Purple Notes", "Dark Green Notes" };
             for (int i = 0; i < bgColors.Length; i++)
@@ -285,8 +280,6 @@ namespace Palisades.Plugins
                 var mi = new MenuItem
                 {
                     Header = bgTooltips[i],
-                    Foreground = Brushes.White,
-                    Height = 28,
                     Focusable = false
                 };
                 var preview = new Border
@@ -333,12 +326,7 @@ namespace Palisades.Plugins
                 Margin = new Thickness(0, 2, 32, 0)
             };
 
-            var textContextMenu = new ContextMenu
-            {
-                Background = new SolidColorBrush(Color.FromArgb(0xF0, 0x1E, 0x1E, 0x1E)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
-                BorderThickness = new Thickness(1)
-            };
+            var textContextMenu = new ContextMenu();
             string[] textMenuColors = { "#000000", "#EF4444", "#3B82F6", "#10B981", "#FFFFFF" };
             string[] textMenuTooltips = { "Black Text", "Red Text", "Blue Text", "Green Text", "White Text" };
             for (int i = 0; i < textMenuColors.Length; i++)
@@ -347,8 +335,6 @@ namespace Palisades.Plugins
                 var mi = new MenuItem
                 {
                     Header = textMenuTooltips[i],
-                    Foreground = Brushes.White,
-                    Height = 28,
                     Focusable = false
                 };
                 var preview = new Border

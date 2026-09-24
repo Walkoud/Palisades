@@ -4,12 +4,14 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Palisades.Models;
 using Palisades.Services;
 using Palisades.ViewModels;
+using Palisades.Views.Controls;
 
 namespace Palisades.Views
 {
@@ -103,6 +105,34 @@ namespace Palisades.Views
                 SwitchToTab("Dashboard");
         }
 
+        /// <summary>Ouvre le dashboard sur la page Dynamic Island.</summary>
+        public void ShowIslandProperties()
+        {
+            SwitchToTab("Island");
+        }
+
+        /// <summary>Ouvre le dashboard et sélectionne le widget îlot pour édition
+        /// (catégorie "Widgets Dynamic Island" du Dashboard).</summary>
+        public void ShowIslandWidgetProperties(string gadgetType)
+        {
+            try
+            {
+                _viewModel?.SelectIslandWidgetByType(gadgetType);
+                SwitchToTab("Dashboard");
+            }
+            catch { }
+        }
+
+        private void IslandOptionCustomize_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is Button btn && btn.Tag is string type)
+                    ShowIslandWidgetProperties(type);
+            }
+            catch { }
+        }
+
         private void ContainerCard_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is Border { DataContext: ContainerViewModel container })
@@ -122,6 +152,7 @@ namespace Palisades.Views
             SnapshotsBtn.Style = (Style)FindResource("SidebarBtnStyle");
             ThemesBtn.Style = (Style)FindResource("SidebarBtnStyle");
             PluginsBtn.Style = (Style)FindResource("SidebarBtnStyle");
+            IslandBtn.Style = (Style)FindResource("SidebarBtnStyle");
 
             var btn = tabName switch
             {
@@ -133,6 +164,7 @@ namespace Palisades.Views
                 "Snapshots" => SnapshotsBtn,
                 "Themes" => ThemesBtn,
                 "Plugins" => PluginsBtn,
+                "Island" => IslandBtn,
                 _ => null
             };
             if (btn != null)
@@ -147,6 +179,8 @@ namespace Palisades.Views
             SnapshotsPanel.Visibility = tabName == "Snapshots" ? Visibility.Visible : Visibility.Collapsed;
             ThemesPanel.Visibility = tabName == "Themes" ? Visibility.Visible : Visibility.Collapsed;
             PluginsPanel.Visibility = tabName == "Plugins" ? Visibility.Visible : Visibility.Collapsed;
+            IslandPanel.Visibility = tabName == "Island" ? Visibility.Visible : Visibility.Collapsed;
+            if (tabName == "Island") _viewModel.RefreshIslandWidgets();
 
             if (tabName == "Themes" || tabName == "Containers")
             {
@@ -158,6 +192,39 @@ namespace Palisades.Views
         {
             if (sender is Button btn && btn.CommandParameter is string tabName)
                 SwitchToTab(tabName);
+        }
+
+        /// <summary>Dashboard → Dynamic Island widgets: open the shared settings menu
+        /// (persists to GadgetTypeDefaults, the island's settings store).</summary>
+        private void IslandWidgetSettings_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is not Button btn || btn.Tag is not string type || string.IsNullOrEmpty(type)) return;
+                var live = DynamicIslandViewModel.Instance.Widgets
+                    .FirstOrDefault(w => string.Equals(w.GadgetType, type, StringComparison.OrdinalIgnoreCase))?.ExpandedView;
+                var menu = new ContextMenu();
+                WidgetSettingsMenu.Build(menu, type, GadgetTypeDefaults.Instance.Get(type), live,
+                    json => GadgetTypeDefaults.Instance.Remember(type, json));
+                menu.Items.Add(new Separator());
+                var remove = new MenuItem { Header = TranslationService.Instance["Db_Island_RemoveWidget"] ?? "Remove from island" };
+                remove.Click += (_, _) => DynamicIslandService.Instance.SetPinned(type, false);
+                menu.Items.Add(remove);
+                menu.PlacementTarget = btn;
+                menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                menu.IsOpen = true;
+            }
+            catch { }
+        }
+
+        private void IslandWidgetRemove_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is Button btn && btn.Tag is string type && !string.IsNullOrEmpty(type))
+                    DynamicIslandService.Instance.SetPinned(type, false);
+            }
+            catch { }
         }
 
         private void Reboot_Click(object sender, RoutedEventArgs e)

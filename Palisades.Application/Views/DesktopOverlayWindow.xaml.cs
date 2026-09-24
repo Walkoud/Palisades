@@ -286,6 +286,8 @@ namespace Palisades.Views
                 StopLoopTimers();
                 try { _nowPlayingBarWindow?.Close(); } catch { }
                 _nowPlayingBarWindow = null;
+                try { _islandBarWindow?.Close(); } catch { }
+                _islandBarWindow = null;
                 UninstallHook();
                 StopGlobalKeyboardHook();
             };
@@ -359,6 +361,170 @@ namespace Palisades.Views
             this.AllowDrop = true;
             this.DragOver += OverlayCanvas_DragOver;
             this.Drop += OverlayCanvas_Drop;
+            SyncDynamicIsland();
+            DynamicIslandService.Instance.Changed += SyncDynamicIsland;
+            DynamicIslandHost.SizeChanged += (_, _) => CacheIslandRect();
+            DynamicIslandHost.LayoutUpdated += (_, _) => CacheIslandRect();
+        }
+
+        private Rect _islandRect = Rect.Empty;
+        private volatile bool _islandVisible;
+
+        private void SyncDynamicIsland()
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    var svc = DynamicIslandService.Instance;
+                    bool pinned = svc.Enabled && svc.PinToTaskbar;
+                    DynamicIslandHost.Visibility = (svc.Enabled && !pinned) ? Visibility.Visible : Visibility.Collapsed;
+                    DynamicIslandHost.SyncPanelToVm();
+                    try { App.Log($"[IslandHost] vis={DynamicIslandHost.Visibility} pinned={pinned} margin={DynamicIslandHost.Margin} placement={svc.Settings.Placement}"); } catch { }
+                    ApplyIslandPlacement();
+                    RefreshIslandPin(pinned);
+                    CacheIslandRect();
+                });
+            }
+            catch { }
+        }
+
+        private DynamicIslandBarWindow? _islandBarWindow;
+
+        /// <summary>Moves the island in front of the taskbar when pinned (like Now Playing pin).</summary>
+        private void RefreshIslandPin(bool pinned)
+        {
+            try
+            {
+                if (pinned)
+                {
+                    if (_islandBarWindow == null)
+                    {
+                        App.Log("[IslandPin] creating bar window");
+                        _islandBarWindow = new DynamicIslandBarWindow();
+                        _islandBarWindow.Closed += (_, _) =>
+                        {
+                            App.Log("[IslandPin] bar window closed");
+                            _islandBarWindow = null;
+                        };
+                        _islandBarWindow.Show();
+                        App.Log($"[IslandPin] bar shown visible={_islandBarWindow.IsVisible}");
+                    }
+                }
+                else if (_islandBarWindow != null)
+                {
+                    App.Log("[IslandPin] closing bar window");
+                    var bar = _islandBarWindow;
+                    _islandBarWindow = null;
+                    try { bar.Close(); } catch { }
+                }
+            }
+            catch (Exception ex) { App.Log(ex, "[IslandPin] RefreshIslandPin"); }
+        }
+
+        /// <summary>Primary screen rect in overlay-window DIPs. The overlay window
+        /// spans ALL screens, so window-relative Center would land between monitors.</summary>
+        private Rect PrimaryScreenRect()
+        {
+            try
+            {
+                var screen = System.Windows.Forms.Screen.PrimaryScreen;
+                if (screen == null) return new Rect(0, 0, Width, Height);
+                var wa = screen.WorkingArea;
+                double dx = _dpiScaleX > 0 ? _dpiScaleX : 1.0;
+                double dy = _dpiScaleY > 0 ? _dpiScaleY : 1.0;
+                double l = wa.Left / dx - OverlayOffsetX;
+                double t = wa.Top / dy - OverlayOffsetY;
+                double r = wa.Right / dx - OverlayOffsetX;
+                double b = wa.Bottom / dy - OverlayOffsetY;
+                return new Rect(l, t, Math.Max(0, r - l), Math.Max(0, b - t));
+            }
+            catch { return new Rect(0, 0, Width, Height); }
+        }
+
+        /// <summary>Anchor presets on the primary screen + free Custom position.</summary>
+        private void ApplyIslandPlacement()
+        {
+            var s = DynamicIslandService.Instance.Settings;
+            double ox = s.OffsetX, oy = s.OffsetY;
+            var scr = PrimaryScreenRect();
+            // Shift from window-center to primary-screen-center (symmetric margins).
+            double cx = (scr.Left + scr.Width / 2) - Width / 2 + ox;
+            double rightGap = (Width - scr.Right) + 12 - ox;
+            double bottomGap = (Height - scr.Bottom) + 12 - oy;
+            switch (s.Placement)
+            {
+                case "TopLeft":
+                    DynamicIslandHost.HorizontalAlignment = HorizontalAlignment.Left;
+                    DynamicIslandHost.VerticalAlignment = VerticalAlignment.Top;
+                    DynamicIslandHost.Margin = new Thickness(scr.Left + 12 + ox, scr.Top + oy, 0, 0);
+                    break;
+                case "TopRight":
+                    DynamicIslandHost.HorizontalAlignment = HorizontalAlignment.Right;
+                    DynamicIslandHost.VerticalAlignment = VerticalAlignment.Top;
+                    DynamicIslandHost.Margin = new Thickness(0, scr.Top + oy, rightGap, 0);
+                    break;
+                case "BottomLeft":
+                    DynamicIslandHost.HorizontalAlignment = HorizontalAlignment.Left;
+                    DynamicIslandHost.VerticalAlignment = VerticalAlignment.Bottom;
+                    DynamicIslandHost.Margin = new Thickness(scr.Left + 12 + ox, 0, 0, bottomGap);
+                    break;
+                case "BottomCenter":
+                    DynamicIslandHost.HorizontalAlignment = HorizontalAlignment.Center;
+                    DynamicIslandHost.VerticalAlignment = VerticalAlignment.Bottom;
+                    DynamicIslandHost.Margin = new Thickness(cx, 0, -cx, bottomGap);
+                    break;
+                case "BottomRight":
+                    DynamicIslandHost.HorizontalAlignment = HorizontalAlignment.Right;
+                    DynamicIslandHost.VerticalAlignment = VerticalAlignment.Bottom;
+                    DynamicIslandHost.Margin = new Thickness(0, 0, rightGap, bottomGap);
+                    break;
+                case "Custom":
+                    DynamicIslandHost.HorizontalAlignment = HorizontalAlignment.Left;
+                    DynamicIslandHost.VerticalAlignment = VerticalAlignment.Top;
+                    DynamicIslandHost.Margin = new Thickness(s.CustomLeft, s.CustomTop, 0, 0);
+                    break;
+                default: // TopCenter
+                    DynamicIslandHost.HorizontalAlignment = HorizontalAlignment.Center;
+                    DynamicIslandHost.VerticalAlignment = VerticalAlignment.Top;
+                    DynamicIslandHost.Margin = new Thickness(cx, scr.Top + oy, -cx, 0);
+                    break;
+            }
+            try { Palisades.Services.IslandDiag.Log($"PLACE {s.Placement} margin={DynamicIslandHost.Margin} win={Width:0}x{Height:0} scr={scr}"); } catch { }
+        }
+
+        /// <summary>Public pour le contrôle îlot (shift GPU expand-up) :
+        /// TranslatePoint inclut déjà le RenderTransform.</summary>
+        public void CacheIslandRect()
+        {
+            try
+            {
+                _islandVisible = DynamicIslandHost.Visibility == Visibility.Visible;
+                if (!_islandVisible) { _islandRect = Rect.Empty; return; }
+                var topLeft = DynamicIslandHost.TranslatePoint(new Point(0, 0), this);
+                _islandRect = new Rect(topLeft.X, topLeft.Y,
+                    Math.Max(0, DynamicIslandHost.ActualWidth),
+                    Math.Max(0, DynamicIslandHost.ActualHeight));
+                // En expand-up le visuel (shift GPU) sort du rect layout :
+                // union avec les bornes visuelles réelles sinon le hook avale
+                // les clics des boutons widgets comme clics bureau.
+                try
+                {
+                    if (DynamicIslandHost is Controls.DynamicIslandControl dic)
+                    {
+                        var extra = dic.GetVisualHitRect();
+                        if (!extra.IsEmpty) _islandRect.Union(extra);
+                    }
+                }
+                catch { }
+            }
+            catch { }
+        }
+
+        private bool IsOverDynamicIsland(Point canvasPos)
+        {
+            if (!_islandVisible || _islandRect.IsEmpty) return false;
+            return _islandRect.Contains(canvasPos);
         }
 
         private void OverlayCanvas_DragOver(object sender, DragEventArgs e)
@@ -510,10 +676,6 @@ namespace Palisades.Views
         private void ShowOverlayIconContextMenu(Point canvasPt)
         {
             var menu = new ContextMenu();
-            menu.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            menu.Foreground = new SolidColorBrush(Color.FromRgb(0xEE, 0xEE, 0xEE));
-            menu.BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-            menu.BorderThickness = new Thickness(1);
 
             bool single = _selectedIcons.Count == 1;
             ShortcutItem? hit = _selectedIcons.FirstOrDefault();
@@ -968,6 +1130,7 @@ namespace Palisades.Views
                     bool overContainer = onOverlay && IsOverContainer(canvasPt);
                     bool overNote = onOverlay && IsOverNote(canvasPt);
                     bool overGadget = onOverlay && IsOverGadget(canvasPt);
+                    bool overIsland = onOverlay && IsOverDynamicIsland(canvasPt);
 
                     switch (msg)
                     {
@@ -997,6 +1160,7 @@ namespace Palisades.Views
                             }
                             _overlayHasFocus = true;
                             ActivateDesktopWindow();
+                            if (overIsland) break; // Dynamic Island gère ses propres clics WPF
                             if (overContainer || overNote || overGadget || IsOverDrawMenu(canvasPt) || (_androidFolderOpen && IsOverOpenPanel(canvasPt)))
                             {
                                 if (IsOverDrawMenu(canvasPt))
@@ -1052,6 +1216,7 @@ namespace Palisades.Views
                             if (!IsDesktopPoint(hookStruct.pt))
                                 break;
                             ActivateDesktopWindow();
+                            if (overIsland) break;
                             if (overContainer || overNote || overGadget)
                             {
                                 CancelDragOrRectSelect();
@@ -2203,7 +2368,9 @@ private bool RouteClipboardCopy(Key key)
                 Width = gadgetReg.DefaultWidth,
                 Height = gadgetReg.DefaultHeight,
                 X = centerX.HasValue ? Math.Max(0, centerX.Value - gadgetReg.DefaultWidth / 2) : 200,
-                Y = centerY.HasValue ? Math.Max(0, centerY.Value - gadgetReg.DefaultHeight / 2) : 200
+                Y = centerY.HasValue ? Math.Max(0, centerY.Value - gadgetReg.DefaultHeight / 2) : 200,
+                // Recrée avec les mêmes réglages que le dernier widget de ce type
+                CustomData = GadgetTypeDefaults.Instance.Get(gadgetType)
             };
 
             var list = PluginService.Instance.LoadGadgets();
@@ -2230,6 +2397,17 @@ private bool RouteClipboardCopy(Key key)
             return _gadgetControls.Values
                 .Select(c => c.GadgetItem)
                 .ToList();
+        }
+
+        /// <summary>Live view hosted in a gadget wrapper (lets the dashboard
+        /// open view-bound dialogs like the football Favorites search).</summary>
+        public UIElement? GetGadgetChildView(Guid id)
+        {
+            if (_gadgetControls.TryGetValue(id, out var wrapper))
+            {
+                try { return wrapper.ChildView; } catch { }
+            }
+            return null;
         }
 
         public void SaveGadgetsToDisk()
@@ -2776,10 +2954,6 @@ private bool RouteClipboardCopy(Key key)
         {
             var tr = Palisades.Services.TranslationService.Instance;
             var menu = new ContextMenu();
-            menu.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-            menu.Foreground = new SolidColorBrush(Color.FromRgb(0xEE, 0xEE, 0xEE));
-            menu.BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-            menu.BorderThickness = new Thickness(1);
 
             var displayItem = new MenuItem { Header = tr["DesktopCtx_DisplaySettings"] };
             displayItem.Click += (_, _) =>
@@ -2989,6 +3163,7 @@ private bool RouteClipboardCopy(Key key)
         public void RepositionOverlay()
         {
             PositionOverlay();
+            try { ApplyIslandPlacement(); CacheIslandRect(); } catch { }
             foreach (var kvp in _containerControls)
             {
                 var ctrl = kvp.Value;
@@ -3005,6 +3180,7 @@ private bool RouteClipboardCopy(Key key)
                     wrapper.Visibility = Visibility.Collapsed;
             }
             try { _nowPlayingBarWindow?.RefreshGeometry(); } catch { }
+            try { _islandBarWindow?.RefreshGeometry(); } catch { }
         }
 
         #region Container management
@@ -3092,6 +3268,8 @@ private bool RouteClipboardCopy(Key key)
                 StopGlobalKeyboardHook();
                 try { _nowPlayingBarWindow?.Close(); } catch { }
                 _nowPlayingBarWindow = null;
+                try { _islandBarWindow?.Close(); } catch { }
+                _islandBarWindow = null;
                 try
                 {
                     foreach (var wrapper in _gadgetControls.Values)
@@ -3105,6 +3283,7 @@ private bool RouteClipboardCopy(Key key)
             {
                 RepositionOverlay();
                 RebuildGadgets();
+                SyncDynamicIsland();
                 StartLoopTimers();
                 InstallHook();
                 StartGlobalKeyboardHookThread();

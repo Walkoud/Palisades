@@ -226,6 +226,18 @@ namespace Palisades.Views.Controls
                 _vm = viewModel;
                 DataContext = viewModel;
 
+                // Overlay is NOACTIVATE: an open ContextMenu would stay stuck when
+                // clicking on the overlay. Same dismiss hook as gadget menus.
+                if (ContextMenu != null)
+                {
+                    var self = this;
+                    ContextMenu.Opened += (_, _) =>
+                    {
+                        if (self.ContextMenu != null)
+                            OverlayMenuDismiss.Attach(self.ContextMenu, self);
+                    };
+                }
+
                 // Set curtain/normal layout visibility explicitly (not via binding)
                 UpdateCurtainModeVisibility();
                 viewModel.PropertyChanged += (_, e) =>
@@ -2544,10 +2556,6 @@ namespace Palisades.Views.Controls
 
                 // Build a simple context menu with common file operations
                 var contextMenu = new ContextMenu();
-                contextMenu.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-                contextMenu.Foreground = new SolidColorBrush(Color.FromRgb(0xEE, 0xEE, 0xEE));
-                contextMenu.BorderBrush = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44));
-                contextMenu.BorderThickness = new Thickness(1);
 
                 // Edit SVG Button (Only in SVG Button Mode)
                 if (_vm.IsSvgButtonContainer)
@@ -2746,6 +2754,7 @@ namespace Palisades.Views.Controls
 
                 // Position and show
                 contextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+                OverlayMenuDismiss.Attach(contextMenu, this);
                 contextMenu.IsOpen = true;
             }
             catch (Exception ex)
@@ -2925,6 +2934,7 @@ namespace Palisades.Views.Controls
         {
             if (sender is System.Windows.Controls.Button btn && btn.ContextMenu != null)
             {
+                OverlayMenuDismiss.Attach(btn.ContextMenu, this);
                 btn.ContextMenu.IsOpen = true;
             }
         }

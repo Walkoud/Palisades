@@ -14,6 +14,9 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Newtonsoft.Json;
 using Palisades.Services;
+using LibVLCSharp.Shared;
+using VlcPlayer = LibVLCSharp.Shared.MediaPlayer;
+using VlcMedia = LibVLCSharp.Shared.Media;
 
 namespace Palisades.Plugins
 {
@@ -59,6 +62,8 @@ namespace Palisades.Plugins
         public bool ShowOnDiscord { get; set; } = true;
         public string AccentColor { get; set; } = "#7DD3FC";
         public double CardOpacity { get; set; } = 1.0;
+        /// <summary>Image affichée : "favicon" (logo station) ou "itunes" (jaquette).</summary>
+        public string ArtworkSource { get; set; } = "favicon";
     }
 
     public class RadioView : Border, ICustomizableGadgetView
@@ -74,7 +79,11 @@ namespace Palisades.Plugins
         private static readonly SolidColorBrush ChipBorder = new SolidColorBrush(Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF));
 
         private RadioSettings _settings = new RadioSettings();
-        private readonly MediaPlayer _player = new MediaPlayer();
+        // LibVLC : lit HLS/ICY/AAC que WPF MediaPlayer ne sait pas suivre.
+        private static LibVLC? _libVlc;
+        private static readonly object _libVlcGate = new();
+        private VlcPlayer? _vlc;
+        private VlcMedia? _vlcMedia;
 
         private readonly TextBlock _statusDot;
         private readonly TextBlock _statusText;
@@ -339,12 +348,12 @@ namespace Palisades.Plugins
 
             Child = root;
 
+            InitPlayer();
             SetPlayerVolume(_settings.Volume);
-            _player.MediaOpened += (_, _) => Dispatcher.InvokeAsync(() => SetStatus(true, "Playing"));
-            _player.MediaFailed += (_, _) => Dispatcher.InvokeAsync(() => SetStatus(false, "Stream error"));
 
             Loaded += (_, _) =>
             {
+                _reparenting = false;
                 RenderAll();
                 _toggleHook = () => Dispatcher.InvokeAsync(TogglePlay);
                 _nextHook = () => Dispatcher.InvokeAsync(() => StepFavorite(1));
@@ -352,9 +361,18 @@ namespace Palisades.Plugins
                 ExternalNowPlaying.TogglePlayPause = _toggleHook;
                 ExternalNowPlaying.SkipNext = _nextHook;
                 ExternalNowPlaying.SkipPrevious = _prevHook;
+                // Reparentage (épinglage îlot) : le player peut avoir été stoppé
+                // à l'Unloaded ; on le recrée/réapplique et on reprend la station.
+                InitPlayer();
+                SetPlayerVolume(_settings.Volume);
+                if (_playing && _current != null && (_vlc == null || !_vlc.IsPlaying))
+                {
+                    try { OpenStream(_current.Stream); SetStatus(true, "Playing"); } catch { }
+                }
             };
             Unloaded += (_, _) =>
             {
+                _reparenting = true;
                 if (_toggleHook != null && ReferenceEquals(ExternalNowPlaying.TogglePlayPause, _toggleHook))
                 {
                     ExternalNowPlaying.TogglePlayPause = null;
@@ -362,7 +380,10 @@ namespace Palisades.Plugins
                     ExternalNowPlaying.SkipPrevious = null;
                 }
                 _toggleHook = _nextHook = _prevHook = null;
-                try { _player.Stop(); _player.Close(); } catch { }
+                // On NE dispose PAS le player : la vue peut être reparentée
+                // (épinglage/dépinglage de l'îlot). Un simple Stop suffit, et le
+                // Loaded suivant relance la station.
+                try { _vlc?.Stop(); } catch { }
                 try { ExternalNowPlaying.Clear("Radio"); } catch { }
             };
         }
@@ -385,6 +406,7 @@ namespace Palisades.Plugins
                 _settings.ShowOnDiscord = s.ShowOnDiscord;
                 _settings.AccentColor = string.IsNullOrEmpty(s.AccentColor) ? "#7DD3FC" : s.AccentColor;
                 _settings.CardOpacity = s.CardOpacity <= 0 ? 1.0 : Math.Clamp(s.CardOpacity, 0.15, 1.0);
+                _settings.ArtworkSource = string.Equals(s.ArtworkSource, "itunes", StringComparison.OrdinalIgnoreCase) ? "itunes" : "favicon";
                 try
                 {
                     _accent = (Color)ColorConverter.ConvertFromString(_settings.AccentColor);
@@ -418,6 +440,8 @@ namespace Palisades.Plugins
                     d = VisualTreeHelper.GetParent(d);
                 if (d is Palisades.Views.Controls.PluginGadgetWrapper wrapper)
                     wrapper.SaveChildCustomData(json);
+                else
+                    Palisades.Services.GadgetTypeDefaults.Instance.Remember("Radio", json);
             }
             catch { }
         }
@@ -445,6 +469,60 @@ namespace Palisades.Plugins
 
         // ================= playback =================
 
+        /// <summary>Init LibVLC (une seule instance partagée) + le player par vue.
+        /// No-op si le player existe déjà (reparentage îlot).</summary>
+        private void InitPlayer()
+        {
+            try
+            {
+                if (_vlc != null) return;
+                if (_libVlc == null)
+                {
+                    lock (_libVlcGate)
+                    {
+                        if (_libVlc == null)
+                        {
+                            Core.Initialize();
+                            // Audio seul, cache réseau 1s (HLS live stable).
+                            _libVlc = new LibVLC("--no-video", "--network-caching=1000");
+                        }
+                    }
+                }
+                _vlc = new VlcPlayer(_libVlc);
+                _vlc.Playing += (_, _) => Dispatcher.InvokeAsync(() =>
+                {
+                    if (_reparenting) return;
+                    SetStatus(true, "Playing");
+                });
+                _vlc.Buffering += (_, e) =>
+                {
+                    try { if (e.Cache < 100 && !_reparenting) Dispatcher.InvokeAsync(() => SetStatus(true, "Buffering…")); } catch { }
+                };
+                _vlc.EncounteredError += (_, _) =>
+                {
+                    try { Palisades.App.Log($"[Radio] VLC EncounteredError url={_current?.Stream}"); } catch { }
+                    Dispatcher.InvokeAsync(() => { if (!_reparenting) SetStatus(false, "Stream error"); });
+                };
+                _vlc.EndReached += (_, _) => Dispatcher.InvokeAsync(() => { if (!_reparenting) SetStatus(false, "Stopped"); });
+            }
+            catch (Exception ex)
+            {
+                try { Palisades.App.Log("[Radio] VLC init failed: " + ex); } catch { }
+                _vlc = null;
+            }
+        }
+
+        private bool _reparenting;
+
+        private void OpenStream(string url)
+        {
+            if (_vlc == null || _libVlc == null) return;
+            _vlc.Stop();
+            _vlcMedia?.Dispose();
+            _vlcMedia = new VlcMedia(_libVlc, new Uri(url));
+            _vlc.Play(_vlcMedia);
+        }
+
         public void PlayStation(RadioFavStation station)
         {
             if (station == null || string.IsNullOrEmpty(station.Stream)) return;
@@ -453,9 +531,7 @@ namespace Palisades.Plugins
             SaveSettings();
             try
             {
-                _player.Stop();
-                _player.Open(new Uri(station.Stream));
-                _player.Play();
+                OpenStream(station.Stream);
                 SetStatus(true, "Buffering…");
                 RadioBrowserService.ReportClick(station.Uuid);
             }
@@ -483,15 +559,18 @@ namespace Palisades.Plugins
             {
                 if (_playing)
                 {
-                    // Live streams aren't seekable: MediaPlayer.Pause is unreliable,
-                    // so we stop (and reopen on resume).
-                    _player.Stop();
+                    // Live streams : pause VLC (reprise possible sur le même média).
+                    _vlc?.Pause();
                     SetStatus(false, "Paused");
+                }
+                else if (_vlcMedia != null && _vlc != null && !_vlc.Media.Equals(_vlcMedia))
+                {
+                    _vlc.Play(_vlcMedia);
+                    SetStatus(true, "Playing");
                 }
                 else
                 {
-                    _player.Open(new Uri(_current.Stream));
-                    _player.Play();
+                    OpenStream(_current.Stream);
                     SetStatus(true, "Playing");
                 }
             }
@@ -556,6 +635,7 @@ namespace Palisades.Plugins
         {
             try
             {
+                try { Palisades.App.Log($"[Radio] ReportNP playing={playing} showNP={_settings.ShowInNowPlaying} showDC={_settings.ShowOnDiscord} cur={_current?.Name}"); } catch { }
                 if (!_settings.ShowInNowPlaying || _current == null)
                 {
                     ExternalNowPlaying.Clear("Radio");
@@ -584,7 +664,12 @@ namespace Palisades.Plugins
         /// </summary>
         private void SetPlayerVolume(double slider)
         {
-            _player.Volume = Math.Min(1.0, Math.Max(0.0, slider) * 2.0);
+            try
+            {
+                if (_vlc != null)
+                    _vlc.Volume = (int)Math.Round(Math.Min(1.0, Math.Max(0.0, slider) * 2.0) * 100.0);
+            }
+            catch { }
         }
 
         // ================= rendering =================
@@ -625,9 +710,38 @@ namespace Palisades.Plugins
             }
             _name.Text = _current.Name;
             _tags.Text = _current.Tags ?? "";
-            bool hasLogo = !string.IsNullOrWhiteSpace(_current.Favicon);
-            _logoPlaceholder.Visibility = hasLogo ? Visibility.Collapsed : Visibility.Visible;
-            IconLoader.Load(_current.Favicon, _logo, 44);
+            bool wantItunes = string.Equals(_settings.ArtworkSource, "itunes", StringComparison.OrdinalIgnoreCase);
+            bool hasFav = !string.IsNullOrWhiteSpace(_current.Favicon);
+
+            Action onLoaded = () => _logoPlaceholder.Visibility = Visibility.Collapsed;
+            Action showPlaceholder = () => _logoPlaceholder.Visibility = Visibility.Visible;
+
+            void LoadFavicon()
+            {
+                if (hasFav) IconLoader.Load(_current.Favicon, _logo, 44, onLoaded: onLoaded);
+                else showPlaceholder();
+            }
+            void LoadItunes()
+            {
+                string stName = _current.Name;
+                string stTags = _current.Tags ?? "";
+                _ = Task.Run(async () =>
+                {
+                    string? art = null;
+                    try { art = await Palisades.Services.DiscordArtUploader.ResolveArtworkUrlAsync(stName, stTags); } catch { }
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        if (_current == null || _current.Name != stName) return;
+                        if (!string.IsNullOrEmpty(art)) IconLoader.Load(art, _logo, 44, LoadFavicon, onLoaded);
+                        else LoadFavicon();
+                    });
+                });
+            }
+
+            showPlaceholder();
+            if (wantItunes) LoadItunes();
+            else if (hasFav) IconLoader.Load(_current.Favicon, _logo, 44, LoadItunes, onLoaded);
+            else LoadItunes();
             UpdateFavGlyph();
         }
 
@@ -992,27 +1106,37 @@ namespace Palisades.Plugins
     {
         private static readonly ConcurrentDictionary<string, BitmapImage?> Cache =
             new ConcurrentDictionary<string, BitmapImage?>();
-        private static readonly WebClient Client = CreateClient();
+        private static readonly System.Net.Http.HttpClient Client = CreateClient();
 
-        private static WebClient CreateClient()
+        private static System.Net.Http.HttpClient CreateClient()
         {
-            var wc = new WebClient();
-            wc.Headers[HttpRequestHeader.UserAgent] = "Palisades/1.0 (Windows; desktop-widget)";
-            return wc;
+            var c = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("Palisades/1.0 (Windows; desktop-widget)");
+            return c;
         }
 
-        public static void Load(string? url, Image target, int decodeWidth)
+        public static void Load(string? url, Image target, int decodeWidth, Action? onFailed = null, Action? onLoaded = null)
         {
             if (string.IsNullOrWhiteSpace(url))
             {
                 target.Source = null;
                 target.Visibility = Visibility.Collapsed;
+                try { onFailed?.Invoke(); } catch { }
                 return;
             }
             if (Cache.TryGetValue(url, out var cached))
             {
-                if (cached != null) { target.Source = cached; target.Visibility = Visibility.Visible; }
-                else target.Visibility = Visibility.Collapsed;
+                if (cached != null)
+                {
+                    target.Source = cached;
+                    target.Visibility = Visibility.Visible;
+                    try { onLoaded?.Invoke(); } catch { }
+                }
+                else
+                {
+                    target.Visibility = Visibility.Collapsed;
+                    try { onFailed?.Invoke(); } catch { }
+                }
                 return;
             }
             target.Visibility = Visibility.Collapsed;
@@ -1021,7 +1145,7 @@ namespace Palisades.Plugins
                 BitmapImage? bmp = null;
                 try
                 {
-                    byte[] data = Client.DownloadData(url);
+                    byte[] data = Client.GetByteArrayAsync(url).GetAwaiter().GetResult();
                     bmp = new BitmapImage();
                     bmp.BeginInit();
                     bmp.StreamSource = new MemoryStream(data);
@@ -1031,13 +1155,16 @@ namespace Palisades.Plugins
                     bmp.Freeze();
                 }
                 catch { bmp = null; }
-                Cache[url] = bmp;
+                if (bmp != null) Cache[url] = bmp; // échec non mis en cache -> retry possible
                 if (bmp != null)
                     target.Dispatcher.InvokeAsync(() =>
                     {
                         target.Source = bmp;
                         target.Visibility = Visibility.Visible;
+                        try { onLoaded?.Invoke(); } catch { }
                     });
+                else
+                    try { target.Dispatcher.InvokeAsync(() => onFailed?.Invoke()); } catch { }
             });
         }
     }

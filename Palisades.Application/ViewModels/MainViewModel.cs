@@ -642,6 +642,26 @@ namespace Palisades.ViewModels
             }
         }
 
+        /// <summary>Compares dotted versions ("1.3.0"). Unparseable parts
+        /// count as 0 so a comparison never throws. Returns -1/0/+1.</summary>
+        private static int CompareVersions(string a, string b)
+        {
+            try
+            {
+                int[] pa = (a ?? "").Split('.').Select(p => int.TryParse(p, out int n) ? n : 0).ToArray();
+                int[] pb = (b ?? "").Split('.').Select(p => int.TryParse(p, out int n) ? n : 0).ToArray();
+                int n = Math.Max(pa.Length, pb.Length);
+                for (int i = 0; i < n; i++)
+                {
+                    int x = i < pa.Length ? pa[i] : 0;
+                    int y = i < pb.Length ? pb[i] : 0;
+                    if (x != y) return x < y ? -1 : 1;
+                }
+            }
+            catch { }
+            return 0;
+        }
+
         private ContainerViewModel? _applyTargetContainer;
         public ContainerViewModel? ApplyTargetContainer
         {
@@ -676,6 +696,215 @@ namespace Palisades.ViewModels
         public List<PluginGadget> SelectedPluginGadgets =>
             SelectedPlugin?.Context?.Gadgets ?? new List<PluginGadget>();
 
+        // --- Dynamic Island ---
+        public bool IslandEnabled
+        {
+            get => DynamicIslandService.Instance.Enabled;
+            set => DynamicIslandService.Instance.Enabled = value;
+        }
+
+        public string IslandThemeName
+        {
+            get => DynamicIslandService.Instance.ThemeName;
+            set => DynamicIslandService.Instance.ThemeName = value;
+        }
+
+        public List<string> IslandThemeNames =>
+            DynamicIslandService.Presets.Select(t => t.Name).ToList();
+
+        public string IslandPlacement
+        {
+            get => DynamicIslandService.Instance.Placement;
+            set => DynamicIslandService.Instance.Placement = value;
+        }
+
+        public List<string> IslandPlacementOptions => IslandPlacements.All.ToList();
+
+        public double IslandMaxWidth
+        {
+            get => DynamicIslandService.Instance.MaxWidth;
+            set => DynamicIslandService.Instance.MaxWidth = value;
+        }
+
+        public double IslandWidth
+        {
+            get => DynamicIslandService.Instance.Width;
+            set => DynamicIslandService.Instance.Width = value;
+        }
+
+        public bool IslandExpandUp
+        {
+            get => DynamicIslandService.Instance.ExpandUp;
+            set => DynamicIslandService.Instance.ExpandUp = value;
+        }
+
+        public bool IslandExpandOnHover
+        {
+            get => DynamicIslandService.Instance.ExpandOnHover;
+            set => DynamicIslandService.Instance.ExpandOnHover = value;
+        }
+
+        public double IslandCornerRadius
+        {
+            get => DynamicIslandService.Instance.CornerRadius;
+            set => DynamicIslandService.Instance.CornerRadius = value;
+        }
+
+        public double IslandBgOpacity
+        {
+            get => DynamicIslandService.Instance.BgOpacity;
+            set => DynamicIslandService.Instance.BgOpacity = value;
+        }
+
+        public bool IslandPinToTaskbar
+        {
+            get => DynamicIslandService.Instance.PinToTaskbar;
+            set => DynamicIslandService.Instance.PinToTaskbar = value;
+        }
+
+        public bool IslandBarHideFullscreen
+        {
+            get => DynamicIslandService.Instance.BarHideFullscreen;
+            set => DynamicIslandService.Instance.BarHideFullscreen = value;
+        }
+
+        public int IslandHoverOpenDelayMs
+        {
+            get => DynamicIslandService.Instance.HoverOpenDelayMs;
+            set => DynamicIslandService.Instance.HoverOpenDelayMs = value;
+        }
+
+        public int IslandHoverCloseDelayMs
+        {
+            get => DynamicIslandService.Instance.HoverCloseDelayMs;
+            set => DynamicIslandService.Instance.HoverCloseDelayMs = value;
+        }
+
+        public int IslandExpandDurationMs
+        {
+            get => DynamicIslandService.Instance.ExpandDurationMs;
+            set => DynamicIslandService.Instance.ExpandDurationMs = value;
+        }
+
+        public int IslandExpandFadeMs
+        {
+            get => DynamicIslandService.Instance.ExpandFadeMs;
+            set => DynamicIslandService.Instance.ExpandFadeMs = value;
+        }
+
+        public ObservableCollection<IslandWidgetOption> IslandWidgetOptions { get; } = new();
+
+        /// <summary>Pinned island widgets, shown in the Dashboard tab for editing
+        /// (mirrors the desktop "Active Widgets" list).</summary>
+        public ObservableCollection<IslandWidgetOption> IslandDashboardWidgets { get; } = new();
+
+        private readonly Dictionary<string, PluginGadgetItem> _islandProxyGadgets = new(StringComparer.OrdinalIgnoreCase);
+        private bool _selectedWidgetIsIsland;
+        /// <summary>True while the customization panel edits an island widget with no
+        /// desktop counterpart (saves go to GadgetTypeDefaults).</summary>
+        public bool SelectedWidgetIsIsland => _selectedWidgetIsIsland;
+
+        private IslandWidgetOption? _selectedIslandOption;
+        public IslandWidgetOption? SelectedIslandOption
+        {
+            get => _selectedIslandOption;
+            set
+            {
+                if (ReferenceEquals(_selectedIslandOption, value)) return;
+                _selectedIslandOption = value;
+                OnPropertyChanged();
+                if (value == null) return;
+                string type = value.GadgetType;
+                // Widget déjà sur le bureau : on édite LE MÊME objet (réglages partagés).
+                var desktop = ActiveWidgets.FirstOrDefault(w =>
+                    string.Equals(w.GadgetType, type, StringComparison.OrdinalIgnoreCase));
+                if (desktop != null)
+                {
+                    _selectedWidgetIsIsland = false;
+                    SelectedWidget = desktop;
+                    return;
+                }
+                if (!_islandProxyGadgets.TryGetValue(type, out var proxy))
+                {
+                    proxy = new PluginGadgetItem
+                    {
+                        GadgetType = type,
+                        Title = value.DisplayName,
+                        CustomData = GadgetTypeDefaults.Instance.Get(type)
+                    };
+                    _islandProxyGadgets[type] = proxy;
+                }
+                _selectedWidgetIsIsland = true;
+                SelectedWidget = proxy;
+            }
+        }
+
+        public ICommand IslandWidgetUpCommand { get; private set; } = null!;
+        public ICommand IslandWidgetDownCommand { get; private set; } = null!;
+
+        /// <summary>Syncs the island widget checklist WITHOUT recreating rows:
+        /// recreating mid-drag kills slider drags and checkbox stability.
+        /// Pinned first (island order), then other registered gadgets.</summary>
+        public void RefreshIslandWidgets()
+        {
+            var all = DynamicIslandViewModel.GetAllGadgetTypes();
+            var pinned = DynamicIslandService.Instance.Settings.PinnedWidgets;
+            var ordered = pinned
+                .Where(p => all.Any(a => string.Equals(a.GadgetType, p, StringComparison.OrdinalIgnoreCase)))
+                .Select(p => all.First(a => string.Equals(a.GadgetType, p, StringComparison.OrdinalIgnoreCase)))
+                .Concat(all
+                    .Where(a => !pinned.Any(p => string.Equals(p, a.GadgetType, StringComparison.OrdinalIgnoreCase)))
+                    .OrderBy(a => a.Name))
+                .ToList();
+
+            for (int i = IslandWidgetOptions.Count - 1; i >= 0; i--)
+            {
+                var o = IslandWidgetOptions[i];
+                if (!ordered.Any(a => string.Equals(a.GadgetType, o.GadgetType, StringComparison.OrdinalIgnoreCase)))
+                    IslandWidgetOptions.RemoveAt(i);
+            }
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                var (type, name) = ordered[i];
+                var existing = IslandWidgetOptions.FirstOrDefault(o =>
+                    string.Equals(o.GadgetType, type, StringComparison.OrdinalIgnoreCase));
+                if (existing == null)
+                {
+                    IslandWidgetOptions.Insert(Math.Min(i, IslandWidgetOptions.Count),
+                        new IslandWidgetOption(type, name));
+                }
+                else if (IslandWidgetOptions.IndexOf(existing) != i)
+                {
+                    IslandWidgetOptions.Move(IslandWidgetOptions.IndexOf(existing), i);
+                }
+            }
+            OnPropertyChanged(nameof(IslandWidgetOptions));
+
+            IslandDashboardWidgets.Clear();
+            foreach (var o in IslandWidgetOptions)
+                if (o.IsPinned) IslandDashboardWidgets.Add(o);
+        }
+
+        private void OnIslandServiceChanged()
+        {
+            OnPropertyChanged(nameof(IslandEnabled));
+            OnPropertyChanged(nameof(IslandThemeName));
+            OnPropertyChanged(nameof(IslandPlacement));
+            OnPropertyChanged(nameof(IslandMaxWidth));
+            OnPropertyChanged(nameof(IslandWidth));
+            OnPropertyChanged(nameof(IslandExpandUp));
+            OnPropertyChanged(nameof(IslandExpandOnHover));
+            OnPropertyChanged(nameof(IslandCornerRadius));
+            OnPropertyChanged(nameof(IslandBgOpacity));
+            OnPropertyChanged(nameof(IslandPinToTaskbar));
+            OnPropertyChanged(nameof(IslandBarHideFullscreen));
+            OnPropertyChanged(nameof(IslandHoverOpenDelayMs));
+            OnPropertyChanged(nameof(IslandHoverCloseDelayMs));
+            OnPropertyChanged(nameof(IslandExpandDurationMs));
+            OnPropertyChanged(nameof(IslandExpandFadeMs));
+            RefreshIslandWidgets();
+        }
+
         // Active Widgets for Dashboard Customization
         private ObservableCollection<PluginGadgetItem> _activeWidgets = new();
         public ObservableCollection<PluginGadgetItem> ActiveWidgets => _activeWidgets;
@@ -692,8 +921,17 @@ namespace Palisades.ViewModels
                     return;
                 }
                 _selectedWidget = value;
+                // Garde la ListBox "Widgets bureau" en phase SANS lui renvoyer le proxy
+                // îlot (sinon elle écrit null en retour -> panneau vide).
+                var active = (value != null && ActiveWidgets.Contains(value)) ? value : null;
+                if (!ReferenceEquals(_selectedActiveWidget, active))
+                {
+                    _selectedActiveWidget = active;
+                    OnPropertyChanged(nameof(SelectedActiveWidget));
+                }
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsWidgetSelected));
+                OnPropertyChanged(nameof(SelectedWidgetIsIsland));
                 OnPropertyChanged(nameof(SelectedWidgetIsClock));
                 OnPropertyChanged(nameof(SelectedWidgetIsSystemMonitor));
                 OnPropertyChanged(nameof(SelectedWidgetIsNowPlaying));
@@ -705,6 +943,25 @@ namespace Palisades.ViewModels
             }
         }
 
+        private PluginGadgetItem? _selectedActiveWidget;
+        /// <summary>Selection of the desktop "Active Widgets" list. Decoupled from
+        /// SelectedWidget so an island-only proxy selection can't be nulled back.</summary>
+        public PluginGadgetItem? SelectedActiveWidget
+        {
+            get => _selectedActiveWidget;
+            set
+            {
+                if (ReferenceEquals(_selectedActiveWidget, value)) return;
+                _selectedActiveWidget = value;
+                OnPropertyChanged();
+                if (value != null)
+                {
+                    _selectedWidgetIsIsland = false;
+                    SelectedWidget = value;
+                }
+            }
+        }
+
         /// <summary>Selects the dashboard's own widget instance by id (so edits and
         /// saves stay on one object — e.g. from the taskbar bar menu).</summary>
         public bool SelectWidgetById(Guid id)
@@ -712,6 +969,20 @@ namespace Palisades.ViewModels
             var w = _activeWidgets.FirstOrDefault(x => x.Id == id);
             if (w == null) return false;
             SelectedWidget = w;
+            return true;
+        }
+
+        /// <summary>Sélectionne un widget de l'îlot dans la catégorie dashboard
+        /// (Widgets Dynamic Island) pour éditer ses réglages.</summary>
+        public bool SelectIslandWidgetByType(string type)
+        {
+            if (string.IsNullOrEmpty(type)) return false;
+            var opt = IslandDashboardWidgets.FirstOrDefault(o =>
+                          string.Equals(o.GadgetType, type, StringComparison.OrdinalIgnoreCase))
+                      ?? IslandWidgetOptions.FirstOrDefault(o =>
+                          string.Equals(o.GadgetType, type, StringComparison.OrdinalIgnoreCase));
+            if (opt == null) return false;
+            SelectedIslandOption = opt;
             return true;
         }
 
@@ -1083,6 +1354,7 @@ namespace Palisades.ViewModels
             public string Id { get; set; } = "";
             public string Name { get; set; } = "";
             public string Kind { get; set; } = "team";
+            public string LeagueSlug { get; set; } = "";
         }
 
         public class FootballSettings
@@ -1104,33 +1376,11 @@ namespace Palisades.ViewModels
             public bool ShowLiveOnDiscord { get; set; } = true;
         }
 
-        public class FootballLeagueOption : System.ComponentModel.INotifyPropertyChanged
-        {
-            public string Code { get; set; } = "";
-            public string Name { get; set; } = "";
-            private bool _selected;
-            public bool Selected
-            {
-                get => _selected;
-                set
-                {
-                    if (_selected == value) return;
-                    _selected = value;
-                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Selected)));
-                    OnSelectedChanged?.Invoke();
-                }
-            }
-            public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
-            public event Action? OnSelectedChanged;
-        }
-
-        public System.Collections.ObjectModel.ObservableCollection<FootballLeagueOption> FootballLeagueOptions { get; }
-            = new System.Collections.ObjectModel.ObservableCollection<FootballLeagueOption>();
-
         public System.Collections.ObjectModel.ObservableCollection<FootballFavTeam> FootballFavTeams { get; }
             = new System.Collections.ObjectModel.ObservableCollection<FootballFavTeam>();
 
         public System.Windows.Input.ICommand FootballRemoveFavTeamCommand { get; private set; } = null!;
+        public System.Windows.Input.ICommand FootballOpenFavoritesCommand { get; private set; } = null!;
 
         private int _footballRefreshMinutes = 10;
         public int FootballRefreshMinutes
@@ -1328,6 +1578,18 @@ namespace Palisades.ViewModels
             }
         }
 
+        private string _radioArtworkSource = "favicon";
+        public string RadioArtworkSource
+        {
+            get => _radioArtworkSource;
+            set
+            {
+                _radioArtworkSource = string.Equals(value, "itunes", StringComparison.OrdinalIgnoreCase) ? "itunes" : "favicon";
+                OnPropertyChanged();
+                SaveSelectedWidgetCustomData();
+            }
+        }
+
         private string _footballMatchClickAction = "details";
         public string FootballMatchClickAction
         {
@@ -1352,24 +1614,32 @@ namespace Palisades.ViewModels
             }
         }
 
-        private void RefreshFootballLeagueOptions(List<string> selectedSlugs)
+        /// <summary>Reloads the dashboard fav list from the widget's stored
+        /// settings (favs added/removed via the widget menu or the Favorites
+        /// dialog land here, so a dashboard save never wipes them).</summary>
+        private void RefreshFootballFavTeamsFromStorage()
         {
-            var selected = new HashSet<string>(selectedSlugs ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
-            FootballLeagueOptions.Clear();
-            foreach (var known in Services.EspnService.CuratedLeagues)
+            if (SelectedWidget == null || !SelectedWidgetIsFootball) return;
+            try
             {
-                var opt = new FootballLeagueOption { Code = known.Slug, Name = known.Name, Selected = selected.Contains(known.Slug) };
-                opt.OnSelectedChanged += SaveFootballLeagues;
-                FootballLeagueOptions.Add(opt);
+                Palisades.Plugins.FootballSettings? stored = null;
+                if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                    stored = Newtonsoft.Json.JsonConvert.DeserializeObject<Palisades.Plugins.FootballSettings>(SelectedWidget.CustomData);
+                FootballFavTeams.Clear();
+                foreach (var t in stored?.Teams ?? Enumerable.Empty<Palisades.Plugins.FootballFavTeam>())
+                {
+                    if (t == null || string.IsNullOrEmpty(t.Id)) continue;
+                    FootballFavTeams.Add(new FootballFavTeam
+                    {
+                        Id = t.Id,
+                        Name = t.Name ?? "",
+                        Kind = string.IsNullOrEmpty(t.Kind) ? "team" : t.Kind,
+                        LeagueSlug = t.LeagueSlug ?? ""
+                    });
+                }
             }
+            catch { }
         }
-
-        private void SaveFootballLeagues()
-        {
-            if (_isRefreshingSettings) return;
-            SaveSelectedWidgetCustomData();
-        }
-
 
         private void RefreshSelectedWidgetSettings()
         {
@@ -1476,10 +1746,7 @@ namespace Palisades.ViewModels
                     FootballCardScale = settings.CardScale <= 0 ? 1.0 : settings.CardScale;
                     FootballMatchClickAction = (settings.MatchClickAction ?? "").ToLowerInvariant() == "google" ? "google" : "details";
                     FootballShowLiveOnDiscord = settings.ShowLiveOnDiscord;
-                    RefreshFootballLeagueOptions(settings.Leagues ?? new List<string>());
-                    FootballFavTeams.Clear();
-                    foreach (var t in settings.Teams ?? new List<FootballFavTeam>())
-                        FootballFavTeams.Add(new FootballFavTeam { Id = t.Id, Name = t.Name ?? "", Kind = string.IsNullOrEmpty(t.Kind) ? "team" : t.Kind });
+                    RefreshFootballFavTeamsFromStorage();
                     _isRefreshingSettings = false;
                 }
                 catch { _isRefreshingSettings = false; }
@@ -1499,6 +1766,7 @@ namespace Palisades.ViewModels
                     RadioShowOnDiscord = settings.ShowOnDiscord;
                     RadioAccentColor = string.IsNullOrEmpty(settings.AccentColor) ? "#7DD3FC" : settings.AccentColor;
                     RadioCardOpacity = settings.CardOpacity <= 0 ? 1.0 : settings.CardOpacity;
+                    RadioArtworkSource = string.Equals(settings.ArtworkSource, "itunes", StringComparison.OrdinalIgnoreCase) ? "itunes" : "favicon";
                     _isRefreshingSettings = false;
                 }
                 catch { _isRefreshingSettings = false; }
@@ -1563,10 +1831,54 @@ namespace Palisades.ViewModels
             }
             else if (SelectedWidgetIsFootball)
             {
+                // Merge with stored teams: favs added via the widget menu or the
+                // Favorites dialog must survive a dashboard save (e.g. changing
+                // the refresh interval). Leagues are preserved as stored — the
+                // dashboard no longer edits them.
+                var storedTeams = new List<Palisades.Plugins.FootballFavTeam>();
+                var storedLeagues = new List<string>();
+                try
+                {
+                    if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                    {
+                        var stored = Newtonsoft.Json.JsonConvert.DeserializeObject<Palisades.Plugins.FootballSettings>(SelectedWidget.CustomData);
+                        if (stored != null)
+                        {
+                            storedTeams = stored.Teams ?? new List<Palisades.Plugins.FootballFavTeam>();
+                            storedLeagues = stored.Leagues ?? new List<string>();
+                        }
+                    }
+                }
+                catch { }
+                var mergedTeams = new Dictionary<string, Palisades.Plugins.FootballFavTeam>(StringComparer.OrdinalIgnoreCase);
+                foreach (var t in storedTeams)
+                {
+                    if (t == null || string.IsNullOrEmpty(t.Id)) continue;
+                    mergedTeams[t.Id] = new Palisades.Plugins.FootballFavTeam
+                    {
+                        Id = t.Id,
+                        Name = t.Name ?? "",
+                        Kind = string.IsNullOrEmpty(t.Kind) ? "team" : t.Kind,
+                        LeagueSlug = t.LeagueSlug ?? ""
+                    };
+                }
+                foreach (var t in FootballFavTeams)
+                {
+                    if (t == null || string.IsNullOrEmpty(t.Id)) continue;
+                    string kind = string.IsNullOrEmpty(t.Kind) ? "team" : t.Kind;
+                    if (mergedTeams.TryGetValue(t.Id, out var cur))
+                    {
+                        cur.Name = t.Name ?? cur.Name;
+                        cur.Kind = kind;
+                        if (!string.IsNullOrEmpty(t.LeagueSlug)) cur.LeagueSlug = t.LeagueSlug;
+                    }
+                    else
+                        mergedTeams[t.Id] = new Palisades.Plugins.FootballFavTeam { Id = t.Id, Name = t.Name ?? "", Kind = kind, LeagueSlug = t.LeagueSlug ?? "" };
+                }
                 var settings = new FootballSettings
                 {
-                    Leagues = FootballLeagueOptions.Where(o => o.Selected).Select(o => o.Code).ToList(),
-                    Teams = FootballFavTeams.Select(t => new FootballFavTeam { Id = t.Id, Name = t.Name, Kind = t.Kind }).ToList(),
+                    Leagues = storedLeagues.Count > 0 ? storedLeagues : new List<string> { "eng.1", "esp.1", "ita.1", "ger.1", "fra.1", "tur.1" },
+                    Teams = mergedTeams.Values.Select(t => new FootballFavTeam { Id = t.Id, Name = t.Name, Kind = t.Kind, LeagueSlug = t.LeagueSlug }).ToList(),
                     RefreshMinutes = FootballRefreshMinutes,
                     MaxMatches = FootballMaxMatches,
                     ShowCrests = FootballShowCrests,
@@ -1604,6 +1916,7 @@ namespace Palisades.ViewModels
                 settings.ShowOnDiscord = RadioShowOnDiscord;
                 settings.AccentColor = RadioAccentColor;
                 settings.CardOpacity = RadioCardOpacity;
+                settings.ArtworkSource = RadioArtworkSource;
                 SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
                 // Radio presence needs its source id in the Discord priority list.
                 if (RadioShowOnDiscord && !DiscordSourcePriorityItems.Any(id => id == "Radio"))
@@ -1612,6 +1925,17 @@ namespace Palisades.ViewModels
                     SaveDiscordPriority();
                 }
             }
+
+            // Widget îlot sans équivalent bureau : persiste dans GadgetTypeDefaults.
+            // Widget bureau dont le type est aussi dans l'îlot : propage tout de suite
+            // pour que l'îlot reprenne les mêmes réglages.
+            try
+            {
+                if (SelectedWidget != null
+                    && (_selectedWidgetIsIsland || DynamicIslandService.Instance.IsPinned(SelectedWidget.GadgetType)))
+                    GadgetTypeDefaults.Instance.Remember(SelectedWidget.GadgetType, SelectedWidget.CustomData);
+            }
+            catch { }
 
             PluginService.Instance.SaveGadgets(_activeWidgets.ToList());
         }
@@ -1680,8 +2004,9 @@ namespace Palisades.ViewModels
                 }
             }
 
-            // 3. Keep Selection if it still exists
-            if (SelectedWidget != null)
+            // 3. Keep Selection if it still exists (skip island-only proxies:
+            //    they aren't in ActiveWidgets and must not be cleared).
+            if (SelectedWidget != null && !_selectedWidgetIsIsland)
             {
                 var stillExists = _activeWidgets.FirstOrDefault(w => w.Id == SelectedWidget.Id);
                 if (stillExists != null)
@@ -1701,6 +2026,16 @@ namespace Palisades.ViewModels
         private void Widget_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             PluginService.Instance.SaveGadgets(_activeWidgets.ToList());
+            // A football widget saves its own CustomData when favs change via
+            // the widget menu/dialog: mirror it into the dashboard list so the
+            // next dashboard save can't wipe them.
+            if (!_isRefreshingSettings
+                && sender is PluginGadgetItem item && ReferenceEquals(item, SelectedWidget)
+                && SelectedWidgetIsFootball
+                && e.PropertyName == nameof(PluginGadgetItem.CustomData))
+            {
+                RefreshFootballFavTeamsFromStorage();
+            }
         }
 
         public ICommand SetThemeCommand { get; }
@@ -1880,13 +2215,36 @@ namespace Palisades.ViewModels
             RefreshNowPlayingSourcesCommand = new RelayCommand(() => _ = RefreshNowPlayingSourcesAsync());
             FootballRemoveFavTeamCommand = new RelayCommand<FootballFavTeam>(fav =>
             {
-                if (fav == null) return;
+                if (fav == null || SelectedWidget == null) return;
                 var existing = FootballFavTeams.FirstOrDefault(t => t.Id == fav.Id);
                 if (existing != null)
-                {
                     FootballFavTeams.Remove(existing);
-                    SaveSelectedWidgetCustomData();
+                // Purge from storage too, otherwise the save-merge below
+                // would resurrect it from the stored snapshot.
+                try
+                {
+                    if (!string.IsNullOrEmpty(SelectedWidget.CustomData))
+                    {
+                        var stored = Newtonsoft.Json.JsonConvert.DeserializeObject<Palisades.Plugins.FootballSettings>(SelectedWidget.CustomData);
+                        if (stored?.Teams != null && stored.Teams.RemoveAll(t => t != null && string.Equals(t.Id, fav.Id, StringComparison.OrdinalIgnoreCase)) > 0)
+                            SelectedWidget.CustomData = Newtonsoft.Json.JsonConvert.SerializeObject(stored);
+                    }
                 }
+                catch { }
+                SaveSelectedWidgetCustomData();
+            });
+            FootballOpenFavoritesCommand = new RelayCommand(() =>
+            {
+                if (SelectedWidget == null || !SelectedWidgetIsFootball) return;
+                try
+                {
+                    var overlay = System.Windows.Application.Current.Windows.OfType<Window>()
+                        .FirstOrDefault(w => w is DesktopOverlayWindow) as DesktopOverlayWindow;
+                    var view = overlay?.GetGadgetChildView(SelectedWidget.Id) as Palisades.Plugins.FootballView;
+                    if (view == null) return;
+                    new Palisades.Plugins.FootballTeamSearchWindow(view).Show();
+                }
+                catch { }
             });
             DiscordPriorityAddCommand = new RelayCommand(() =>
             {
@@ -2198,6 +2556,7 @@ namespace Palisades.ViewModels
                     {
                         var config = new
                         {
+                            AppVersion = AppVersion,
                             Containers = _manager.Containers.Select(c => c),
                             Defaults = ContainerManager.Instance.LoadDefaults(),
                             Notes = GetNotesFromOverlay?.Invoke() ?? ContainerManager.Instance.LoadNotes(),
@@ -2230,12 +2589,44 @@ namespace Palisades.ViewModels
                     if (dialog.ShowDialog() == true)
                     {
                         var t2 = TranslationService.Instance;
-                        var result = MessageBox.Show(
-                            t2["Dialog_ImportWarning"],
-                            t2["Dialog_Confirmation"], MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                        var json = File.ReadAllText(dialog.FileName);
+
+                        // Version check: warn when the backup comes from an
+                        // older, newer, or unknown app version.
+                        string backupVersion = "";
+                        try
+                        {
+                            var ver = Newtonsoft.Json.JsonConvert.DeserializeAnonymousType(json,
+                                new { AppVersion = "" });
+                            backupVersion = (ver?.AppVersion ?? "").Trim();
+                        }
+                        catch { }
+                        string currentVersion = AppVersion;
+                        string title;
+                        string message;
+                        if (string.IsNullOrEmpty(backupVersion))
+                        {
+                            title = t2["Dialog_VersionMismatch"];
+                            message = t2["Dialog_ImportVersionUnknown"];
+                        }
+                        else if (CompareVersions(backupVersion, currentVersion) == 0)
+                        {
+                            title = t2["Dialog_Confirmation"];
+                            message = t2["Dialog_ImportWarning"];
+                        }
+                        else if (CompareVersions(backupVersion, currentVersion) < 0)
+                        {
+                            title = t2["Dialog_VersionMismatch"];
+                            message = string.Format(t2["Dialog_ImportVersionOlder"], backupVersion, currentVersion);
+                        }
+                        else
+                        {
+                            title = t2["Dialog_VersionMismatch"];
+                            message = string.Format(t2["Dialog_ImportVersionNewer"], backupVersion, currentVersion);
+                        }
+                        var result = MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning);
                         if (result != MessageBoxResult.Yes) return;
 
-                        var json = File.ReadAllText(dialog.FileName);
                         var data = Newtonsoft.Json.JsonConvert.DeserializeAnonymousType(json,
                             new {
                                 Containers = new List<ContainerModel>(),
@@ -2467,6 +2858,20 @@ namespace Palisades.ViewModels
 
             PluginService.Instance.GadgetsChanged += LoadActiveWidgets;
             LoadActiveWidgets();
+
+            IslandWidgetUpCommand = new RelayCommand<IslandWidgetOption>(opt =>
+            {
+                if (opt == null) return;
+                DynamicIslandService.Instance.MovePinned(opt.GadgetType, -1);
+            });
+            IslandWidgetDownCommand = new RelayCommand<IslandWidgetOption>(opt =>
+            {
+                if (opt == null) return;
+                DynamicIslandService.Instance.MovePinned(opt.GadgetType, +1);
+            });
+            DynamicIslandService.Instance.Changed += OnIslandServiceChanged;
+            PluginService.Instance.PluginsChanged += RefreshIslandWidgets;
+            RefreshIslandWidgets();
 
             LoadContainers();
         }

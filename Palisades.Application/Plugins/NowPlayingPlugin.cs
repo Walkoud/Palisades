@@ -856,6 +856,15 @@ namespace Palisades.Plugins
                 try { playing = s.GetPlaybackInfo()?.PlaybackStatus == Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing; } catch { }
                 _ = ReportOneSessionAsync(svc, s, appId, playing);
             }
+            // Ne pas effacer les sessions du bridge externe (Radio) : elles ne
+            // viennent pas de SMTC et RetainOnly les supprimerait -> plus de
+            // presence Discord alors que la radio joue.
+            try
+            {
+                var ext = Palisades.Services.ExternalNowPlaying.Current;
+                if (ext != null && !string.IsNullOrEmpty(ext.App)) ids.Add(ext.App);
+            }
+            catch { }
             svc.RetainOnly(ids);
         }
 

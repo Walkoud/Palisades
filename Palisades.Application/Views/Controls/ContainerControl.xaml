@@ -23,11 +23,11 @@
         ContextMenuOpening="ContainerControl_ContextMenuOpening"
         d:DataContext="{d:DesignInstance vm:ContainerViewModel}">
     <UserControl.ContextMenu>
-        <ContextMenu Background="#2A2A2A" Foreground="#EEE" BorderBrush="#444" BorderThickness="1">
+        <ContextMenu>
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_Lock]}" Command="{Binding ToggleLockCommand}" />
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_AutoHide]}" Command="{Binding ToggleAutoHideCommand}" />
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_CurtainMode]}" IsCheckable="True" IsChecked="{Binding IsCurtainMode}" />
-            <Separator Background="#444" />
+            <Separator />
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_EditProperties]}" Command="{Binding EditCommand}" />
             <MenuItem Header="Duplicate" Command="{Binding DuplicateCommand}" />
             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Container_ContextMenu_DeleteContainer]}" Command="{Binding DeleteCommand}" />
@@ -396,9 +396,9 @@
                                 </Grid>
                             </Viewbox>
                             <Button.ContextMenu>
-                                <ContextMenu Background="#2A2A2A" Foreground="#EEE" BorderBrush="#444" BorderThickness="1">
+                                <ContextMenu>
                                     <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_CreateShortcut]}" Command="{Binding Data.CreateShortcutCommand, Source={StaticResource VmProxy}}" />
-                                    <Separator Background="#444" />
+                                    <Separator />
                                     <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Display]}">
                                         <MenuItem.Icon>
                                             <TextBlock Text="🎨" FontSize="14" />
@@ -409,11 +409,11 @@
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Documents]}" Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="FilterDocuments" />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Folders]}" Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="FilterFolders" />
                                         </MenuItem>
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_ShowCounters]}" IsCheckable="True"
                                                   IsChecked="{Binding Data.ShowCounter, Source={StaticResource VmProxy}}"
                                                   Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="ShowCounter" />
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_ViewMode]}">
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Icons]}" IsCheckable="True"
                                                       IsChecked="{Binding Data.IsDetailsView, Source={StaticResource VmProxy}, Converter={StaticResource InvertBoolConverter}, Mode=OneWay}"
@@ -422,7 +422,7 @@
                                                       IsChecked="{Binding Data.IsDetailsView, Source={StaticResource VmProxy}, Mode=OneWay}"
                                                       Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="DetailsView" />
                                         </MenuItem>
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_IconSize]}">
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Small]}" Command="{Binding Data.SetIconSizeCommand, Source={StaticResource VmProxy}}" CommandParameter="24" />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Medium]}" Command="{Binding Data.SetIconSizeCommand, Source={StaticResource VmProxy}}" CommandParameter="36" />
@@ -443,7 +443,7 @@
                                         <MenuItem Header="SVG Button Mode" IsCheckable="True"
                                                   IsChecked="{Binding Data.IsSvgButtonContainer, Source={StaticResource VmProxy}}"
                                                   Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="IsSvgButtonContainer" />
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_RoundedCorners]}" IsCheckable="True"
                                                   IsChecked="{Binding Data.RoundedCornersEnabled, Source={StaticResource VmProxy}}"
                                                   Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="RoundedCorners" />
@@ -453,14 +453,14 @@
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Border]}" IsCheckable="True"
                                                   IsChecked="{Binding Data.ShowBorder, Source={StaticResource VmProxy}}"
                                                   Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="ShowBorder" />
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_AnimationSpeed]}">
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Fast]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="200" />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Normal]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="400" />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Slow]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="600" />
                                         </MenuItem>
                                     </MenuItem>
-                                    <Separator Background="#444" />
+                                    <Separator />
                                     <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Actions]}">
                                         <MenuItem.Icon>
                                             <TextBlock Text="⚡" FontSize="14" />
@@ -475,10 +475,10 @@
                                         </MenuItem.Icon>
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Settings]}" Command="{Binding Data.EditCommand, Source={StaticResource VmProxy}}" />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_SortRules]}" Click="HamburgerMenuItem_Click" CommandParameter="Rules" />
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_SetAsDefault]}" Command="{Binding Data.SetAsDefaultCommand, Source={StaticResource VmProxy}}" />
                                     </MenuItem>
-                                    <Separator Background="#444" />
+                                    <Separator />
                                     <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Delete]}" Command="{Binding Data.DeleteCommand, Source={StaticResource VmProxy}}" />
                                 </ContextMenu>
                             </Button.ContextMenu>
@@ -1156,9 +1156,9 @@
                                     </Grid>
                                 </Viewbox>
                                 <Button.ContextMenu>
-                                    <ContextMenu Background="#2A2A2A" Foreground="#EEE" BorderBrush="#444" BorderThickness="1">
+                                    <ContextMenu>
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_CreateShortcut]}" Command="{Binding Data.CreateShortcutCommand, Source={StaticResource VmProxy}}" />
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Display]}">
                                             <MenuItem.Icon><TextBlock Text="🎨" FontSize="14" /></MenuItem.Icon>
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Filter]}">
@@ -1167,11 +1167,11 @@
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Documents]}" Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="FilterDocuments" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Folders]}" Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="FilterFolders" />
                                             </MenuItem>
-                                            <Separator Background="#444" />
+                                            <Separator />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_ShowCounters]}" IsCheckable="True"
                                                       IsChecked="{Binding Data.ShowCounter, Source={StaticResource VmProxy}}"
                                                       Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="ShowCounter" />
-                                            <Separator Background="#444" />
+                                            <Separator />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_ViewMode]}">
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Icons]}" IsCheckable="True"
                                                           IsChecked="{Binding Data.IsDetailsView, Source={StaticResource VmProxy}, Converter={StaticResource InvertBoolConverter}, Mode=OneWay}"
@@ -1180,7 +1180,7 @@
                                                           IsChecked="{Binding Data.IsDetailsView, Source={StaticResource VmProxy}, Mode=OneWay}"
                                                           Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="DetailsView" />
                                             </MenuItem>
-                                            <Separator Background="#444" />
+                                            <Separator />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_IconSize]}">
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Small]}" Command="{Binding Data.SetIconSizeCommand, Source={StaticResource VmProxy}}" CommandParameter="24" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Medium]}" Command="{Binding Data.SetIconSizeCommand, Source={StaticResource VmProxy}}" CommandParameter="36" />
@@ -1199,7 +1199,7 @@
                                             <MenuItem Header="SVG Button Mode" IsCheckable="True"
                                                       IsChecked="{Binding Data.IsSvgButtonContainer, Source={StaticResource VmProxy}}"
                                                       Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="IsSvgButtonContainer" />
-                                            <Separator Background="#444" />
+                                            <Separator />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_RoundedCorners]}" IsCheckable="True"
                                                       IsChecked="{Binding Data.RoundedCornersEnabled, Source={StaticResource VmProxy}}"
                                                       Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="RoundedCorners" />
@@ -1209,14 +1209,14 @@
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Border]}" IsCheckable="True"
                                                       IsChecked="{Binding Data.ShowBorder, Source={StaticResource VmProxy}}"
                                                       Command="{Binding Data.ToggleOptionCommand, Source={StaticResource VmProxy}}" CommandParameter="ShowBorder" />
-                                            <Separator Background="#444" />
+                                            <Separator />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_AnimationSpeed]}">
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Fast]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="200" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Normal]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="400" />
                                                 <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Slow]}" Command="{Binding Data.SetAnimationSpeedCommand, Source={StaticResource VmProxy}}" CommandParameter="600" />
                                             </MenuItem>
                                         </MenuItem>
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Actions]}">
                                             <MenuItem.Icon><TextBlock Text="⚡" FontSize="14" /></MenuItem.Icon>
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_SortAll]}" Command="{Binding Data.SortNowCommand, Source={StaticResource VmProxy}}" />
@@ -1227,10 +1227,10 @@
                                             <MenuItem.Icon><TextBlock Text="🔧" FontSize="14" /></MenuItem.Icon>
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Settings]}" Command="{Binding Data.EditCommand, Source={StaticResource VmProxy}}" />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_SortRules]}" Click="HamburgerMenuItem_Click" CommandParameter="Rules" />
-                                            <Separator Background="#444" />
+                                            <Separator />
                                             <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_SetAsDefault]}" Command="{Binding Data.SetAsDefaultCommand, Source={StaticResource VmProxy}}" />
                                         </MenuItem>
-                                        <Separator Background="#444" />
+                                        <Separator />
                                         <MenuItem Header="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Hamburger_Delete]}" Command="{Binding Data.DeleteCommand, Source={StaticResource VmProxy}}" />
                                     </ContextMenu>
                                 </Button.ContextMenu>
