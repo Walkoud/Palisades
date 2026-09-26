@@ -196,6 +196,17 @@ namespace Palisades.ViewModels
             }
         }
 
+        public bool PauseWhenFullscreen
+        {
+            get => DefaultModel.PauseWhenFullscreen;
+            set
+            {
+                DefaultModel.PauseWhenFullscreen = value;
+                OnPropertyChanged();
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+            }
+        }
+
         public bool DiscordPresenceEnabled
         {
             get => DefaultModel.DiscordPresenceEnabled;
@@ -798,6 +809,9 @@ namespace Palisades.ViewModels
         /// (mirrors the desktop "Active Widgets" list).</summary>
         public ObservableCollection<IslandWidgetOption> IslandDashboardWidgets { get; } = new();
 
+        /// <summary>Widgets/conteneurs disponibles à ajouter à l'îlot (non épinglés).</summary>
+        public ObservableCollection<IslandWidgetOption> IslandAvailableWidgets { get; } = new();
+
         private readonly Dictionary<string, PluginGadgetItem> _islandProxyGadgets = new(StringComparer.OrdinalIgnoreCase);
         private bool _selectedWidgetIsIsland;
         /// <summary>True while the customization panel edits an island widget with no
@@ -883,6 +897,10 @@ namespace Palisades.ViewModels
             IslandDashboardWidgets.Clear();
             foreach (var o in IslandWidgetOptions)
                 if (o.IsPinned) IslandDashboardWidgets.Add(o);
+
+            IslandAvailableWidgets.Clear();
+            foreach (var o in IslandWidgetOptions)
+                if (!o.IsPinned) IslandAvailableWidgets.Add(o);
         }
 
         private void OnIslandServiceChanged()

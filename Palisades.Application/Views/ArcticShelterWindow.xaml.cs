@@ -133,6 +133,19 @@ namespace Palisades.Views
             catch { }
         }
 
+        /// <summary>Combo "ajouter un widget" : épingle l'élément choisi puis vide la sélection.</summary>
+        private void IslandAddWidget_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (sender is not ComboBox cb) return;
+                if (cb.SelectedItem is IslandWidgetOption opt && !opt.IsPinned)
+                    opt.IsPinned = true;
+                if (cb.SelectedIndex != -1) cb.SelectedIndex = -1;
+            }
+            catch { }
+        }
+
         private void ContainerCard_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is Border { DataContext: ContainerViewModel container })

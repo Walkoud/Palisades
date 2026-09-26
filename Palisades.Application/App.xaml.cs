@@ -24,7 +24,9 @@ namespace Palisades
         private DesktopOverlayWindow? _overlayWindow;
         private readonly Dictionary<string, System.IO.FileSystemWatcher> _folderWatchers = new();
         private DispatcherTimer? _backupTimer;
+        private DispatcherTimer? _fullscreenTimer;
         private bool _suspended;
+        private bool _autoSuspended;
 
         private const string MutexName = "Global\\Palisades_SingleInstance";
         private Mutex? _mutex;
@@ -218,6 +220,9 @@ namespace Palisades
             // Show the overlay (behind all apps, covering all monitors)
             _overlayWindow.InitializePluginService(_mainViewModel!);
             _overlayWindow.Show();
+
+            // Performance : pause auto quand une app plein écran est au premier plan
+            StartFullscreenWatcher();
 
             // Hide desktop icons (may fail on some configs - non-critical)
             try
@@ -935,6 +940,38 @@ namespace Palisades
                 try { _mainViewModel?.ApplyDiscordSettings(); } catch { }
                 _trayService?.SetSuspendedChecked(false);
             });
+        }
+
+        /// <summary>Surveille l'app plein écran au premier plan : si l'option
+        /// Performance est active, suspend Palisades (overlay caché, timers/audio
+        /// stoppés) et le reprend à la sortie. Board indépendant de la pause manuelle.</summary>
+        private void StartFullscreenWatcher()
+        {
+            if (_fullscreenTimer != null) return;
+            _fullscreenTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _fullscreenTimer.Tick += (_, _) =>
+            {
+                try
+                {
+                    bool enabled = _mainViewModel?.PauseWhenFullscreen == true;
+                    bool fullscreen = FullscreenDetector.IsForegroundFullscreen();
+                    if (enabled && fullscreen)
+                    {
+                        if (!_suspended)
+                        {
+                            _autoSuspended = true;
+                            SuspendPalisades();
+                        }
+                    }
+                    else if (_autoSuspended)
+                    {
+                        _autoSuspended = false;
+                        if (_suspended) ResumePalisades();
+                    }
+                }
+                catch { }
+            };
+            _fullscreenTimer.Start();
         }
 
         private void RestartFolderWatchers()

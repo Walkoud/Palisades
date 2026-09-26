@@ -2554,6 +2554,14 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Performance Card -->
+                        <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Performance_Title]}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GuiAccentBrush}" Margin="0,0,0,16" />
+                                <CheckBox Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Perf_PauseFullscreen]}" IsChecked="{Binding PauseWhenFullscreen, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="13" />
+                            </StackPanel>
+                        </Border>
+
                         <!-- Discord Rich Presence Card -->
                         <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,12">
                             <StackPanel>
@@ -3275,7 +3283,8 @@
 
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Widgets]}" Foreground="{DynamicResource GuiAccentBrush}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,4" />
                                 <TextBlock Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_WidgetsHint]}" Foreground="#526475" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10" />
-                                <ItemsControl ItemsSource="{Binding IslandWidgetOptions}">
+                                <!-- Pinned island widgets (clean list) -->
+                                <ItemsControl ItemsSource="{Binding IslandDashboardWidgets}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Background="{DynamicResource GuiBackgroundCardBrush}" BorderBrush="{DynamicResource GuiBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,4">
@@ -3286,13 +3295,15 @@
                                                             <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
-                                                        <CheckBox Grid.Column="0" Content="{Binding DisplayName}" IsChecked="{Binding IsPinned, Mode=TwoWay}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="12" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="0" Text="{Binding DisplayName}" Foreground="{DynamicResource GuiTextForegroundBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
                                                         <Button Grid.Column="1" Content="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Sidebar_Edit]}" Click="IslandOptionCustomize_Click" Tag="{Binding GadgetType}" FontSize="11" Foreground="{DynamicResource GuiAccentBrush}" Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="6,2" Margin="0,0,4,0" VerticalAlignment="Center" />
-                                                        <Button Grid.Column="2" Content="▲" Command="{Binding DataContext.IslandWidgetUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Width="28" Height="24" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" />
-                                                        <Button Grid.Column="3" Content="▼" Command="{Binding DataContext.IslandWidgetDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Width="28" Height="24" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" />
+                                                        <Button Grid.Column="2" Content="▲" Command="{Binding DataContext.IslandWidgetUpCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Width="26" Height="24" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" />
+                                                        <Button Grid.Column="3" Content="▼" Command="{Binding DataContext.IslandWidgetDownCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Width="26" Height="24" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource GuiAccentBrush}" Cursor="Hand" />
+                                                        <Button Grid.Column="4" Content="✕" Click="IslandWidgetRemove_Click" Tag="{Binding GadgetType}" Foreground="#FF5F56" FontSize="11" FontWeight="Bold" Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="6,2" Margin="4,0,0,0" VerticalAlignment="Center" />
                                                     </Grid>
-                                                    <Grid Margin="0,6,0,0" Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}}">
+                                                    <Grid Margin="0,6,0,0">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="70" />
                                                             <ColumnDefinition Width="*" />
@@ -3307,6 +3318,19 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+
+                                <!-- Add a widget/container -->
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Source={x:Static svc:TranslationService.Instance}, Path=[Db_Island_Add]}" Foreground="#526475" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <ComboBox Grid.Column="1" Height="28" Background="#1F2731" BorderBrush="#2D3A4B" Foreground="{DynamicResource GuiAccentBrush}"
+                                              ItemsSource="{Binding IslandAvailableWidgets}" DisplayMemberPath="DisplayName"
+                                              SelectedIndex="-1"
+                                              SelectionChanged="IslandAddWidget_SelectionChanged" />
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </StackPanel>

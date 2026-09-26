@@ -262,6 +262,20 @@ namespace Palisades.Views
         private static readonly Brush _copyFlashBrush = new SolidColorBrush(Color.FromArgb(0x70, 0x3B, 0x82, 0xF6));
         private static readonly Brush _cutFlashBrush = new SolidColorBrush(Color.FromArgb(0x70, 0xFF, 0x5F, 0x56));
 
+        // Rectangle de sélection : contour seul (pas de remplissage). Le fill
+        // forçait WPF à recomposer toute la surface du rectangle à chaque
+        // mouvement (blending) sur l'overlay plein écran -> pic CPU. Le contour
+        // ne salit que ses 4 bords. Pinceaux gelés : zéro alloc par sélection.
+        private static readonly Brush _selectStrokeBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xD0, 0x00, 0x78, 0xD7)));
+        private static readonly Brush _selectFillBrush = Frozen(new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0x78, 0xD7)));
+        private static readonly DoubleCollection _selectDash = Frozen(new DoubleCollection { 4, 2 });
+
+        private static T Frozen<T>(T f) where T : Freezable
+        {
+            try { f.Freeze(); } catch { }
+            return f;
+        }
+
         private DispatcherTimer? _copyFlashTimer;
         private Border? _copiedToast;
         private DispatcherTimer? _copiedToastTimer;
@@ -398,9 +412,12 @@ namespace Palisades.Views
             {
                 if (pinned)
                 {
-                    if (_islandBarWindow == null)
+                    if (_islandBarWindow == null || !_islandBarWindow.IsLoaded)
                     {
+                        // Une autre overlay a déjà créé SA barre : ne pas en créer une 2e.
+                        if (DynamicIslandBarWindow.HasLive) return;
                         App.Log("[IslandPin] creating bar window");
+                        DynamicIslandBarWindow.CloseAll(); // garantit une seule barre
                         _islandBarWindow = new DynamicIslandBarWindow();
                         _islandBarWindow.Closed += (_, _) =>
                         {
@@ -411,12 +428,11 @@ namespace Palisades.Views
                         App.Log($"[IslandPin] bar shown visible={_islandBarWindow.IsVisible}");
                     }
                 }
-                else if (_islandBarWindow != null)
+                else
                 {
-                    App.Log("[IslandPin] closing bar window");
-                    var bar = _islandBarWindow;
+                    App.Log("[IslandPin] closing bar window(s)");
                     _islandBarWindow = null;
-                    try { bar.Close(); } catch { }
+                    DynamicIslandBarWindow.CloseAll();
                 }
             }
             catch (Exception ex) { App.Log(ex, "[IslandPin] RefreshIslandPin"); }
@@ -1126,11 +1142,30 @@ namespace Palisades.Views
                 if (onOverlay || _isDragging || _isRectSelecting || _isAndroidIconDrag)
                 {
                     int msg = wParam.ToInt32();
-                    var hitItem = onOverlay ? HitTestIcon(canvasPt) : null;
-                    bool overContainer = onOverlay && IsOverContainer(canvasPt);
-                    bool overNote = onOverlay && IsOverNote(canvasPt);
-                    bool overGadget = onOverlay && IsOverGadget(canvasPt);
-                    bool overIsland = onOverlay && IsOverDynamicIsland(canvasPt);
+
+                    // Dessin du rectangle de sélection : seule la géométrie du
+                    // rectangle importe. On saute les hit-tests O(icônes +
+                    // conteneurs + notes + gadgets + island) qui sont le hotspot
+                    // CPU quand on dessine vite (un scan complet par mouvement).
+                    if (msg == WM_MOUSEMOVE && _isRectSelecting)
+                    {
+                        HandleRectSelectMove(canvasPt);
+                        return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                    }
+
+                    // Hit-tests coûteux : utiles uniquement aux boutons/état,
+                    // pas aux mouvements. En WM_MOUSEMOVE la logique de survol
+                    // recalcule elle-même ce dont elle a besoin.
+                    ShortcutItem? hitItem = null;
+                    bool overContainer = false, overNote = false, overGadget = false, overIsland = false;
+                    if (msg != WM_MOUSEMOVE)
+                    {
+                        hitItem = onOverlay ? HitTestIcon(canvasPt) : null;
+                        overContainer = onOverlay && IsOverContainer(canvasPt);
+                        overNote = onOverlay && IsOverNote(canvasPt);
+                        overGadget = onOverlay && IsOverGadget(canvasPt);
+                        overIsland = onOverlay && IsOverDynamicIsland(canvasPt);
+                    }
 
                     switch (msg)
                     {
@@ -1716,10 +1751,10 @@ private bool RouteClipboardCopy(Key key)
             _mouseDownPoint = canvasPt;
             _selectRect = new Rectangle
             {
-                Stroke = new SolidColorBrush(Color.FromArgb(0xD0, 0x00, 0x78, 0xD7)),
+                Stroke = _selectStrokeBrush,
                 StrokeThickness = 1.5,
-                Fill = new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0x78, 0xD7)),
-                StrokeDashArray = new DoubleCollection { 4, 2 }
+                Fill = _selectFillBrush,
+                StrokeDashArray = _selectDash
             };
             Panel.SetZIndex(_selectRect, 99999);
             Canvas.SetLeft(_selectRect, canvasPt.X);

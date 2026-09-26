@@ -71,11 +71,31 @@ namespace Palisades.ViewModels
         /// Declared AFTER Glyphs (static init order: the ctor reads Glyphs).</summary>
         public static DynamicIslandViewModel Instance { get; } = new DynamicIslandViewModel();
 
+        /// <summary>Préfixe du type gadget pour un portail de conteneur : "ContainerPortal:<id>".</summary>
+        public const string ContainerPortalPrefix = "ContainerPortal:";
+
+        public static bool IsContainerPortal(string? gadgetType)
+            => !string.IsNullOrEmpty(gadgetType)
+               && gadgetType!.StartsWith(ContainerPortalPrefix, StringComparison.OrdinalIgnoreCase);
+
         /// <summary>Resolves display name + glyph for any gadget type, including
         /// future third-party plugins (falls back to registered name + generic glyph).</summary>
         public static (string Name, string Glyph) ResolveGadgetMeta(string gadgetType)
         {
             string name = gadgetType;
+            string glyph = "\uE734";
+            if (IsContainerPortal(gadgetType))
+            {
+                try
+                {
+                    string id = gadgetType.Substring(ContainerPortalPrefix.Length);
+                    var m = Palisades.Services.ContainerManager.Instance.GetContainer(id);
+                    name = m?.Name ?? "Container";
+                    glyph = "\uE8B7"; // dossier
+                }
+                catch { }
+                return (name, glyph);
+            }
             try
             {
                 foreach (var p in PluginService.Instance.Plugins)
@@ -86,12 +106,13 @@ namespace Palisades.ViewModels
                 }
             }
             catch { }
-            if (!Glyphs.TryGetValue(gadgetType, out var glyph))
+            if (!Glyphs.TryGetValue(gadgetType, out glyph))
                 glyph = "\uE734";
             return (name, glyph);
         }
 
-        /// <summary>Every registered gadget type (built-in + external plugins).</summary>
+        /// <summary>Every registered gadget type (built-in + external plugins) + les
+        /// conteneurs disponibles comme portails.</summary>
         public static List<(string GadgetType, string Name)> GetAllGadgetTypes()
         {
             var list = new List<(string, string)>();
@@ -105,6 +126,16 @@ namespace Palisades.ViewModels
                         if (!list.Any(x => string.Equals(x.Item1, g.GadgetType, StringComparison.OrdinalIgnoreCase)))
                             list.Add((g.GadgetType, g.Name));
                     }
+                }
+            }
+            catch { }
+            try
+            {
+                foreach (var m in Palisades.Services.ContainerManager.Instance.Containers)
+                {
+                    string type = ContainerPortalPrefix + m.Identifier;
+                    if (!list.Any(x => string.Equals(x.Item1, type, StringComparison.OrdinalIgnoreCase)))
+                        list.Add((type, m.Name));
                 }
             }
             catch { }
@@ -267,13 +298,45 @@ namespace Palisades.ViewModels
                 ClockText = now.ToString("HH:mm");
                 DateText = now.ToString("ddd d MMM");
             };
-            _clockTimer.Start();
 
             _posTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             _posTimer.Tick += (_, _) => RefreshTimeline();
-            _posTimer.Start();
 
-            _ = InitSmtcAsync();
+            ApplyEnabledState();
+        }
+
+        private bool _runtimeActive;
+        private bool _smtcInitStarted;
+
+        /// <summary>Démarre/arrête le travail de fond (horloge, timeline SMTC,
+        /// polling Now Playing) selon l'état du toggle Dynamic Island. À l'arrêt,
+        /// plus aucun timer ne tourne : l'îlot désactivé ne consomme plus de CPU.</summary>
+        private void ApplyEnabledState()
+        {
+            bool on = DynamicIslandService.Instance.Enabled;
+            if (on == _runtimeActive) return;
+            _runtimeActive = on;
+            try
+            {
+                if (on)
+                {
+                    _clockTimer.Start();
+                    _posTimer.Start();
+                    if (!_smtcInitStarted)
+                    {
+                        _smtcInitStarted = true;
+                        _ = InitSmtcAsync();
+                    }
+                    RefreshNowPlaying();
+                }
+                else
+                {
+                    _clockTimer.Stop();
+                    _posTimer.Stop();
+                }
+                IslandDiag.Log($"VM runtime active={on}");
+            }
+            catch { }
         }
 
         public void RebuildWidgets()
@@ -366,10 +429,13 @@ namespace Palisades.ViewModels
             OnPropertyChanged(nameof(CompactMinWidth));
             OnPropertyChanged(nameof(CurrentWidgetHeight));
             RebuildWidgets();
+            ApplyEnabledState();
         }
 
         internal static FrameworkElement CreateGadgetView(string gadgetType)
         {
+            if (IsContainerPortal(gadgetType))
+                return new Palisades.Plugins.ContainerPortalView(gadgetType.Substring(ContainerPortalPrefix.Length));
             try
             {
                 foreach (var p in PluginService.Instance.Plugins)
@@ -407,6 +473,7 @@ namespace Palisades.ViewModels
 
         private void RefreshNowPlaying()
         {
+            if (!DynamicIslandService.Instance.Enabled) return;
             try
             {
                 var ext = ExternalNowPlaying.Current;

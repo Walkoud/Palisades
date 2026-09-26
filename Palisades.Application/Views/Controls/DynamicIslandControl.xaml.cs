@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -23,21 +23,21 @@ namespace Palisades.Views.Controls
         /// <summary>True for the taskbar bar host (owns the shared views when pinned).</summary>
         public bool IsBarHost { get; set; }
 
-        // Free placement : glisser le fond de la pilule, ou ALT + glisser depuis n'importe où
+        // Free placement : glisser le fond de la pilule, ou ALT + glisser depuis n'importe oÃ¹
         private bool _dragArmed;
         private bool _dragging;
         private Point _dragStartScreen;
         private double _dragStartLeft;
         private double _dragStartTop;
 
-        // Survol : ouvre après délai, referme au départ (seulement si ouvert par survol)
+        // Survol : ouvre aprÃ¨s dÃ©lai, referme au dÃ©part (seulement si ouvert par survol)
         private readonly DispatcherTimer _hoverOpenTimer;
         private readonly DispatcherTimer _hoverCloseTimer;
         private bool _hoverOpened;
         private bool _animating;
         private DispatcherTimer _hoverPoll = null!;
 
-        // Easings partagés + gelés : zéro alloc par frame d'anim
+        // Easings partagÃ©s + gelÃ©s : zÃ©ro alloc par frame d'anim
         private static readonly CubicEase EaseOut;
         private static readonly CubicEase EaseIn;
 
@@ -48,11 +48,34 @@ namespace Palisades.Views.Controls
             try { EaseOut.Freeze(); EaseIn.Freeze(); } catch { }
         }
 
+        private System.ComponentModel.PropertyChangedEventHandler? _vmHandler;
+        private Action? _serviceHandler;
+        private bool _subscribed;
+
+        private void SubscribeToShared()
+        {
+            if (_subscribed) return;
+            _subscribed = true;
+            IslandVm.PropertyChanged += _vmHandler;
+            DynamicIslandService.Instance.Changed += _serviceHandler;
+        }
+
+        private void UnsubscribeFromShared()
+        {
+            if (!_subscribed) return;
+            _subscribed = false;
+            try { IslandVm.PropertyChanged -= _vmHandler; } catch { }
+            try { DynamicIslandService.Instance.Changed -= _serviceHandler; } catch { }
+            try { _hoverPoll?.Stop(); } catch { }
+            try { _hoverOpenTimer?.Stop(); } catch { }
+            try { _hoverCloseTimer?.Stop(); } catch { }
+        }
+
         public DynamicIslandControl()
         {
             InitializeComponent();
             DataContext = IslandVm;
-            IslandVm.PropertyChanged += (_, e) =>
+            _vmHandler = (_, e) =>
             {
                 if (e.PropertyName == nameof(DynamicIslandViewModel.State))
                     AnimateExpand();
@@ -62,22 +85,36 @@ namespace Palisades.Views.Controls
                     LogSnapshot("select");
                 }
             };
-            DynamicIslandService.Instance.Changed += () => Dispatcher.Invoke(() =>
+            _serviceHandler = () => Dispatcher.Invoke(() =>
             {
                 ApplyExpandDirection();
                 ClearFixedWidth();
                 ApplyTimingSettings();
                 SyncWidgetHost();
+                var svc = DynamicIslandService.Instance;
+                try
+                {
+                    if (svc.Enabled) _hoverPoll?.Start();
+                    else _hoverPoll?.Stop();
+                }
+                catch { }
+                if (svc.Enabled && !_warmedUp)
+                {
+                    _warmedUp = true;
+                    Dispatcher.BeginInvoke(new Action(WarmupLayout), DispatcherPriority.Background);
+                }
             });
+            SubscribeToShared();
+            Unloaded += (_, _) => UnsubscribeFromShared();
             ExpandedPanel.SizeChanged += OnExpandedSizeChanged;
-            // Pastille centrée FIXE : en alignement Left/Right, un changement de
-            // largeur du contenu décalerait la pastille (en Center c'est stable).
+            // Pastille centrÃ©e FIXE : en alignement Left/Right, un changement de
+            // largeur du contenu dÃ©calerait la pastille (en Center c'est stable).
             // On compense la marge pour garder le CENTRE (pas de boucle sondage).
             SizeChanged += (_, e) =>
             {
                 try
                 {
-                    if (IsBarHost) return; // la barre gère sa fenêtre elle-même
+                    if (IsBarHost) return; // la barre gÃ¨re sa fenÃªtre elle-mÃªme
                     if (!e.WidthChanged || e.PreviousSize.Width <= 0 || ActualWidth <= 0) return;
                     double dW = e.PreviousSize.Width - ActualWidth;
                     if (Math.Abs(dW) < 2.0) return;
@@ -90,6 +127,10 @@ namespace Palisades.Views.Controls
             };
             Loaded += (_, _) =>
             {
+                _animating = false;
+                try { IslandVm.IsClosing = false; } catch { }
+                SubscribeToShared();
+                if (DynamicIslandService.Instance.Enabled) { try { _hoverPoll?.Start(); } catch { } }
                 ApplyExpandDirection();
                 ClearFixedWidth();
                 ApplyTimingSettings();
@@ -97,9 +138,13 @@ namespace Palisades.Views.Controls
                 // Replié = Collapsed = taille 0 (les vues restent chargées quand même)
                 ExpandedPanel.Visibility = IslandVm.IsExpanded ? Visibility.Visible : Visibility.Collapsed;
                 // Warmup : un vrai passage layout (Visible + measure) en fond pour que
-                // la 1re ouverture n'ait rien à mesurer sur le thread UI (fini le freeze)
-                Dispatcher.BeginInvoke(new Action(WarmupLayout),
-                    DispatcherPriority.Background);
+                // la 1re ouverture n'ait rien Ã  mesurer sur le thread UI (fini le freeze)
+                if (DynamicIslandService.Instance.Enabled)
+                {
+                    _warmedUp = true;
+                    Dispatcher.BeginInvoke(new Action(WarmupLayout),
+                        DispatcherPriority.Background);
+                }
             };
 
             _hoverOpenTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -110,9 +155,9 @@ namespace Palisades.Views.Controls
                 bool flap = HoverFlapGuard();
                 HLog($"OPEN-TICK hover={svc.ExpandOnHover} over={_hoverInside} state={IslandVm.State} drag={_dragging} armed={_dragArmed} anim={_animating} alt={IsAltHeld()} flapOk={flap}");
                 if (!flap) return;
-                // Seulement depuis l'état replié, jamais en drag/anim/ALT : pas de boucle.
-                // _hoverInside (sonde géo) et non IsMouseOver : sur l'overlay
-                // click-through, IsMouseOver se périme dès que la géo bouge.
+                // Seulement depuis l'Ã©tat repliÃ©, jamais en drag/anim/ALT : pas de boucle.
+                // _hoverInside (sonde gÃ©o) et non IsMouseOver : sur l'overlay
+                // click-through, IsMouseOver se pÃ©rime dÃ¨s que la gÃ©o bouge.
                 if (svc.ExpandOnHover
                     && _hoverInside && IslandVm.State == IslandState.Compact
                     && !_dragging && !_dragArmed && !_animating && !IsAltHeld())
@@ -136,15 +181,19 @@ namespace Palisades.Views.Controls
                 }
             };
 
-            // Sondage : l'état de survol est réévalué périodiquement sur la
-            // position live (avec hystérésis), pas sur les events de bordure
-            // qui sont faussés dès que les bornes bougent (resize, shift, anim).
+            // Sondage : l'Ã©tat de survol est rÃ©Ã©valuÃ© pÃ©riodiquement sur la
+            // position live (avec hystÃ©rÃ©sis), pas sur les events de bordure
+            // qui sont faussÃ©s dÃ¨s que les bornes bougent (resize, shift, anim).
             _hoverPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
             _hoverPoll.Tick += (_, _) => HoverPollTick();
-            _hoverPoll.Start();
+            if (DynamicIslandService.Instance.Enabled) _hoverPoll.Start();
         }
 
         private bool _hoverInside;
+
+        /// <summary>True pendant un drag de la barre : gèle l'ouverture/fermeture
+        /// par survol (sinon l'îlot se rouvre/ferme pendant qu'on le déplace).</summary>
+        public bool SuppressHover { get; set; }
 
         /// <summary>Présence souris évaluée sur géométrie live + hystérésis 8px :
         /// les bornes qui bougent sous un curseur fixe ne génèrent aucun flip.</summary>
@@ -152,7 +201,9 @@ namespace Palisades.Views.Controls
         {
             try
             {
+                if (!DynamicIslandService.Instance.Enabled) return;
                 if (Visibility != Visibility.Visible) return;
+                if (SuppressHover) return;
                 if (_pillMenuOpen) return;
                 if (_dragging || _dragArmed) return;
                 double w = ActualWidth, h = ActualHeight;
@@ -163,7 +214,6 @@ namespace Palisades.Views.Controls
                     origin = PointToScreen(new Point(0, 0));
                     // PointToScreen ne voit pas le RenderTransform d'un descendant :
                     // en expand-up, RootShift (GPU) sort le visuel de la boîte layout.
-                    // Sans ce report, la zone panneau compte comme "dehors" -> referme.
                     origin.X += RootShift.X;
                     origin.Y += RootShift.Y;
                 }
@@ -179,10 +229,10 @@ namespace Palisades.Views.Controls
                     && my >= origin.Y && my <= origin.Y + h;
                 bool outside = mx < origin.X - 8 || mx > origin.X + w + 8
                     || my < origin.Y - 8 || my > origin.Y + h + 8;
-                // Occultation : une vraie fenêtre par-dessus avec curseur fixe ne
-                // génère ni event ni changement géo -> sans ce test l'îlot reste
+                // Occultation : une vraie fenÃªtre par-dessus avec curseur fixe ne
+                // gÃ©nÃ¨re ni event ni changement gÃ©o -> sans ce test l'Ã®lot reste
                 // ouvert sous l'app ("se ferme plus") ou ne s'ouvre pas au
-                // désoccultage ("s'ouvre pas"). Même processus = dedans (menus…).
+                // dÃ©soccultage ("s'ouvre pas"). MÃªme processus = dedans (menusâ€¦).
                 bool blocked = false;
                 if (inside)
                 {
@@ -209,7 +259,7 @@ namespace Palisades.Views.Controls
                         TryStartClose();
                     }
                 }
-                // Bande morte 0-8px non occultée : garde l'état (pas de flip sur micro-jitter)
+                // Bande morte 0-8px non occultÃ©e : garde l'Ã©tat (pas de flip sur micro-jitter)
             }
             catch { }
         }
@@ -258,8 +308,8 @@ namespace Palisades.Views.Controls
         private static readonly IntPtr HWND_TOPMOST = new(-1);
         private const uint SWP_NOSIZE_ = 0x0001, SWP_NOMOVE_ = 0x0002, SWP_NOACTIVATE_ = 0x0010;
 
-        /// <summary>Le ContextMenu vit dans un popup séparé : quand l'îlot est épinglé
-        /// (fenêtre Topmost), le menu passait DERRIÈRE. On force le popup topmost à
+        /// <summary>Le ContextMenu vit dans un popup sÃ©parÃ© : quand l'Ã®lot est Ã©pinglÃ©
+        /// (fenÃªtre Topmost), le menu passait DERRIÃˆRE. On force le popup topmost Ã 
         /// l'ouverture.</summary>
         public static void EnsureMenuTopmost(ContextMenu menu)
         {
@@ -284,8 +334,8 @@ namespace Palisades.Views.Controls
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
         private struct POINT { public int X; public int Y; }
 
-        /// <summary>True si une fenêtre d'un AUTRE processus recouvre le point
-        /// (pixels écran). Nos propres fenêtres/popups = dedans.</summary>
+        /// <summary>True si une fenÃªtre d'un AUTRE processus recouvre le point
+        /// (pixels Ã©cran). Nos propres fenÃªtres/popups = dedans.</summary>
         private static bool IsOccludedByForeignWindow(int x, int y)
         {
             try
@@ -305,15 +355,15 @@ namespace Palisades.Views.Controls
             catch { return true; }
         }
 
-        // Coupe-circuit anti-boucle : rafale de bascules RAPPROCHÉES (< 500 ms
-        // d'intervalle) = events fantômes qui s'auto-entretiennent -> pause 10 s.
-        // L'usage humain normal (rythme lent) ne déclenche jamais.
+        // Coupe-circuit anti-boucle : rafale de bascules RAPPROCHÃ‰ES (< 500 ms
+        // d'intervalle) = events fantÃ´mes qui s'auto-entretiennent -> pause 10 s.
+        // L'usage humain normal (rythme lent) ne dÃ©clenche jamais.
         private int _hoverStreak;
         private DateTime _hoverLastFlip = DateTime.MinValue;
         private DateTime _hoverCalmUntil = DateTime.MinValue;
 
         /// <summary>Trace DIAG du survol : %LocalAppData%/Palisades/island_hover.log.
-        /// Chaque décision loggée avec ses gardes (pourquoi ça ouvre / pas).</summary>
+        /// Chaque dÃ©cision loggÃ©e avec ses gardes (pourquoi Ã§a ouvre / pas).</summary>
         private static readonly string HoverLogPath = System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Palisades", "island_hover.log");
@@ -356,12 +406,12 @@ namespace Palisades.Views.Controls
         private bool _pillMenuOpen;
 
         // NOTE : plus de logique hover dans Enter/Leave (events de bordure
-        // faussés par les bornes qui bougent). Tout passe par HoverPollTick.
+        // faussÃ©s par les bornes qui bougent). Tout passe par HoverPollTick.
 
         protected override void OnPreviewKeyUp(KeyEventArgs e)
         {
             base.OnPreviewKeyUp(e);
-            // ALT relâché en survol : relance l'ouverture auto
+            // ALT relÃ¢chÃ© en survol : relance l'ouverture auto
             if (e.Key is Key.LeftAlt or Key.RightAlt or Key.System
                 && DynamicIslandService.Instance.ExpandOnHover && _hoverInside
                 && IslandVm.State != IslandState.Expanded && !_dragging && !_hoverOpened)
@@ -371,9 +421,9 @@ namespace Palisades.Views.Controls
             }
         }
 
-        /// <summary>Grip du panneau : glisser vertical = hauteur du widget (savée).
+        /// <summary>Grip du panneau : glisser vertical = hauteur du widget (savÃ©e).
         /// Expand-up : le grip est le bord HAUT -> tirer vers le haut agrandit
-        /// (VerticalChange négatif), donc on inverse le signe.</summary>
+        /// (VerticalChange nÃ©gatif), donc on inverse le signe.</summary>
         private void ResizeGrip_Drag(object sender, DragDeltaEventArgs e)
         {
             var type = IslandVm.CurrentWidget?.GadgetType;
@@ -382,8 +432,8 @@ namespace Palisades.Views.Controls
             DynamicIslandService.Instance.SetWidgetHeight(type, IslandVm.CurrentWidgetHeight + delta);
         }
 
-        /// <summary>Clic droit pilule : accès direct pin + sens + survol.
-        /// Clic droit sur un widget déplié : réglages du widget (comme le desktop).</summary>
+        /// <summary>Clic droit pilule : accÃ¨s direct pin + sens + survol.
+        /// Clic droit sur un widget dÃ©pliÃ© : rÃ©glages du widget (comme le desktop).</summary>
         protected override void OnPreviewMouseRightButtonUp(MouseButtonEventArgs e)
         {
             base.OnPreviewMouseRightButtonUp(e);
@@ -398,7 +448,7 @@ namespace Palisades.Views.Controls
                     && IsInsideExpandedPanel(e.OriginalSource as DependencyObject)
                     && !string.IsNullOrEmpty(widget.GadgetType))
                 {
-                    // --- Menu réglages widget (partagé desktop / îlot) ---
+                    // --- Menu rÃ©glages widget (partagÃ© desktop / Ã®lot) ---
                     string type = widget.GadgetType;
                     WidgetSettingsMenu.Build(menu, type, GadgetTypeDefaults.Instance.Get(type),
                         widget.ExpandedView,
@@ -441,11 +491,11 @@ namespace Palisades.Views.Controls
         }
 
         private int _openMenuDepth;
-        /// <summary>True tant qu'un menu de l'îlot est ouvert. La barre épinglée s'en
-        /// sert pour suspendre sa réaffirmation Topmost (sinon elle repasse au-dessus).</summary>
+        /// <summary>True tant qu'un menu de l'Ã®lot est ouvert. La barre Ã©pinglÃ©e s'en
+        /// sert pour suspendre sa rÃ©affirmation Topmost (sinon elle repasse au-dessus).</summary>
         public bool IsMenuOpen => _openMenuDepth > 0;
 
-        /// <summary>Menu ouvert = hover ignoré, réévalué à la fermeture.</summary>
+        /// <summary>Menu ouvert = hover ignorÃ©, rÃ©Ã©valuÃ© Ã  la fermeture.</summary>
         private void ClosePillMenuOnOutside(ContextMenu menu)
         {
             _pillMenuOpen = true;
@@ -484,7 +534,7 @@ namespace Palisades.Views.Controls
             catch { }
         }
 
-        /// <summary>Ouvre le dashboard et sélectionne le widget îlot pour personnalisation.</summary>
+        /// <summary>Ouvre le dashboard et sÃ©lectionne le widget Ã®lot pour personnalisation.</summary>
         private static void OpenIslandWidgetDashboard(string gadgetType)
         {
             try
@@ -513,10 +563,10 @@ namespace Palisades.Views.Controls
 
         private bool EffectiveExpandUp => ForceExpandUp || DynamicIslandService.Instance.ExpandUp;
 
-        /// <summary>L'îlot s'ouvre vers le haut ou vers le bas (réordonne le panneau
-        /// + contenu miroir : sélecteur collé à la pastille, grip au bord externe).
-        /// Seuls scroller/grip bougent (légers) : WidgetHost et ses vues lourdes
-        /// (radio en cours !) ne sont jamais détachés.</summary>
+        /// <summary>L'Ã®lot s'ouvre vers le haut ou vers le bas (rÃ©ordonne le panneau
+        /// + contenu miroir : sÃ©lecteur collÃ© Ã  la pastille, grip au bord externe).
+        /// Seuls scroller/grip bougent (lÃ©gers) : WidgetHost et ses vues lourdes
+        /// (radio en cours !) ne sont jamais dÃ©tachÃ©s.</summary>
         public void ApplyExpandDirection()
         {
             try
@@ -566,15 +616,15 @@ namespace Palisades.Views.Controls
             catch { }
         }
 
-        /// <summary>Un visuel = un seul parent : quand l'îlot est épinglé, l'hôte
-        /// overlay détache ses vues et la barre les adopte (aucun conflit).</summary>
+        /// <summary>Un visuel = un seul parent : quand l'Ã®lot est Ã©pinglÃ©, l'hÃ´te
+        /// overlay dÃ©tache ses vues et la barre les adopte (aucun conflit).</summary>
         private void SyncWidgetHost()
         {
             try
             {
                 var svc = DynamicIslandService.Instance;
                 bool detached = !IsBarHost && svc.Enabled && svc.PinToTaskbar;
-                WidgetHost.ItemsSource = detached
+                WidgetHost.ItemsSource = (!svc.Enabled || detached)
                     ? null
                     : IslandVm.Widgets;
                 HLog($"HOST bar={IsBarHost} detached={detached} views={IslandVm.Widgets.Count}");
@@ -582,9 +632,10 @@ namespace Palisades.Views.Controls
             catch { }
         }
 
-        /// <summary>Warmup : crée les vues + un vrai passage layout une fois, pour que
-        /// la 1re ouverture n'ait rien de lourd à faire sur le thread UI.</summary>
+        /// <summary>Warmup : crÃ©e les vues + un vrai passage layout une fois, pour que
+        /// la 1re ouverture n'ait rien de lourd Ã  faire sur le thread UI.</summary>
         private int _warmupTries;
+        private bool _warmedUp;
 
         private void WarmupLayout()
         {
@@ -606,7 +657,7 @@ namespace Palisades.Views.Controls
                     ExpandedPanel.Visibility = Visibility.Collapsed;
                 }
                 HLog($"WARMUP views={IslandVm.Widgets.Count} panelH={ExpandedPanel.ActualHeight:0}");
-                // Contenu pas prêt (0px) : réessaie en fond, 3 fois max
+                // Contenu pas prÃªt (0px) : rÃ©essaie en fond, 3 fois max
                 if (!IslandVm.IsExpanded && ExpandedPanel.ActualHeight <= 1 && _warmupTries < 3)
                 {
                     _warmupTries++;
@@ -616,28 +667,28 @@ namespace Palisades.Views.Controls
             catch { }
         }
 
-        /// <summary>Pastille fixe en expand-up : le shift suit la hauteur réelle
-        /// du panneau (switch widget, resize grip) une fois l'anim terminée.</summary>
+        /// <summary>Pastille fixe en expand-up : le shift suit la hauteur rÃ©elle
+        /// du panneau (switch widget, resize grip) une fois l'anim terminÃ©e.</summary>
         private void OnExpandedSizeChanged(object sender, SizeChangedEventArgs e)
         {
             // Suivi continu SANS exception anim : le contenu arrive en async
-            // (pochettes, textes) et change la hauteur après l'ouverture.
+            // (pochettes, textes) et change la hauteur aprÃ¨s l'ouverture.
             // Si le shift ne suit pas, la pastille saute en vers-le-haut.
             // SizeChanged part pendant le layout, avant le rendu = aucun saut visible.
             try
             {
                 if (IsBarHost) return;
                 if (!EffectiveExpandUp) return;
-                // Suit aussi pendant l'anim de fermeture (State déjà Compact) :
-                // le contenu async tasse encore la hauteur, shift périmé = saut.
+                // Suit aussi pendant l'anim de fermeture (State dÃ©jÃ  Compact) :
+                // le contenu async tasse encore la hauteur, shift pÃ©rimÃ© = saut.
                 if (!IslandVm.IsExpanded && !_animating) return;
                 SnapUpShift();
             }
             catch { }
         }
 
-        /// <summary>Recale le shift sur la hauteur réelle du panneau (pastille fixe).
-        /// Instantané : appelé au même tick que le changement layout.</summary>
+        /// <summary>Recale le shift sur la hauteur rÃ©elle du panneau (pastille fixe).
+        /// InstantanÃ© : appelÃ© au mÃªme tick que le changement layout.</summary>
         private void SnapUpShift()
         {
             try
@@ -668,10 +719,10 @@ namespace Palisades.Views.Controls
             catch { }
         }
 
-        /// <summary>Bornes visuelles réelles du panneau déplié (inclut le shift
-        /// GPU expand-up via RenderTransform) dans le repère de la fenêtre hôte.
-        /// Le hook souris overlay s'en sert : sans ça, les clics dans la zone
-        /// dépliée hors rect layout sont avalés comme clics bureau.</summary>
+        /// <summary>Bornes visuelles rÃ©elles du panneau dÃ©pliÃ© (inclut le shift
+        /// GPU expand-up via RenderTransform) dans le repÃ¨re de la fenÃªtre hÃ´te.
+        /// Le hook souris overlay s'en sert : sans Ã§a, les clics dans la zone
+        /// dÃ©pliÃ©e hors rect layout sont avalÃ©s comme clics bureau.</summary>
         public Rect GetVisualHitRect()
         {
             try
@@ -686,15 +737,15 @@ namespace Palisades.Views.Controls
             catch { return Rect.Empty; }
         }
 
-        /// <summary>Ouverture façon iOS : dépliage vers hauteur réelle + slide + fade.
-        /// Fermeture : repli + fade puis collapse (toutes durées réglables).</summary>
+        /// <summary>Ouverture faÃ§on iOS : dÃ©pliage vers hauteur rÃ©elle + slide + fade.
+        /// Fermeture : repli + fade puis collapse (toutes durÃ©es rÃ©glables).</summary>
         private void AnimateExpand()
         {
-            // Hôte masqué (îlot épinglé : c'est la barre qui anime) : inerte,
-            // sinon double automation sur le VM partagé + double logs.
+            // HÃ´te masquÃ© (Ã®lot Ã©pinglÃ© : c'est la barre qui anime) : inerte,
+            // sinon double automation sur le VM partagÃ© + double logs.
             if (Visibility != Visibility.Visible)
             {
-                HLog($"ANIM skip (hôte masqué) state={IslandVm.State}");
+                HLog($"ANIM skip (hÃ´te masquÃ©) state={IslandVm.State}");
                 return;
             }
             ClearFixedWidth();
@@ -706,8 +757,8 @@ namespace Palisades.Views.Controls
 
         private int _lastWidgetIndex = -1;
 
-        /// <summary>Transition entre widgets : fade + slide latéral (sens du scroll)
-        /// sur le host de la vue widget. Pas de layout animé : opacité + transform.</summary>
+        /// <summary>Transition entre widgets : fade + slide latÃ©ral (sens du scroll)
+        /// sur le host de la vue widget. Pas de layout animÃ© : opacitÃ© + transform.</summary>
         private void AnimateWidgetSwitch()
         {
             try
@@ -715,7 +766,7 @@ namespace Palisades.Views.Controls
                 int idx = IslandVm.SelectedIndex;
                 int dir = idx >= _lastWidgetIndex ? 1 : -1;
                 _lastWidgetIndex = idx;
-                if (Visibility != Visibility.Visible) return; // hôte masqué (barre)
+                if (Visibility != Visibility.Visible) return; // hÃ´te masquÃ© (barre)
                 if (IslandVm.State != IslandState.Expanded) return;
 
                 if (WidgetHost.RenderTransform is not TranslateTransform tt)
@@ -733,10 +784,10 @@ namespace Palisades.Views.Controls
                 var slide = new DoubleAnimation(dir * 24, 0, TimeSpan.FromMilliseconds(ms)) { EasingFunction = EaseOut };
                 tt.BeginAnimation(TranslateTransform.XProperty, slide);
 
-                // Hauteur fluide dans les DEUX sens : on anime la hauteur réelle du
+                // Hauteur fluide dans les DEUX sens : on anime la hauteur rÃ©elle du
                 // host (MaxHeight n'est qu'un plafond -> en grand->petit le contenu
-                // rétrécissait instantanément). Cible = hauteur naturelle du nouveau
-                // widget, plafonnée par son réglage.
+                // rÃ©trÃ©cissait instantanÃ©ment). Cible = hauteur naturelle du nouveau
+                // widget, plafonnÃ©e par son rÃ©glage.
                 double fromH = WidgetHost.ActualHeight;
                 double toH = IslandVm.CurrentWidgetHeight;
                 try
@@ -751,8 +802,10 @@ namespace Palisades.Views.Controls
                     }
                 }
                 catch { }
-                // La barre épinglée est une fenêtre SizeToContent : animer la hauteur
-                // = resize de fenêtre par frame => la barre bouge. Là on snappe.
+                // La barre Ã©pinglÃ©e est une fenÃªtre SizeToContent : animer la hauteur
+                // = resize de fenÃªtre par frame => la barre bouge. LÃ  on snappe.
+                // Barre = fenêtre SizeToContent : on ne l'anime pas (sinon resize
+                // fenêtre par frame = la barre bouge). Îlot non épinglé : fluide.
                 if (!IsBarHost && fromH > 1 && Math.Abs(fromH - toH) > 1)
                 {
                     WidgetHost.ClipToBounds = true;
@@ -770,13 +823,17 @@ namespace Palisades.Views.Controls
             catch { }
         }
 
-        /// <summary>Resync après (dé)pin : l'hôte masqué n'anime pas, son panneau
-        /// peut être désynchro du VM partagé. No-op si déjà synchro (ne tue
+        /// <summary>Resync aprÃ¨s (dÃ©)pin : l'hÃ´te masquÃ© n'anime pas, son panneau
+        /// peut Ãªtre dÃ©synchro du VM partagÃ©. No-op si dÃ©jÃ  synchro (ne tue
         /// jamais une anim en cours).</summary>
         public void SyncPanelToVm()
         {
             try
             {
+                // Filet de sécurité après (dé)pin : un contrôle reparenté peut garder
+                // une anim "en cours" orpheline -> l'îlot ne se fermait plus.
+                _animating = false;
+                try { IslandVm.IsClosing = false; } catch { }
                 bool wantExpanded = IslandVm.IsExpanded;
                 bool haveExpanded = ExpandedPanel.Visibility == Visibility.Visible;
                 if (wantExpanded == haveExpanded) return;
@@ -808,37 +865,37 @@ namespace Palisades.Views.Controls
                 try { IslandVm.IsClosing = false; } catch { }
                 _hoverOpenTimer.Stop();
                 ExpandedPanel.RenderTransformOrigin = new Point(0.5, up ? 1 : 0);
-                // Visible AVANT l'anim : le contenu (déjà pré-chargé) est là dès la 1re frame,
-                // sans anim propre — seul le conteneur bouge
+                // Visible AVANT l'anim : le contenu (dÃ©jÃ  prÃ©-chargÃ©) est lÃ  dÃ¨s la 1re frame,
+                // sans anim propre â€” seul le conteneur bouge
                 ExpandedPanel.Visibility = Visibility.Visible;
                 ResetPanelTransforms();
-                // Largeur gelée sur la pastille repliée : le contenu large écartait
-                // l'îlot à chaque ouverture (344<->503) et le placement oscillait.
+                // Largeur gelÃ©e sur la pastille repliÃ©e : le contenu large Ã©cartait
+                // l'Ã®lot Ã  chaque ouverture (344<->503) et le placement oscillait.
                 // (Un binding MaxWidth<-CompactRow.ActualWidth ne marche pas : dans
-                // un StackPanel la rangée s'étire déjà à la largeur finale.)
+                // un StackPanel la rangÃ©e s'Ã©tire dÃ©jÃ  Ã  la largeur finale.)
                 // Moins les chrome (marges panneau + padding racine) sinon la
-                // racine dépasse quand même de 16px.
+                // racine dÃ©passe quand mÃªme de 16px.
                 double chrome = ExpandedPanel.Margin.Left + ExpandedPanel.Margin.Right
                     + IslandRoot.Padding.Left + IslandRoot.Padding.Right
                     + IslandRoot.BorderThickness.Left + IslandRoot.BorderThickness.Right;
                 ExpandedPanel.MaxWidth = Math.Max(180, IslandRoot.ActualWidth - chrome);
                 HLog($"OPEN-START up={up} bar={IsBarHost} expandMs={svc.ExpandDurationMs} fadeMs={svc.ExpandFadeMs} capW={ExpandedPanel.MaxWidth:0}");
-                // Ombre constante pendant les anims : le on/off créait un pop
-                // visible (mesuré à op=0.10 en pleine fermeture = 2e temps).
+                // Ombre constante pendant les anims : le on/off crÃ©ait un pop
+                // visible (mesurÃ© Ã  op=0.10 en pleine fermeture = 2e temps).
 
-                // 100 % GPU (transform + opacité), zéro layout par frame, partout :
-                // le layout animé par frame faisait scintiller la barre (resize
-                // fenêtre + repasse layout à chaque frame). La fenêtre transparente
+                // 100 % GPU (transform + opacitÃ©), zÃ©ro layout par frame, partout :
+                // le layout animÃ© par frame faisait scintiller la barre (resize
+                // fenÃªtre + repasse layout Ã  chaque frame). La fenÃªtre transparente
                 // ne montre rien au resize, seul le contenu fade/slide.
-                // Expand-up : shift INSTANTANÉ (jamais animé) sinon la pastille
+                // Expand-up : shift INSTANTANÃ‰ (jamais animÃ©) sinon la pastille
                 // descend d'abord puis remonte = elle "bouge".
                 if (up && !IsBarHost)
                 {
                     ExpandedPanel.UpdateLayout();
                     if (ExpandedPanel.ActualHeight <= 1)
                     {
-                        // Contenu pas encore mesuré : repli de sécu, le suivi
-                        // SizeChanged recalera dès la mesure réelle
+                        // Contenu pas encore mesurÃ© : repli de sÃ©cu, le suivi
+                        // SizeChanged recalera dÃ¨s la mesure rÃ©elle
                         RootShift.BeginAnimation(TranslateTransform.YProperty, null);
                         RootShift.Y = -320;
                     }
@@ -858,8 +915,8 @@ namespace Palisades.Views.Controls
                             // La hauteur a pu changer pendant l'anim (contenu async) :
                             // recale une fois, la pastille ne bouge pas
                             SnapUpShift();
-                            // Leave raté pendant l'ouverture (guard _animating) :
-                            // la souris est déjà partie -> referme
+                            // Leave ratÃ© pendant l'ouverture (guard _animating) :
+                            // la souris est dÃ©jÃ  partie -> referme
                             if (_hoverOpened && !_hoverInside && IslandVm.State == IslandState.Expanded)
                                 _hoverCloseTimer.Start();
                         }
@@ -914,17 +971,17 @@ namespace Palisades.Views.Controls
                 if (ExpandedPanel.Visibility != Visibility.Visible)
                     return;
                 _animating = true;
-                // Fige la hauteur du panneau pendant le repli (résumé NP + média
+                // Fige la hauteur du panneau pendant le repli (rÃ©sumÃ© NP + mÃ©dia
                 // restent visibles) : le clip cible la pastille, pas une zone vide.
                 try { IslandVm.IsClosing = true; } catch { }
                 _hoverCloseTimer.Stop();
 
                 // C'est la RACINE noire (IslandRoot) qui se replie, pas le panneau
-                // intérieur : sinon le fond noir restait grand puis se snapait au
-                // collapse. Le clip ne déclenche aucun layout = 100 % fluide, et
-                // le contenu reste figé (ni slide ni scale vers la pastille).
-                // Shift gardé tel quel pendant le repli (pastille fixe), reset pile
-                // au collapse dans FinishClose (même tick = aucun saut).
+                // intÃ©rieur : sinon le fond noir restait grand puis se snapait au
+                // collapse. Le clip ne dÃ©clenche aucun layout = 100 % fluide, et
+                // le contenu reste figÃ© (ni slide ni scale vers la pastille).
+                // Shift gardÃ© tel quel pendant le repli (pastille fixe), reset pile
+                // au collapse dans FinishClose (mÃªme tick = aucun saut).
                 bool up = EffectiveExpandUp;
                 double fullW = Math.Max(1, IslandRoot.ActualWidth);
                 double fullH = Math.Max(1, IslandRoot.ActualHeight);
@@ -936,7 +993,7 @@ namespace Palisades.Views.Controls
                 var from = new Rect(0, 0, fullW, fullH);
                 var to = up ? new Rect(0, fullH - pillH, fullW, pillH) : new Rect(0, 0, fullW, pillH);
                 var clip = new RectangleGeometry(from);
-                // Garde l'arrondi utilisateur pendant le repli (sinon coins carrés)
+                // Garde l'arrondi utilisateur pendant le repli (sinon coins carrÃ©s)
                 try
                 {
                     double r = DynamicIslandService.Instance.CornerRadius;
@@ -968,9 +1025,9 @@ namespace Palisades.Views.Controls
         }
 
         /// <summary>Effondrement synchrone (drop barre) : tue les anims, retire le
-        /// panneau du layout DANS LE MÊME tick. Un fondu seul ne suffit pas :
-        /// le contenu reste mesuré et le dégel SizeToContent remesure grand
-        /// (= ballon). État final identique à FinishClose.</summary>
+        /// panneau du layout DANS LE MÃŠME tick. Un fondu seul ne suffit pas :
+        /// le contenu reste mesurÃ© et le dÃ©gel SizeToContent remesure grand
+        /// (= ballon). Ã‰tat final identique Ã  FinishClose.</summary>
         public void CollapseInstant()
         {
             try
@@ -984,18 +1041,23 @@ namespace Palisades.Views.Controls
                 ExpandedPanel.ClearValue(FrameworkElement.MaxWidthProperty);
                 ExpandedPanel.Visibility = Visibility.Collapsed;
                 RefreshIslandHitRect();
+                try { CollapseCompleted?.Invoke(); } catch { }
             }
             catch { }
         }
+
+        /// <summary>Fired quand l'îlot est réellement replié (pour que la barre
+        /// épinglée restaure sa fenêtre en SizeToContent après l'anim).</summary>
+        public event Action? CollapseCompleted;
 
         private void FinishClose(int gen)
         {
             RefreshIslandHitRect();
             HLog($"FINISH-CLOSE gen={gen} cur={_expandGen} over={_hoverInside} hoverOpened={_hoverOpened}");
             if (gen != _expandGen) return;
-            // Enter raté pendant la fermeture : la souris est (re)venue alors
-            // que c'était piloté par survol -> rouvre au lieu de collapse.
-            // Clic manuel : _hoverOpened est false -> reste fermé.
+            // Enter ratÃ© pendant la fermeture : la souris est (re)venue alors
+            // que c'Ã©tait pilotÃ© par survol -> rouvre au lieu de collapse.
+            // Clic manuel : _hoverOpened est false -> reste fermÃ©.
             var svc = DynamicIslandService.Instance;
             if (_hoverOpened && _hoverInside && IslandVm.State == IslandState.Compact
                 && svc.ExpandOnHover && !IsAltHeld() && !_dragging && !_dragArmed)
@@ -1011,12 +1073,13 @@ namespace Palisades.Views.Controls
                         ExpandedPanel.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
                         ExpandedPanel.ClearValue(FrameworkElement.MaxHeightProperty);
                         ExpandedPanel.ClearValue(FrameworkElement.MaxWidthProperty);
-                        // Collapsed = taille 0 (vues toujours chargées, pas de lag suivant)
+                        // Collapsed = taille 0 (vues toujours chargÃ©es, pas de lag suivant)
                         ExpandedPanel.Visibility = Visibility.Collapsed;
                         LogSnapshot("close");
                     }
                     catch { }
                     finally { _animating = false; }
+            try { CollapseCompleted?.Invoke(); } catch { }
         }
 
         private void ClearFixedWidth()
@@ -1026,7 +1089,7 @@ namespace Palisades.Views.Controls
             if (w > 0)
             {
                 // Longueur = largeur FIXE : le contenu (noms longs) ne fait plus
-                // grandir l'îlot.
+                // grandir l'Ã®lot.
                 IslandRoot.Width = w;
                 IslandRoot.MaxWidth = w;
             }
@@ -1069,7 +1132,7 @@ namespace Palisades.Views.Controls
             }
         }
 
-        /// <summary>Bouton chevron (tout à droite) : toggle manuel. Coupe le pilotage
+        /// <summary>Bouton chevron (tout Ã  droite) : toggle manuel. Coupe le pilotage
         /// survol sinon FinishClose rouvre car la souris est encore dessus.</summary>
         private void ToggleButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1081,7 +1144,7 @@ namespace Palisades.Views.Controls
 
         private void CompactRow_Click(object sender, MouseButtonEventArgs e)
         {
-            // Clic zone vide : expand/collapse. Les boutons et cartes gèrent déjà leurs clics.
+            // Clic zone vide : expand/collapse. Les boutons et cartes gÃ¨rent dÃ©jÃ  leurs clics.
             if (e.OriginalSource is TextBlock or System.Windows.Shapes.Ellipse)
             {
                 HLog($"PILL-CLICK src={ElDesc(e.OriginalSource as DependencyObject)}");
@@ -1110,7 +1173,7 @@ namespace Palisades.Views.Controls
             catch { }
         }
 
-        // --- Free placement : glisser le fond, ou ALT + glisser depuis n'importe où ---
+        // --- Free placement : glisser le fond, ou ALT + glisser depuis n'importe oÃ¹ ---
 
         protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
         {
@@ -1124,8 +1187,8 @@ namespace Palisades.Views.Controls
                 return;
             }
             // Clic sur fond de la pastille uniquement : arme un drag, simple clic = expand.
-            // Cartes widgets, slider, grip, boutons : jamais de drag (sinon clic mangé).
-            // Zone dépliée : jamais de drag (vues plugins custom = clics avalés sinon).
+            // Cartes widgets, slider, grip, boutons : jamais de drag (sinon clic mangÃ©).
+            // Zone dÃ©pliÃ©e : jamais de drag (vues plugins custom = clics avalÃ©s sinon).
             if (e.OriginalSource is Border
                 && !IsInteractiveElement(e.OriginalSource as DependencyObject)
                 && !IsInsideExpandedPanel(e.OriginalSource as DependencyObject))
@@ -1152,6 +1215,10 @@ namespace Palisades.Views.Controls
                 {
                     _dragArmed = false;
                     _dragging = true;
+                    SuppressHover = true;
+                    // Déplacer ferme l'îlot : il agit comme fermé pendant le drag.
+                    try { if (IslandVm.State == IslandState.Expanded) IslandVm.State = IslandState.Compact; } catch { }
+                    try { CollapseInstant(); } catch { }
                     CaptureMouse();
                 }
             }
@@ -1168,6 +1235,7 @@ namespace Palisades.Views.Controls
             }
             _dragging = false;
             ReleaseMouseCapture();
+            SuppressHover = false;
             HLog($"DRAG-END persist=({Margin.Left:0},{Margin.Top:0})");
             // Persiste la position visuelle de la pastille (= layout top : le shift
             // expand-up s'annule avec l'offset panneau dans la pastille).
@@ -1175,6 +1243,16 @@ namespace Palisades.Views.Controls
             svc.SetCustomPosition(Math.Max(0, Margin.Left), Math.Max(0, Margin.Top));
             svc.Placement = "Custom";
             e.Handled = true;
+        }
+
+        protected override void OnLostMouseCapture(MouseEventArgs e)
+        {
+            base.OnLostMouseCapture(e);
+            // Sécurité : si la capture est perdue (drag interrompu), on rend la main
+            // au survol sinon l'îlot resterait figé (ne se ferme plus).
+            _dragArmed = false;
+            _dragging = false;
+            SuppressHover = false;
         }
 
         private void BeginDrag(MouseButtonEventArgs e)
@@ -1207,15 +1285,15 @@ namespace Palisades.Views.Controls
             var cur = PointToScreen(e.GetPosition(this));
             double dx = (cur.X - _dragStartScreen.X) / DpiScaleX();
             double dy = (cur.Y - _dragStartScreen.Y) / DpiScaleX();
-            // Visuel direct (pas de Notify pendant le drag : évite rebuild + save à chaque pixel)
+            // Visuel direct (pas de Notify pendant le drag : Ã©vite rebuild + save Ã  chaque pixel)
             HorizontalAlignment = HorizontalAlignment.Left;
             VerticalAlignment = VerticalAlignment.Top;
             Margin = new Thickness(Math.Max(0, _dragStartLeft + dx), Math.Max(0, _dragStartTop + dy), 0, 0);
         }
 
-        /// <summary>True si l'élément est dans la carte dépliée (WidgetHost, sélecteur,
-        /// vues plugins). Le drag libre ne s'arme jamais là : les contrôles custom
-        /// (Border + MouseDown) seraient avalés.</summary>
+        /// <summary>True si l'Ã©lÃ©ment est dans la carte dÃ©pliÃ©e (WidgetHost, sÃ©lecteur,
+        /// vues plugins). Le drag libre ne s'arme jamais lÃ  : les contrÃ´les custom
+        /// (Border + MouseDown) seraient avalÃ©s.</summary>
         private bool IsInsideExpandedPanel(DependencyObject? elt)
         {
             try
@@ -1230,7 +1308,7 @@ namespace Palisades.Views.Controls
             return false;
         }
 
-        /// <summary>True si l'élément (ou un ancêtre) est interactif :
+        /// <summary>True si l'Ã©lÃ©ment (ou un ancÃªtre) est interactif :
         /// bouton, carte widget (Tag), slider, grip, scroller. Le drag libre
         /// ne s'arme jamais dessus pour ne pas manger les clics.</summary>
         private static bool IsInteractiveElement(DependencyObject? elt)
@@ -1259,7 +1337,7 @@ namespace Palisades.Views.Controls
             catch { return 1.0; }
         }
 
-        /// <summary>Description compacte d'une source d'event (qui a été cliqué).</summary>
+        /// <summary>Description compacte d'une source d'event (qui a Ã©tÃ© cliquÃ©).</summary>
         private static string ElDesc(object? o)
         {
             try
@@ -1272,7 +1350,7 @@ namespace Palisades.Views.Controls
                     if (fe.Tag is IslandWidget iw) extra += "[card:" + iw.GadgetType + "]";
                     else if (fe.Tag != null) extra += "[tag]";
                     if (fe is Button b) extra += "[btn:" + (b.Content?.ToString() ?? "") + "]";
-                    if (fe is TextBlock t) extra += "[txt:" + ((t.Text?.Length ?? 0) > 24 ? t.Text!.Substring(0, 24) + "…" : t.Text) + "]";
+                    if (fe is TextBlock t) extra += "[txt:" + ((t.Text?.Length ?? 0) > 24 ? t.Text!.Substring(0, 24) + "â€¦" : t.Text) + "]";
                     if (fe is Thumb) extra += "[grip]";
                     if (fe is Slider) extra += "[seek]";
                     return o.GetType().Name + extra;
@@ -1282,7 +1360,7 @@ namespace Palisades.Views.Controls
             catch { return "?"; }
         }
 
-        /// <summary>Photo complète de l'îlot : position, tailles, contenu, état.</summary>
+        /// <summary>Photo complÃ¨te de l'Ã®lot : position, tailles, contenu, Ã©tat.</summary>
         private void LogSnapshot(string why)
         {
             try
@@ -1307,3 +1385,4 @@ namespace Palisades.Views.Controls
         }
     }
 }
+

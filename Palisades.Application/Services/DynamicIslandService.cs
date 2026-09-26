@@ -28,7 +28,7 @@ namespace Palisades.Services
 
     public sealed class DynamicIslandSettings
     {
-        public bool Enabled { get; set; } = true;
+        public bool Enabled { get; set; } = false;
         public string ThemeName { get; set; } = "AMOLED";
         /// <summary>Ordered gadget types hosted in the island (empty = none).</summary>
         public List<string> PinnedWidgets { get; set; } = new();

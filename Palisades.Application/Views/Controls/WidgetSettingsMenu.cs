@@ -5,6 +5,7 @@ using System.Windows.Media;
 using Palisades.Services;
 using Palisades.ViewModels;
 using RadioSettings = Palisades.Plugins.RadioSettings;
+using PortalSettings = Palisades.Plugins.ContainerPortalSettings;
 
 namespace Palisades.Views.Controls
 {
@@ -19,6 +20,15 @@ namespace Palisades.Views.Controls
         {
             var tr = TranslationService.Instance;
             if (string.IsNullOrEmpty(gadgetType)) return false;
+
+            if (gadgetType.StartsWith("ContainerPortal:", StringComparison.OrdinalIgnoreCase))
+            {
+                AddSeparator(host);
+                var pItem = new MenuItem { Header = tr["Widget_Ctx_PortalSettings"] ?? "Portal settings" };
+                BuildPortal(pItem, data, save);
+                host.Items.Add(pItem);
+                return true;
+            }
 
             if (Eq(gadgetType, "Clock"))
             {
@@ -256,6 +266,72 @@ namespace Palisades.Views.Controls
 
             ColorMenu(parent, tr["Db_RadioAccent"] ?? "Accent color", s.AccentColor, code => { s.AccentColor = code; Persist(); },
                 new[] { "#7DD3FC", "#FFFFFF", "#4AF626", "#FFB000", "#FF3E3E", "#FF71CE", "#A855F7", "#2DD4BF", "#FACC15", "#FB923C", "#FB7185", "#A3E635" });
+        }
+
+        // ---------------- Container portal ----------------
+        private static void BuildPortal(MenuItem parent, string data, Action<string> save)
+        {
+            var tr = TranslationService.Instance;
+            var s = Load(data, () => new PortalSettings());
+            void Persist() => save(Newtonsoft.Json.JsonConvert.SerializeObject(s));
+
+            var styleMenu = new MenuItem { Header = tr["Widget_Ctx_Portal_Style"] ?? "Display" };
+            void StyleOpt(string label, string val)
+            {
+                var it = new MenuItem { Header = label, IsCheckable = true, IsChecked = string.Equals(s.Style, val, StringComparison.OrdinalIgnoreCase) };
+                it.Click += (_, _) => { s.Style = val; Persist(); };
+                styleMenu.Items.Add(it);
+            }
+            StyleOpt(tr["Widget_Ctx_Portal_Grid"] ?? "Grid", "Grid");
+            StyleOpt(tr["Widget_Ctx_Portal_Compact"] ?? "Compact", "Compact");
+            StyleOpt(tr["Widget_Ctx_Portal_List"] ?? "List", "List");
+            StyleOpt(tr["Widget_Ctx_Portal_Details"] ?? "Details", "Details");
+            parent.Items.Add(styleMenu);
+
+            Check(parent, tr["Widget_Ctx_Portal_ShowLabels"] ?? "Show labels", s.ShowLabels, v => { s.ShowLabels = v; Persist(); });
+
+            var iconMenu = new MenuItem { Header = tr["Widget_Ctx_Portal_IconSize"] ?? "Icon size" };
+            foreach (double sz in new double[] { 24, 32, 40, 48, 64 })
+            {
+                double v = sz;
+                var it = new MenuItem { Header = $"{sz:0}", IsCheckable = true, IsChecked = Math.Abs(s.IconSize - sz) < 0.6 };
+                it.Click += (_, _) => { s.IconSize = v; Persist(); };
+                iconMenu.Items.Add(it);
+            }
+            parent.Items.Add(iconMenu);
+
+            var colMenu = new MenuItem { Header = tr["Widget_Ctx_Portal_Columns"] ?? "Columns" };
+            var auto = new MenuItem { Header = tr["Widget_Ctx_Portal_Auto"] ?? "Auto", IsCheckable = true, IsChecked = s.Columns <= 0 };
+            auto.Click += (_, _) => { s.Columns = 0; Persist(); };
+            colMenu.Items.Add(auto);
+            foreach (int c in new[] { 2, 3, 4, 5, 6 })
+            {
+                int v = c;
+                var it = new MenuItem { Header = $"{c}", IsCheckable = true, IsChecked = s.Columns == c };
+                it.Click += (_, _) => { s.Columns = v; Persist(); };
+                colMenu.Items.Add(it);
+            }
+            parent.Items.Add(colMenu);
+
+            var gapMenu = new MenuItem { Header = tr["Widget_Ctx_Portal_Gap"] ?? "Spacing" };
+            foreach (double g in new double[] { 4, 6, 8, 12, 16 })
+            {
+                double v = g;
+                var it = new MenuItem { Header = $"{g:0}", IsCheckable = true, IsChecked = Math.Abs(s.Gap - g) < 0.6 };
+                it.Click += (_, _) => { s.Gap = v; Persist(); };
+                gapMenu.Items.Add(it);
+            }
+            parent.Items.Add(gapMenu);
+
+            var opMenu = new MenuItem { Header = tr["Widget_Ctx_Portal_BgOpacity"] ?? "Background opacity" };
+            foreach (int p in new[] { 0, 25, 50, 75, 100 })
+            {
+                double v = p / 100.0;
+                var it = new MenuItem { Header = $"{p}%", IsCheckable = true, IsChecked = Math.Abs(s.BgOpacity - v) < 0.02 };
+                it.Click += (_, _) => { s.BgOpacity = v; Persist(); };
+                opMenu.Items.Add(it);
+            }
+            parent.Items.Add(opMenu);
         }
 
         // ---------------- helpers ----------------

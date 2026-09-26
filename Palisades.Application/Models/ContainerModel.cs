@@ -186,6 +186,9 @@ namespace Palisades.Models
         /// <summary>Snap containers to edges/grid while dragging (default: true; ALT disables temporarily).</summary>
         public bool SnapEnabled { get; set; } = true;
 
+        /// <summary>Automatically suspend Palisades while a fullscreen app/game is focused (default: false).</summary>
+        public bool PauseWhenFullscreen { get; set; } = false;
+
         /// <summary>Discord Rich Presence enabled (default: true; needs a Client ID).</summary>
         public bool DiscordPresenceEnabled { get; set; } = true;
         /// <summary>Discord application Client ID (from discord.com/developers).</summary>

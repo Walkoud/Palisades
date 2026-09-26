@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -54,6 +55,7 @@ namespace Palisades.Views
         private bool _placed;
         private double _gluedBottom = double.NaN;
         private bool _glueActive = true;
+        private double _collapsedHeight = 44;
         /// <summary>True tant que la colle vient d'une estimation (restauration
         /// avant 1er layout) : le 1er layout calibre sans déplacer.</summary>
         private bool _glueEstimated;
@@ -97,16 +99,39 @@ namespace Palisades.Views
                 UpdateFullscreenVisibility();
             };
             _island.PreviewMouseLeftButtonDown += Island_BackgroundDrag;
+
+            // Exclusivité : une seule barre à la fois (sinon double îlot si un
+            // overlay est recréé / pin re-déclenché).
+            foreach (var w in _liveBars.ToArray())
+            {
+                if (ReferenceEquals(w, this)) continue;
+                try { w.Close(); } catch { }
+            }
+            _liveBars.Add(this);
+            Closed += (_, _) => { try { _liveBars.Remove(this); } catch { } };
         }
 
-        /// <summary>Bottom glued (expansion grows upward). Auto-placed bar also
-        /// re-centers horizontally once the real width is known.</summary>
+        private static readonly System.Collections.Generic.List<DynamicIslandBarWindow> _liveBars = new();
+
+        /// <summary>Ferme toutes les barres d'îlot vivantes (dépinglage / avant création).</summary>
+        public static void CloseAll()
+        {
+            foreach (var w in _liveBars.ToArray())
+            {
+                try { w.Close(); } catch { }
+            }
+        }
+
+        public static bool HasLive => _liveBars.Count > 0;
+
         private void OnSizeChanged(object sender, SizeChangedEventArgs e)
         {
             try
             {
-                try { App.Log($"[IslandBarGeom] L={Left:0} T={Top:0} W={ActualWidth:0} H={ActualHeight:0} glue={_gluedBottom:0} est={_glueEstimated}"); } catch { }
-                if (!double.IsNaN(_gluedBottom) && ActualHeight > 0)
+                try { App.Log($"[IslandBarGeom] L={Left:0} T={Top:0} W={ActualWidth:0} H={ActualHeight:0} glue={_gluedBottom:0} est={_glueEstimated} drag={!_glueActive}"); } catch { }
+                try { if (!Palisades.ViewModels.DynamicIslandViewModel.Instance.IsExpanded && ActualHeight > 2 && ActualHeight < 120) _collapsedHeight = ActualHeight; } catch { }
+                // Pendant un drag, on ne recolle PAS (sinon la fenêtre revient en arrière).
+                if (_glueActive && !double.IsNaN(_gluedBottom) && ActualHeight > 0)
                 {
                     if (_glueEstimated)
                     {
@@ -121,8 +146,8 @@ namespace Palisades.Views
                 // Pastille centrée FIXE : à chaque changement de largeur la fenêtre
                 // se recentre sur SON centre (pas l'écran). Sinon le contenu live
                 // fait glisser la pastille sous un curseur fixe -> le sondage
-                // croit à un départ -> boucle ouvrir/fermer.
-                if (e.WidthChanged && e.PreviousSize.Width > 0 && ActualWidth > 0)
+                // croit à un départ -> boucle ouvrir/fermer. (Pas pendant un drag.)
+                if (_glueActive && e.WidthChanged && e.PreviousSize.Width > 0 && ActualWidth > 0)
                 {
                     // Seuil 2px : ignore le jitter des chiffres de l'horloge,
                     // corrige les vrais décalages (pastille fixe, pas de boucle)
@@ -155,43 +180,31 @@ namespace Palisades.Views
             try
             {
                 try { App.Log($"[IslandBarDrag] grab L={Left:0} T={Top:0} W={ActualWidth:0} H={ActualHeight:0} expanded={Palisades.ViewModels.DynamicIslandViewModel.Instance.IsExpanded}"); } catch { }
-                // Fige la taille pendant le DragMove : SizeToContent + contenu live
-                // (slider 500 ms, horloge, SMTC) = la fenêtre saute pendant le drag,
-                // typiquement vers le haut. Restaure l'auto après le lâcher.
-                double w = ActualWidth > 0 ? ActualWidth : 340;
-                double h = ActualHeight > 0 ? ActualHeight : 60;
-                _glueActive = false; // pendant le drag, ne pas forcer la colle
-                SizeToContent = SizeToContent.Manual;
-                Width = w; Height = h;
+                // Minimal : on gèle le survol et la colle, on laisse la fenêtre
+                // suivre le curseur telle quelle (pas de resize/collapse -> pas de saut).
+                _island.SuppressHover = true;
+                _glueActive = false;
                 try { DragMove(); }
-                catch { }
-                try
-                {
-                    // Lâché déplié : effondre le layout SYNCHRONE avant de dégeler
-                    // (un fondu seul ne retire rien du layout -> le dégel remesure
-                    // grand = ballon). État final = FinishClose, sans anim.
-                    var vm = Palisades.ViewModels.DynamicIslandViewModel.Instance;
-                    if (vm.IsExpanded) vm.State = Palisades.ViewModels.IslandState.Compact;
-                    _island.CollapseInstant();
-                }
                 catch { }
                 finally
                 {
-                    SizeToContent = SizeToContent.WidthAndHeight;
-                    ClearValue(WidthProperty);
-                    ClearValue(HeightProperty);
+                    _glueActive = true;
+                    _island.SuppressHover = false;
                 }
                 var svc = DynamicIslandService.Instance;
                 if (!double.IsNaN(Left) && !double.IsNaN(Top))
                 {
-                    svc.SetBarPosition(Left, Top);
-                    _gluedBottom = Top + ActualHeight;
+                    // BarTop doit référencer la fenêtre REPLIÉE (sinon au reboot la
+                    // pilule apparaît décalée de la hauteur du panneau déplié).
+                    double bottom = Top + (ActualHeight > 1 ? ActualHeight : _collapsedHeight);
+                    double compactTop = bottom - (_collapsedHeight > 0 ? _collapsedHeight : 44);
+                    svc.SetBarPosition(Left, compactTop);
+                    _gluedBottom = bottom;
                     _glueEstimated = false;
-                    try { App.Log($"[IslandBarDrag] dropped L={Left:0} T={Top:0}"); } catch { }
+                    try { App.Log($"[IslandBarDrag] dropped L={Left:0} T={Top:0} bottom={bottom:0}"); } catch { }
                 }
-                _glueActive = true;
             }
-            catch { }
+            catch { _glueActive = true; _island.SuppressHover = false; }
         }
 
         private bool _barMenuOpen;
@@ -275,8 +288,10 @@ namespace Palisades.Views
                 foreach (var s in System.Windows.Forms.Screen.AllScreens)
                 {
                     var b = s.Bounds;
-                    if (x >= b.Left / dx - 200 && x <= b.Right / dx + 200
-                        && y >= b.Top / dy - 200 && y <= b.Bottom / dy + 200)
+                    // Tolérance faible : une position très hors écran (cfg corrompu)
+                    // doit retomber sur PlaceOverTaskbar au lieu de perdre l'îlot.
+                    if (x >= b.Left / dx - 2 && x <= b.Right / dx + 2
+                        && y >= b.Top / dy - 2 && y <= b.Bottom / dy + 2)
                         return true;
                 }
             }
