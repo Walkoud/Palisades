@@ -2568,6 +2568,8 @@ private bool RouteClipboardCopy(Key key)
                 SetWindowLong(_overlayHwnd, GWL_EXSTYLE,
                     exStyle | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
 
+                EnableGpuTransparency(_overlayHwnd);
+
                 ImmunizeAgainstWinD(_overlayHwnd);
 
                 var source = PresentationSource.FromVisual(this);
@@ -2594,6 +2596,34 @@ private bool RouteClipboardCopy(Key key)
 
         [DllImport("user32.dll")]
         private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        // === Transparence accélérée GPU (DWM) ===
+        // AllowsTransparency=True force WPF en rendu logiciel (fenêtre layered),
+        // d'où le CPU au redraw. Ici la fenêtre est opaque côté WPF mais DWM
+        // étend le cadre "verre" sur tout le client : le rendu est composité par
+        // le GPU et les zones non dessinées laissent voir le bureau.
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MARGINS { public int Left, Right, Top, Bottom; }
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmExtendFrameIntoClientArea(IntPtr hWnd, ref MARGINS pMarInset);
+
+        private void EnableGpuTransparency(IntPtr hwnd)
+        {
+            try
+            {
+                var margins = new MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+                DwmExtendFrameIntoClientArea(hwnd, ref margins);
+            }
+            catch { }
+            // Sans ça, WPF peint un fond noir opaque dans le HWND cible.
+            try
+            {
+                if (_hwndSource?.CompositionTarget != null)
+                    _hwndSource.CompositionTarget.BackgroundColor = Colors.Transparent;
+            }
+            catch { }
+        }
 
         private void ImmunizeAgainstWinD(IntPtr overlayHwnd)
         {

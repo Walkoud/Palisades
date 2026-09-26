@@ -6,7 +6,7 @@
         xmlns:island="clr-namespace:Palisades.Views.Controls"
         ShowInTaskbar="False"
         WindowStyle="None"
-        AllowsTransparency="True"
+        AllowsTransparency="False"
         Background="Transparent"
         ResizeMode="NoResize"
         Topmost="False"
