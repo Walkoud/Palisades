@@ -35,6 +35,7 @@
 | 📦 **Containers** | Group shortcuts, files and folders into resizable, recolorable boxes that remember their position on every monitor and resolution. |
 | 🧩 **Gadgets** | Clock, system monitor, web radio, live football scores and Now Playing — pinned straight onto your wallpaper. |
 | 🎨 **Theming** | 8 built-in presets, custom `.xaml` imports, per-container colors, gradients, opacity, radius, fonts. |
+| 🏝️ **Dynamic Island** | Every gadget as a pill widget — expand, theme, pin to taskbar or anywhere on screen. |
 | 📸 **Snapshots** | Save and restore your whole layout in one click. |
 | 🪄 **Auto-organize** | Sort shortcuts automatically by type: programs, documents, images, music, archives, links, folders. |
 
@@ -99,6 +100,21 @@ A live media widget that follows whatever plays on your PC — Spotify, browser,
 
 <p align="center">
   <img src="documentation/medias/discord-presence-profile-screenshot.png" width="300" alt="Discord Rich Presence profile"/>
+</p>
+
+---
+
+## 🏝️ Dynamic Island
+
+One pill hosting **any gadget as a widget** — clock, system monitor, radio, football, Now Playing, Post-it, even container portals. Scroll to paginate between widgets, click to expand the full view.
+
+Customizable end to end: themes, background opacity, corner radius, pill width, expand up or down, expand on hover with open/close delays, per-widget height via the resize grip.
+
+Pin it **in front of the taskbar** as a slim always-on-top bar, or **free-place it anywhere on screen** by dragging the pill (Alt+drag from anywhere).
+
+<p align="center">
+  <img src="documentation/medias/dynisland_preview_multi_widgets.gif" width="450" alt="Dynamic Island switching between widgets"/>
+  <img src="documentation/medias/dynisland_themes_preview.gif" width="450" alt="Dynamic Island themes"/>
 </p>
 
 ---

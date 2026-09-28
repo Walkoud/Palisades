@@ -79,9 +79,10 @@ namespace Palisades.Views.Controls
             {
                 if (e.PropertyName == nameof(DynamicIslandViewModel.State))
                     AnimateExpand();
-                else if (e.PropertyName == nameof(DynamicIslandViewModel.CurrentWidget))
+                else                 if (e.PropertyName == nameof(DynamicIslandViewModel.CurrentWidget))
                 {
                     AnimateWidgetSwitch();
+                    ScrollSelectedIntoView();
                     LogSnapshot("select");
                 }
             };
@@ -1104,16 +1105,59 @@ namespace Palisades.Views.Controls
         private void WidgetScroller_Wheel(object sender, MouseWheelEventArgs e)
         {
             var sv = (ScrollViewer)sender;
-            double next = sv.HorizontalOffset - Math.Sign(e.Delta) * 48;
-            sv.ScrollToHorizontalOffset(Math.Max(0, next));
             e.Handled = true;
 
-            // Pagine entre widgets au scroll franc
+            // Pagine entre widgets au scroll franc : la carte sélectionnée est
+            // ramenée en vue (sinon wrap dernier->premier laisse le viewport au
+            // bout et le premier bouton n'est visible qu'à moitié).
             if (Math.Abs(e.Delta) >= 100)
             {
                 if (e.Delta < 0) IslandVm.NextWidgetCommand.Execute(null);
                 else IslandVm.PrevWidgetCommand.Execute(null);
+                ScrollSelectedIntoView();
             }
+            else
+            {
+                double next = sv.HorizontalOffset - Math.Sign(e.Delta) * 48;
+                sv.ScrollToHorizontalOffset(Math.Max(0, next));
+            }
+        }
+
+        /// <summary>Ramène la carte du widget sélectionné entièrement en vue,
+        /// centrée si possible. Couvre le wrap (dernier -> premier) où le
+        /// viewport resterait sinon calé au bout du scroller.</summary>
+        private void ScrollSelectedIntoView()
+        {
+            try
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    try
+                    {
+                        var container = WidgetItems.ItemContainerGenerator
+                            .ContainerFromIndex(IslandVm.SelectedIndex) as FrameworkElement;
+                        if (container == null)
+                        {
+                            // Conteneur pas encore généré (rebuild) : borne franche.
+                            if (IslandVm.SelectedIndex <= 0)
+                                WidgetScroller.ScrollToLeftEnd();
+                            else if (IslandVm.SelectedIndex >= IslandVm.Widgets.Count - 1)
+                                WidgetScroller.ScrollToRightEnd();
+                            return;
+                        }
+                        // Centre la carte dans le viewport (borné aux extrêmes).
+                        var toItem = container.TransformToAncestor(WidgetScroller)
+                            .Transform(new Point(0, 0));
+                        double itemCenter = toItem.X + container.ActualWidth / 2;
+                        double viewCenter = WidgetScroller.ViewportWidth / 2;
+                        double target = WidgetScroller.HorizontalOffset + itemCenter - viewCenter;
+                        double max = Math.Max(0, WidgetScroller.ExtentWidth - WidgetScroller.ViewportWidth);
+                        WidgetScroller.ScrollToHorizontalOffset(Math.Clamp(target, 0, max));
+                    }
+                    catch { }
+                }, DispatcherPriority.Loaded);
+            }
+            catch { }
         }
 
         private void WidgetCard_Click(object sender, MouseButtonEventArgs e)

@@ -170,7 +170,7 @@
                                   PanningMode="HorizontalOnly"
                                   PreviewMouseWheel="WidgetScroller_Wheel"
                                   Margin="0,0,0,8">
-                        <ItemsControl ItemsSource="{Binding Widgets}">
+                        <ItemsControl x:Name="WidgetItems" ItemsSource="{Binding Widgets}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal" />
