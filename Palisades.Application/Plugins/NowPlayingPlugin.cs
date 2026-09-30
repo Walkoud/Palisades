@@ -793,12 +793,25 @@ namespace Palisades.Plugins
         {
             foreach (var s in _knownSessions)
             {
+                Untrack(s);
+            }
+            _knownSessions.Clear();
+            _currentSession = null;
+        }
+
+        // Unsubscribing is mandatory: a dropped session that keeps its handlers
+        // stays referenced and keeps its server-side NPSM event registrations
+        // alive, leaking handles/threads in the NPSMSvc host process over days
+        // (Windows then waits out service-control timeouts on sleep/shutdown).
+        private void Untrack(GlobalSystemMediaTransportControlsSession s)
+        {
+            try
+            {
                 s.MediaPropertiesChanged -= Session_MediaPropertiesChanged;
                 s.PlaybackInfoChanged -= Session_PlaybackInfoChanged;
                 s.TimelinePropertiesChanged -= Session_TimelinePropertiesChanged;
             }
-            _knownSessions.Clear();
-            _currentSession = null;
+            catch { }
         }
 
         private void RefreshSessions()
@@ -824,6 +837,7 @@ namespace Palisades.Plugins
                 _knownSessions.RemoveAll(s => !current.Contains(s));
                 foreach (var s in dropped)
                 {
+                    Untrack(s);
                     try
                     {
                         string goneId = s.SourceAppUserModelId ?? "";
@@ -919,7 +933,9 @@ namespace Palisades.Plugins
                             _knownSessions.Add(s);
                         }
                     }
+                    var gone = _knownSessions.Where(s => !fresh.Contains(s)).ToList();
                     _knownSessions.RemoveAll(s => !fresh.Contains(s));
+                    foreach (var s in gone) Untrack(s);
                 }
             }
             catch { }
@@ -1183,6 +1199,7 @@ namespace Palisades.Plugins
             }
 
             UpdateRadioButton();
+            SyncPositionTimer();
             ReportToDiscord();
         }
 
@@ -1216,8 +1233,23 @@ namespace Palisades.Plugins
 
         private void PositionTimer_Tick(object? sender, EventArgs e)
         {
-            if (_currentSession == null) return;
+            if (_currentSession == null || !_isPlaying) return;
             UpdateTimeline(_currentSession);
+        }
+
+        // The 1 s poll is sustained RPC pressure on NPSMSvc: only run it
+        // while something is actually playing.
+        private void SyncPositionTimer()
+        {
+            try
+            {
+                if (_positionTimer == null) return;
+                if (_isPlaying && _currentSession != null && !_positionTimer.IsEnabled)
+                    _positionTimer.Start();
+                else if (!_isPlaying && _positionTimer.IsEnabled)
+                    _positionTimer.Stop();
+            }
+            catch { }
         }
 
         private void RadioBtn_Click(object sender, RoutedEventArgs e)
@@ -1302,6 +1334,7 @@ namespace Palisades.Plugins
             _positionLabel.Text = "0:00";
             _durationLabel.Text = "0:00";
             UpdateRadioButton();
+            SyncPositionTimer();
         }
 
         /// <summary>Renders an external gadget source (e.g. Radio) in the widget.</summary>
@@ -1322,6 +1355,7 @@ namespace Palisades.Plugins
             _positionLabel.Text = "0:00";
             _durationLabel.Text = "0:00";
             UpdateRadioButton();
+            SyncPositionTimer();
         }
 
         private static string FormatTime(TimeSpan ts)
