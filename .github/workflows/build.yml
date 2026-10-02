@@ -68,3 +68,14 @@ jobs:
           Palisades_setup.exe
           Palisades_portable.zip
         generate_release_notes: true
+
+  winget:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Submit package to WinGet
+        uses: vedantmgoyal2009/winget-releaser@v2
+        with:
+          identifier: Walkoud.Palisades
+          token: ${{ secrets.WINGET_TOKEN }}
