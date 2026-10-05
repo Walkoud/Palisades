@@ -289,7 +289,6 @@ namespace Palisades.ViewModels
             DynamicIslandService.Instance.Changed += OnServiceChanged;
             PluginService.Instance.PluginsChanged += RebuildWidgets;
             GadgetTypeDefaults.Instance.Changed += RefreshAllSettings;
-            ExternalNowPlaying.Changed += (_, _) => RefreshNowPlaying();
 
             _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _clockTimer.Tick += (_, _) =>
@@ -300,7 +299,15 @@ namespace Palisades.ViewModels
             };
 
             _posTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            _posTimer.Tick += (_, _) => RefreshTimeline();
+            _posTimer.Tick += (_, _) =>
+            {
+                // Ne pas interroger NPSMSvc en continu : le poll timeline n'a de
+                // sens que sur une lecture active (sinon pression RPC inutile,
+                // service qui pend et bloque la mise en veille).
+                if (!DynamicIslandService.Instance.Enabled) return;
+                if (_active == null || !NpPlaying) return;
+                RefreshTimeline();
+            };
 
             ApplyEnabledState();
         }
@@ -327,12 +334,17 @@ namespace Palisades.ViewModels
                         _smtcInitStarted = true;
                         _ = InitSmtcAsync();
                     }
+                    else if (_smtc != null)
+                    {
+                        AttachSmtc();
+                    }
                     RefreshNowPlaying();
                 }
                 else
                 {
                     _clockTimer.Stop();
                     _posTimer.Stop();
+                    DetachSmtc();
                 }
                 IslandDiag.Log($"VM runtime active={on}");
             }
@@ -464,12 +476,80 @@ namespace Palisades.ViewModels
             try
             {
                 _smtc = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-                _smtc.CurrentSessionChanged += (_, _) => RefreshNowPlaying();
-                _smtc.SessionsChanged += (_, _) => RefreshNowPlaying();
+                AttachSmtc();
                 RefreshNowPlaying();
             }
             catch { }
         }
+
+        private bool _extSubscribed;
+
+        /// <summary>Souscrit aux événements SMTC (manager) + bridge externe.
+        /// Idempotent : toujours désouscrire avant de réattacher.</summary>
+        private void AttachSmtc()
+        {
+            try
+            {
+                if (_smtc != null)
+                {
+                    _smtc.CurrentSessionChanged -= Smtc_CurrentSessionChanged;
+                    _smtc.CurrentSessionChanged += Smtc_CurrentSessionChanged;
+                    _smtc.SessionsChanged -= Smtc_SessionsChanged;
+                    _smtc.SessionsChanged += Smtc_SessionsChanged;
+                }
+                if (!_extSubscribed)
+                {
+                    ExternalNowPlaying.Changed += ExternalNowPlaying_Changed;
+                    _extSubscribed = true;
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>Désouscrit tout (manager, sessions suivies, bridge) quand
+        /// l'îlot est désactivé : sinon les enregistrements d'événements NPSM
+        /// restent vivants côté service et le font pendre (veille/arrêt bloqués).</summary>
+        private void DetachSmtc()
+        {
+            try
+            {
+                if (_smtc != null)
+                {
+                    _smtc.CurrentSessionChanged -= Smtc_CurrentSessionChanged;
+                    _smtc.SessionsChanged -= Smtc_SessionsChanged;
+                }
+                foreach (var s in _sessions) Untrack(s);
+                _sessions.Clear();
+                _active = null;
+                if (_extSubscribed)
+                {
+                    ExternalNowPlaying.Changed -= ExternalNowPlaying_Changed;
+                    _extSubscribed = false;
+                }
+            }
+            catch { }
+        }
+
+        private void Untrack(GlobalSystemMediaTransportControlsSession s)
+        {
+            try { s.MediaPropertiesChanged -= Session_MediaPropertiesChanged; } catch { }
+            try { s.PlaybackInfoChanged -= Session_PlaybackInfoChanged; } catch { }
+        }
+
+        private void Smtc_CurrentSessionChanged(GlobalSystemMediaTransportControlsSessionManager sender, CurrentSessionChangedEventArgs args)
+            => RefreshNowPlaying();
+
+        private void Smtc_SessionsChanged(GlobalSystemMediaTransportControlsSessionManager sender, SessionsChangedEventArgs args)
+            => RefreshNowPlaying();
+
+        private void ExternalNowPlaying_Changed(object? sender, EventArgs e)
+            => RefreshNowPlaying();
+
+        private void Session_MediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
+            => RefreshNowPlaying();
+
+        private void Session_PlaybackInfoChanged(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args)
+            => RefreshNowPlaying();
 
         private void RefreshNowPlaying()
         {
@@ -491,12 +571,16 @@ namespace Palisades.ViewModels
                 {
                     if (!_sessions.Contains(s))
                     {
-                        s.MediaPropertiesChanged += (_, _) => RefreshNowPlaying();
-                        s.PlaybackInfoChanged += (_, _) => RefreshNowPlaying();
+                        s.MediaPropertiesChanged += Session_MediaPropertiesChanged;
+                        s.PlaybackInfoChanged += Session_PlaybackInfoChanged;
                         _sessions.Add(s);
                     }
                 }
+                // Sessions disparues : se désabonner AVANT de les oublier, sinon
+                // leurs handlers gardent l'enregistrement NPSM vivant (fuite).
+                var gone = _sessions.Where(s => !sessions.Contains(s)).ToList();
                 _sessions.RemoveAll(s => !sessions.Contains(s));
+                foreach (var s in gone) Untrack(s);
 
                 _active = sessions.FirstOrDefault(s =>
                 {

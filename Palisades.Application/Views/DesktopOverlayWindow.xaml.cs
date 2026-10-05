@@ -3112,6 +3112,8 @@ private bool RouteClipboardCopy(Key key)
         // disk, so repeated explorer crashes stop triggering our restart.
         private int _lastShellPid;
         private int _pendingShellPid;
+        private bool _sessionEnding;
+        private bool _sessionEndingSubscribed;
         private const int MaxExplorerRestarts = 3;
         private static readonly TimeSpan ExplorerRestartWindow = TimeSpan.FromMinutes(10);
 
@@ -3119,6 +3121,15 @@ private bool RouteClipboardCopy(Key key)
         {
             try
             {
+                if (!_sessionEndingSubscribed)
+                {
+                    _sessionEndingSubscribed = true;
+                    // Pendant l'arrêt/fermeture de session, explorer.exe s'arrête :
+                    // sans ce garde-fou le watchdog le prend pour un crash et
+                    // relance Palisades en pleine transition d'alimentation
+                    // (peut bloquer l'arrêt/la veille).
+                    try { Microsoft.Win32.SystemEvents.SessionEnding += (_, _) => _sessionEnding = true; } catch { }
+                }
                 _explorerCheckTimer?.Stop();
                 _lastShellPid = GetShellPid();
                 _pendingShellPid = 0;
@@ -3145,6 +3156,7 @@ private bool RouteClipboardCopy(Key key)
         {
             try
             {
+                if (_sessionEnding) return; // arrêt/logoff en cours : ne pas relancer
                 int pid = GetShellPid();
                 if (pid == 0) { _pendingShellPid = 0; return; } // shell gone (crash in progress)
                 if (_lastShellPid == 0) { _lastShellPid = pid; _pendingShellPid = 0; return; } // baseline
