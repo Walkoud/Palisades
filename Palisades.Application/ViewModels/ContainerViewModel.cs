@@ -1926,26 +1926,10 @@ namespace Palisades.ViewModels
         private void StartOpacityAnimation(double to)
         {
             StopOpacityAnimation();
-            _opacityAnimFrom = _currentOpacity;
-            _opacityAnimTo = to;
-            _opacityAnimStart = DateTime.UtcNow;
-
-            _opacityRenderingHandler = (_, _) =>
-            {
-                double elapsed = (DateTime.UtcNow - _opacityAnimStart).TotalMilliseconds;
-                double dur = 150.0;
-                double t = Math.Min(1.0, elapsed / dur);
-                double eased = t * t * (3.0 - 2.0 * t);
-                CurrentOpacity = _opacityAnimFrom + (_opacityAnimTo - _opacityAnimFrom) * eased;
-
-                if (t >= 1.0)
-                {
-                    CompositionTarget.Rendering -= _opacityRenderingHandler;
-                    _opacityRenderingHandler = null;
-                    CurrentOpacity = _opacityAnimTo;
-                }
-            };
-            CompositionTarget.Rendering += _opacityRenderingHandler;
+            // Snap instead of per-frame alpha animation. A semi-transparent container
+            // forces WPF to re-composite an alpha surface every frame, which was the
+            // hover stutter (opacity=100 containers were perfectly smooth).
+            CurrentOpacity = to;
         }
 
         private void StopOpacityAnimation()
