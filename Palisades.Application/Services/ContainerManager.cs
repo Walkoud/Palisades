@@ -60,9 +60,12 @@ namespace Palisades.Services
             try
             {
                 var json = JsonConvert.SerializeObject(src, Formatting.Indented);
-                File.WriteAllText(_defaultsPath, json);
+                WriteJsonAtomic(_defaultsPath, json, "container defaults");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                try { App.Log(ex, "ContainerManager.SaveDefaults"); } catch { }
+            }
         }
 
         private void LoadDesktopIconPositions()
@@ -86,7 +89,7 @@ namespace Palisades.Services
             {
                 var data = new DesktopIconPositionsData { Positions = DesktopIconPositions };
                 var json = JsonConvert.SerializeObject(data, Formatting.Indented);
-                File.WriteAllText(_iconsPosPath, json);
+                WriteJsonAtomic(_iconsPosPath, json, "desktop icon positions");
             }
             catch { }
         }
@@ -139,13 +142,36 @@ namespace Palisades.Services
 
         public ContainerModel? LoadDefaults()
         {
+            for (int attempt = 0; attempt < 6; attempt++)
+            {
+                try
+                {
+                    if (!File.Exists(_defaultsPath)) return null;
+                    var json = File.ReadAllText(_defaultsPath);
+                    if (string.IsNullOrWhiteSpace(json)) return null;
+                    return JsonConvert.DeserializeObject<ContainerModel>(json);
+                }
+                catch
+                {
+                    System.Threading.Thread.Sleep(50 * (attempt + 1));
+                }
+            }
             try
             {
-                if (!File.Exists(_defaultsPath)) return null;
-                var json = File.ReadAllText(_defaultsPath);
-                return JsonConvert.DeserializeObject<ContainerModel>(json);
+                var backup = FindNewestBackup("container_defaults_*.json");
+                if (backup != null)
+                {
+                    var json = File.ReadAllText(backup);
+                    var model = JsonConvert.DeserializeObject<ContainerModel>(json);
+                    if (model != null)
+                    {
+                        try { App.Log("[ContainerManager] container_defaults.json unreadable, restored from " + backup); } catch { }
+                        return model;
+                    }
+                }
             }
-            catch { return null; }
+            catch { }
+            return null;
         }
 
         public void ApplyDefaults(ContainerModel target)
@@ -195,20 +221,19 @@ namespace Palisades.Services
 
         public void Load()
         {
-            try
+            bool loaded = TryLoadFrom(_savePath);
+            if (!loaded)
             {
-                if (File.Exists(_savePath))
+                // Main file missing/corrupt/truncated (e.g. killed mid-write).
+                // Fall back to the newest auto-backup instead of starting empty,
+                // which would rebuild every shortcut as unassigned on the desktop.
+                var backup = FindNewestBackup("containers_*.json");
+                if (backup != null && TryLoadFrom(backup))
                 {
-                    var json = File.ReadAllText(_savePath);
-                    var loaded = JsonConvert.DeserializeObject<List<ContainerModel>>(json);
-                    if (loaded != null)
-                    {
-                        _containers.Clear();
-                        _containers.AddRange(loaded);
-                    }
+                    loaded = true;
+                    try { App.Log("[ContainerManager] containers.json unreadable, restored from " + backup); } catch { }
                 }
             }
-            catch { }
 
             // Backward compat: mark containers with categories as managed
             foreach (var c in _containers)
@@ -227,13 +252,51 @@ namespace Palisades.Services
             ContainersChanged?.Invoke();
         }
 
-        public void Save()
+        private bool TryLoadFrom(string path)
+        {
+            for (int attempt = 0; attempt < 6; attempt++)
+            {
+                try
+                {
+                    if (!File.Exists(path)) return false;
+                    var json = File.ReadAllText(path);
+                    if (string.IsNullOrWhiteSpace(json)) return false;
+                    var loaded = JsonConvert.DeserializeObject<List<ContainerModel>>(json);
+                    if (loaded == null) return false;
+                    _containers.Clear();
+                    _containers.AddRange(loaded);
+                    return true;
+                }
+                catch
+                {
+                    System.Threading.Thread.Sleep(50 * (attempt + 1));
+                }
+            }
+            return false;
+        }
+
+        private static string? FindNewestBackup(string pattern)
         {
             try
             {
-                // Curtain containers: save open height (48.0 + CurtainOpenHeight)
-                // instead of closed height, so restart restores expanded size.
-                var restoreList = new List<(ContainerModel model, double origHeight)>();
+                string backupDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Palisades", "backups");
+                if (!Directory.Exists(backupDir)) return null;
+                return Directory.GetFiles(backupDir, pattern)
+                    .OrderByDescending(f => f)
+                    .FirstOrDefault();
+            }
+            catch { return null; }
+        }
+
+        public void Save()
+        {
+            // Curtain containers: save open height (48.0 + CurtainOpenHeight)
+            // instead of closed height, so restart restores expanded size.
+            var restoreList = new List<(ContainerModel model, double origHeight)>();
+            try
+            {
                 foreach (var c in _containers)
                 {
                     if (c.IsCurtainMode && c.Height <= 48.0)
@@ -243,11 +306,42 @@ namespace Palisades.Services
                     }
                 }
                 var json = JsonConvert.SerializeObject(_containers, Formatting.Indented);
-                File.WriteAllText(_savePath, json);
+                WriteJsonAtomic(_savePath, json, "containers");
+            }
+            catch (Exception ex)
+            {
+                try { App.Log(ex, "ContainerManager.Save"); } catch { }
+            }
+            finally
+            {
                 foreach (var (model, origHeight) in restoreList)
                     model.Height = origHeight;
             }
-            catch { }
+        }
+
+        /// <summary>
+        /// Atomic write (temp + rename) with retry. The 5-minute auto-backup copies
+        /// every *.json; a plain WriteAllText can hit a sharing violation and fail
+        /// silently, losing container edits (e.g. a shortcut added to a container).
+        /// </summary>
+        private static void WriteJsonAtomic(string path, string json, string tag)
+        {
+            string tmp = path + ".tmp";
+            for (int attempt = 0; attempt < 6; attempt++)
+            {
+                try
+                {
+                    File.WriteAllText(tmp, json);
+                    File.Move(tmp, path, true);
+                    return;
+                }
+                catch
+                {
+                    System.Threading.Thread.Sleep(50 * (attempt + 1));
+                }
+            }
+            try { App.Log($"[ContainerManager] {tag} save FAILED after retries: {path}"); } catch { }
+            try { File.Delete(tmp); } catch { }
         }
 
         public List<NoteItem> LoadNotes()
@@ -266,7 +360,7 @@ namespace Palisades.Services
             try
             {
                 var json = JsonConvert.SerializeObject(notes, Formatting.Indented);
-                File.WriteAllText(_notesPath, json);
+                WriteJsonAtomic(_notesPath, json, "notes");
             }
             catch { }
         }

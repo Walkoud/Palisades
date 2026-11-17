@@ -83,6 +83,11 @@ namespace Palisades.ViewModels
             get => DefaultModel.AutoSortTargetIdentifier ?? "";
             set
             {
+                // The ComboBox pushes null while its ItemsSource is being rebuilt
+                // (Clear + re-add). Ignore that so the saved destination isn't wiped
+                // and auto-sort doesn't silently fall back to the Desktop.
+                if (value == null) return;
+                if (string.Equals(DefaultModel.AutoSortTargetIdentifier, value, StringComparison.Ordinal)) return;
                 DefaultModel.AutoSortTargetIdentifier = value;
                 OnPropertyChanged();
                 ContainerManager.Instance.SaveDefaults(DefaultModel);
@@ -2133,11 +2138,21 @@ namespace Palisades.ViewModels
 
         public void RefreshDestinationOptions()
         {
+            var current = DefaultModel.AutoSortTargetIdentifier ?? "";
             DestinationOptions.Clear();
             DestinationOptions.Add(new DestinationOption(TranslationService.Instance["DestinationOption_Desktop"], ""));
             foreach (var c in Containers)
                 DestinationOptions.Add(new DestinationOption(c.Name, c.Identifier));
             OnPropertyChanged(nameof(DestinationOptions));
+
+            // Rebuilding the items resets the ComboBox selection; restore the
+            // saved identifier and tell the binding to re-resolve it.
+            if (!string.Equals(DefaultModel.AutoSortTargetIdentifier ?? "", current, StringComparison.Ordinal))
+            {
+                DefaultModel.AutoSortTargetIdentifier = current;
+                ContainerManager.Instance.SaveDefaults(DefaultModel);
+            }
+            OnPropertyChanged(nameof(AutoSortTargetIdentifier));
         }
 
         public ObservableCollection<SnapshotModel> Snapshots { get; } = new();
@@ -2826,6 +2841,8 @@ namespace Palisades.ViewModels
 
             if (DefaultModel.IsAutoSortEnabled)
                 AutoSortManager.Instance.Start();
+            else
+                AutoSortManager.Instance.Stop();
 
             TogglePluginCommand = new RelayCommand<PluginWrapper>(wrapper =>
             {

@@ -83,6 +83,7 @@
                                                 <Setter Property="Width" Value="6" />
                                                 <Setter Property="MinHeight" Value="24" />
                                                 <Setter Property="Background" Value="#55FFFFFF" />
+                                                <Setter Property="Opacity" Value="0" />
                                                 <Setter Property="Template">
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="Thumb">
@@ -92,6 +93,28 @@
                                                     </Setter.Value>
                                                 </Setter>
                                                 <Style.Triggers>
+                                                    <!-- Auto-hide: thumb fades in only while the mouse is over the
+                                                         container (click on the scrollbar included, since the
+                                                         scrollbar lives inside the ScrollViewer). -->
+                                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+                                                                 Value="True">
+                                                        <DataTrigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                     To="1" Duration="0:0:0.12" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.EnterActions>
+                                                        <DataTrigger.ExitActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                     To="0" Duration="0:0:0.35" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.ExitActions>
+                                                    </DataTrigger>
                                                     <Trigger Property="IsMouseOver" Value="True">
                                                         <Setter Property="Width" Value="8" />
                                                         <Setter Property="Background" Value="#99FFFFFF" />
@@ -99,6 +122,7 @@
                                                     <Trigger Property="IsDragging" Value="True">
                                                         <Setter Property="Width" Value="8" />
                                                         <Setter Property="Background" Value="#CCFFFFFF" />
+                                                        <Setter Property="Opacity" Value="1" />
                                                     </Trigger>
                                                 </Style.Triggers>
                                             </Style>

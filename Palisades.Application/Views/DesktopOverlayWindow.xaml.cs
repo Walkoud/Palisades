@@ -948,26 +948,60 @@ namespace Palisades.Views
             };
 
             string key = item.ShortcutPath ?? item.TargetPath ?? item.Name;
-            _iconElements[key] = border;
-            OverlayCanvas.Children.Add(border);
 
             var pos = ContainerManager.Instance.GetDesktopIconPosition(key);
-            if (pos.HasValue)
+            Point placed;
+            if (pos.HasValue && !IconRectOverlaps(pos.Value.X, pos.Value.Y, border.Width, border.Height, border))
             {
-                Canvas.SetLeft(border, pos.Value.X);
-                Canvas.SetTop(border, pos.Value.Y);
+                placed = pos.Value;
             }
             else
             {
-                int idx = _iconElements.Count - 1;
-                int rows = Math.Max(1, (int)((Height - 12) / 96));
-                int col = idx / rows;
-                int row = idx % rows;
-                double x = 12 + col * 88;
-                double y = 12 + row * 96;
-                Canvas.SetLeft(border, x);
-                Canvas.SetTop(border, y);
+                placed = FindFreeDesktopIconSlot(border.Width, border.Height, border);
             }
+
+            Canvas.SetLeft(border, placed.X);
+            Canvas.SetTop(border, placed.Y);
+            _iconElements[key] = border;
+            OverlayCanvas.Children.Add(border);
+        }
+
+        private static readonly double _desktopIconCellW = 88;
+        private static readonly double _desktopIconCellH = 96;
+        private const double _desktopIconOriginX = 12;
+        private const double _desktopIconOriginY = 12;
+
+        private bool IconRectOverlaps(double x, double y, double width, double height, Border? exclude)
+        {
+            var rect = new Rect(x, y, width, height);
+            foreach (var b in _iconElements.Values)
+            {
+                if (ReferenceEquals(b, exclude)) continue;
+                double l = Canvas.GetLeft(b);
+                double t = Canvas.GetTop(b);
+                if (double.IsNaN(l) || double.IsNaN(t)) continue;
+                if (rect.IntersectsWith(new Rect(l, t, b.Width, b.Height)))
+                    return true;
+            }
+            return false;
+        }
+
+        private Point FindFreeDesktopIconSlot(double width, double height, Border? exclude)
+        {
+            int rows = Math.Max(1, (int)((Height - _desktopIconOriginY) / _desktopIconCellH));
+            const int maxCols = 200;
+            for (int col = 0; col < maxCols; col++)
+            {
+                for (int row = 0; row < rows; row++)
+                {
+                    double x = _desktopIconOriginX + col * _desktopIconCellW;
+                    double y = _desktopIconOriginY + row * _desktopIconCellH;
+                    if (!IconRectOverlaps(x, y, width, height, exclude))
+                        return new Point(x, y);
+                }
+            }
+            int col2 = _iconElements.Count;
+            return new Point(_desktopIconOriginX + col2 * _desktopIconCellW, _desktopIconOriginY);
         }
 
         private void UpdateSelectionVisual()
@@ -5458,6 +5492,30 @@ private bool RouteClipboardCopy(Key key)
             trigger.Setters.Add(new Setter(Button.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x35, 0x40, 0x50))));
             trigger.Setters.Add(new Setter(Button.ForegroundProperty, new SolidColorBrush(Color.FromRgb(0x7D, 0xD3, 0xFC))));
             btnStyle.Triggers.Add(trigger);
+
+            var btnPalisades = new Button { Content = "Palisades", Style = btnStyle, FontWeight = FontWeights.SemiBold };
+            btnPalisades.Click += (s, e) =>
+            {
+                CancelDrawMenu();
+                try
+                {
+                    if (System.Windows.Application.Current is App app)
+                        app.GetDashboardWindow();
+                }
+                catch (Exception ex)
+                {
+                    App.Log(ex, "OpenDashboardFromDrawMenu");
+                }
+            };
+            stack.Children.Add(btnPalisades);
+
+            var separator = new Border
+            {
+                Height = 1,
+                Margin = new Thickness(8, 3, 8, 3),
+                Background = new SolidColorBrush(Color.FromRgb(0x44, 0x44, 0x44))
+            };
+            stack.Children.Add(separator);
 
             var btnNormal = new Button { Content = "Standard Container", Style = btnStyle };
             btnNormal.Click += (s, e) =>

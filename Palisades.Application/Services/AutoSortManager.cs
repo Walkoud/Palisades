@@ -182,14 +182,28 @@ namespace Palisades.Services
 
                 if (item != null)
                 {
+                    bool alreadyThere = target.Shortcuts.Any(s =>
+                        (!string.IsNullOrEmpty(s.ShortcutPath) &&
+                         string.Equals(s.ShortcutPath, item.ShortcutPath, StringComparison.OrdinalIgnoreCase)) ||
+                        (string.Equals(s.Name, item.Name, StringComparison.OrdinalIgnoreCase) &&
+                         string.Equals(s.TargetPath, item.TargetPath, StringComparison.OrdinalIgnoreCase)));
+                    if (alreadyThere)
+                    {
+                        refreshUnassigned = true;
+                        continue;
+                    }
+
                     target.Shortcuts.Add(item);
-                    ContainerManager.Instance.Save();
                     sorted++;
+                    refreshUnassigned = true;
 
                     try { ShortcutSorted?.Invoke($"{item.Name} → {target.Name}"); }
                     catch { }
                 }
             }
+
+            if (sorted > 0)
+                ContainerManager.Instance.Save();
 
             if (refreshUnassigned)
                 ContainerManager.Instance.RefreshUnassignedShortcuts();

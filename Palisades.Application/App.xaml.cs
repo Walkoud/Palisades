@@ -193,12 +193,14 @@ namespace Palisades
             }
             catch { }
 
-            // Start auto-sort engine (watches desktop for new shortcuts)
+            // Start auto-sort engine (watches desktop for new shortcuts), but only
+            // if the user enabled it — otherwise it would run on every boot.
             AutoSortManager.Instance.ShortcutSorted += (msg) =>
             {
                 SafeDispatch(() => _trayService?.ShowNotification("Palisades Auto-Sort", msg));
             };
-            AutoSortManager.Instance.Start();
+            if (_mainViewModel?.IsAutoSortEnabled ?? true)
+                AutoSortManager.Instance.Start();
 
             // Set up tray icon
             SetupTray();
