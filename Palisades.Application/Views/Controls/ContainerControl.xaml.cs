@@ -329,8 +329,8 @@ namespace Palisades.Views.Controls
                     if (e.PropertyName == nameof(ContainerViewModel.CornerRadius))
                         UpdateClip();
 
-                    if (e.PropertyName == nameof(ContainerViewModel.IsHovered) && _parentCanvas != null)
-                        Canvas.SetZIndex(this, viewModel.IsHovered ? 100 : 1);
+                    // ZIndex change on hover reorders the overlay render tree and
+                    // was hitching another container's close animation. Keep it fixed.
 
                     if (e.PropertyName == nameof(ContainerViewModel.ContainerThemeName))
                         UpdateContainerTheme();

@@ -1079,11 +1079,18 @@ namespace Palisades.ViewModels
                 OnPropertyChanged(nameof(IsVisuallyCollapsed));
                 OnPropertyChanged(nameof(ChevronAngle));
 
-                // Opacity transition: fade to active when hovered, idle when not
+                // Opacity transition: active on hover, idle otherwise (snap).
+                // Deferred while another container is animating its size: changing
+                // alpha costs a full re-composite and would hitch that animation.
                 double targetOpacity = value ? ActiveTargetOpacity : IdleTargetOpacity;
-                // Only animate if the target is different from current
                 if (Math.Abs(targetOpacity - _currentOpacity) > 0.005)
-                    StartOpacityAnimation(targetOpacity);
+                {
+                    if ((_activeHeightAnimOwner != null && _activeHeightAnimOwner != this) ||
+                        (_activeWidthAnimOwner != null && _activeWidthAnimOwner != this))
+                        SchedulePendingOpacity(targetOpacity);
+                    else
+                        StartOpacityAnimation(targetOpacity);
+                }
 
                 if (_model.IsCurtainMode)
                 {
@@ -1103,13 +1110,12 @@ namespace Palisades.ViewModels
                     {
                         _autoHideTimer?.Stop();
                         if (ClipHeight < _fullHeight || _isAnimatingHeight)
-                        {
                             StartHeightAnimation(_fullHeight, ShowDurMs);
-                        }
                     }
                     else
                     {
-                        if (!IsDragging)
+                        if (!IsDragging &&
+                            (ClipHeight > CollapsedHeight + 0.5 || _isAnimatingHeight))
                         {
                             StartHeightAnimation(CollapsedHeight, HideDurMs);
                         }
@@ -1698,6 +1704,10 @@ namespace Palisades.ViewModels
         private double _heightAnimDuration;
         private double _heightAnimStartY;
         private bool _isAnimatingHeight;
+        // Only one size animation at a time: sweeping the mouse across containers
+        // used to stack many concurrent layout animations, which made the container
+        // the user actually wanted to open stutter.
+        private static ContainerViewModel? _activeHeightAnimOwner;
         private DateTime _opacityAnimStart;
         private double _opacityAnimFrom;
         private double _opacityAnimTo;
@@ -1706,6 +1716,12 @@ namespace Palisades.ViewModels
         {
             double currentClip = _clipHeight;
             StopHeightAnimation();
+            // Already at the target: nothing to animate. Hovering an already-open
+            // container used to restart a full no-op animation (visible stutter).
+            if (Math.Abs(currentClip - to) < 0.5) return;
+            if (_activeHeightAnimOwner != null && _activeHeightAnimOwner != this)
+                _activeHeightAnimOwner.FinishHeightAnimationInstantly();
+            _activeHeightAnimOwner = this;
             _heightAnimFrom = currentClip;
             _heightAnimTo = to;
             _heightAnimDuration = durationMs;
@@ -1762,6 +1778,7 @@ namespace Palisades.ViewModels
                         _model.FullHeight = _heightAnimTo;
                     }
                     _isAnimatingHeight = false;
+                    if (_activeHeightAnimOwner == this) _activeHeightAnimOwner = null;
                 }
             };
             CompositionTarget.Rendering += _renderingHandler;
@@ -1774,8 +1791,31 @@ namespace Palisades.ViewModels
                 CompositionTarget.Rendering -= _renderingHandler;
                 _renderingHandler = null;
             }
+            if (_activeHeightAnimOwner == this) _activeHeightAnimOwner = null;
             _isAnimatingHeight = false;
             _suppressSave = false;
+        }
+
+        /// <summary>Jump to the end of the running height animation instantly (used
+        /// when another container takes over the single animation slot).</summary>
+        private void FinishHeightAnimationInstantly()
+        {
+            if (_renderingHandler != null)
+            {
+                CompositionTarget.Rendering -= _renderingHandler;
+                _renderingHandler = null;
+            }
+            if (_activeHeightAnimOwner == this) _activeHeightAnimOwner = null;
+            _suppressSave = false;
+            _isAnimatingHeight = false;
+            ClipHeight = _heightAnimTo;
+            _model.Height = _heightAnimTo;
+            OnPropertyChanged(nameof(Height));
+            if (_heightAnimTo > _fullHeight)
+            {
+                _fullHeight = _heightAnimTo;
+                _model.FullHeight = _heightAnimTo;
+            }
         }
 
         public void StartHeightAnimationIfHovered()
@@ -1810,11 +1850,16 @@ namespace Palisades.ViewModels
         private double _widthAnimDuration;
         private double _widthAnimStartX;
         private bool _isAnimatingWidth;
+        private static ContainerViewModel? _activeWidthAnimOwner;
 
         public void StartWidthAnimation(double to, double durationMs)
         {
             double currentClip = _isAnimatingWidth ? _clipWidth : Width;
             StopWidthAnimation();
+            if (Math.Abs(currentClip - to) < 0.5) return;
+            if (_activeWidthAnimOwner != null && _activeWidthAnimOwner != this)
+                _activeWidthAnimOwner.FinishWidthAnimationInstantly();
+            _activeWidthAnimOwner = this;
             _widthAnimFrom = currentClip;
             _widthAnimTo = to;
             _widthAnimDuration = durationMs;
@@ -1867,6 +1912,7 @@ namespace Palisades.ViewModels
                     _widthRenderingHandler = null;
                     _suppressSave = false;
                     _isAnimatingWidth = false;
+                    if (_activeWidthAnimOwner == this) _activeWidthAnimOwner = null;
 
                     ClipWidth = _widthAnimTo;
                     // Restore Width to closed size if curtain closing
@@ -1891,8 +1937,26 @@ namespace Palisades.ViewModels
                 CompositionTarget.Rendering -= _widthRenderingHandler;
                 _widthRenderingHandler = null;
             }
+            if (_activeWidthAnimOwner == this) _activeWidthAnimOwner = null;
             _isAnimatingWidth = false;
             _suppressSave = false;
+        }
+
+        private void FinishWidthAnimationInstantly()
+        {
+            if (_widthRenderingHandler != null)
+            {
+                CompositionTarget.Rendering -= _widthRenderingHandler;
+                _widthRenderingHandler = null;
+            }
+            if (_activeWidthAnimOwner == this) _activeWidthAnimOwner = null;
+            _suppressSave = false;
+            _isAnimatingWidth = false;
+            _model.Width = _widthAnimTo;
+            OnPropertyChanged(nameof(Width));
+            ClipWidth = _widthAnimTo;
+            if (CurtainDirection == "RightToLeft")
+                X = _rightEdgeDockX - _widthAnimTo;
         }
 
         public void StartWidthAnimationIfHovered()
@@ -1930,6 +1994,30 @@ namespace Palisades.ViewModels
             // forces WPF to re-composite an alpha surface every frame, which was the
             // hover stutter (opacity=100 containers were perfectly smooth).
             CurrentOpacity = to;
+        }
+
+        private System.Windows.Threading.DispatcherTimer? _pendingOpacityTimer;
+        private double _pendingOpacityTarget;
+
+        private void SchedulePendingOpacity(double to)
+        {
+            _pendingOpacityTarget = to;
+            if (_pendingOpacityTimer != null) return;
+            _pendingOpacityTimer = new System.Windows.Threading.DispatcherTimer(
+                System.Windows.Threading.DispatcherPriority.Input)
+            {
+                Interval = TimeSpan.FromMilliseconds(100)
+            };
+            _pendingOpacityTimer.Tick += (_, _) =>
+            {
+                bool busy = (_activeHeightAnimOwner != null && _activeHeightAnimOwner != this) ||
+                            (_activeWidthAnimOwner != null && _activeWidthAnimOwner != this);
+                if (busy) return; // retry next tick
+                _pendingOpacityTimer?.Stop();
+                _pendingOpacityTimer = null;
+                StartOpacityAnimation(_pendingOpacityTarget);
+            };
+            _pendingOpacityTimer.Start();
         }
 
         private void StopOpacityAnimation()

@@ -93,24 +93,15 @@
                                                     </Setter.Value>
                                                 </Setter>
                                                 <Style.Triggers>
-                                                    <!-- Auto-hide: thumb fades in only while the mouse is over the
-                                                         container (click on the scrollbar included, since the
-                                                         scrollbar lives inside the ScrollViewer). -->
-                                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+                                                    <!-- Auto-hide: thumb visible while the container is hovered. -->
+                                                    <DataTrigger Binding="{Binding IsHovered}"
                                                                  Value="True">
-                                                        <DataTrigger.EnterActions>
-                                                            <BeginStoryboard>
-                                                                <Storyboard>
-                                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                                     To="1" Duration="0:0:0.12" />
-                                                                </Storyboard>
-                                                            </BeginStoryboard>
-                                                        </DataTrigger.EnterActions>
+                                                        <Setter Property="Opacity" Value="1" />
                                                         <DataTrigger.ExitActions>
                                                             <BeginStoryboard>
                                                                 <Storyboard>
                                                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                                     To="0" Duration="0:0:0.35" />
+                                                                                     To="0" Duration="0:0:1.2" />
                                                                 </Storyboard>
                                                             </BeginStoryboard>
                                                         </DataTrigger.ExitActions>
